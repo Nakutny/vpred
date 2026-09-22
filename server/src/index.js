@@ -37,5 +37,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT}`);
+  console.log(`vpred.org server running on port ${PORT} [v2]`);
 });
