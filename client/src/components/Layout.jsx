@@ -24,7 +24,6 @@ export default function Layout({ children }) {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Navbar */}
       <header style={{
         background: 'var(--surface)',
         borderBottom: '1px solid var(--border)',
@@ -33,7 +32,6 @@ export default function Layout({ children }) {
         zIndex: 100,
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 60, gap: 24 }}>
-          {/* Logo */}
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L3 20h18L12 2z" fill="var(--accent)" opacity="0.9"/>
@@ -44,14 +42,12 @@ export default function Layout({ children }) {
             </span>
           </Link>
 
-          {/* Nav links */}
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <NavLink to="/" label="Feed" active={location.pathname === '/'} />
             <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
             {isAdmin && <NavLink to="/admin" label="Admin" active={location.pathname.startsWith('/admin')} accent />}
           </nav>
 
-          {/* Search */}
           <form onSubmit={handleSearch} style={{ flex: 1, maxWidth: 340 }}>
             <div style={{ position: 'relative' }}>
               <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -67,7 +63,6 @@ export default function Layout({ children }) {
             </div>
           </form>
 
-          {/* Right side */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
             {user ? (
               <>
@@ -88,21 +83,61 @@ export default function Layout({ children }) {
                     {user.username[0].toUpperCase()}
                   </button>
                   {menuOpen && (
-                    <div style={{
-                      position: 'absolute', right: 0, top: 42,
-                      background: 'var(--surface2)', border: '1px solid var(--border)',
-                      borderRadius: 10, padding: '6px', minWidth: 180, zIndex: 200,
-                    }}>
-                      <div style={{ padding: '8px 12px 10px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username}</div>
-                        <div style={{ color: 'var(--muted)', fontSize: 12 }}>{user.email}</div>
+                    <>
+                      {/* Backdrop to close menu */}
+                      <div
+                        onClick={() => setMenuOpen(false)}
+                        style={{ position: 'fixed', inset: 0, zIndex: 150 }}
+                      />
+                      <div style={{
+                        position: 'absolute', right: 0, top: 42,
+                        background: 'var(--surface2)', border: '1px solid var(--border)',
+                        borderRadius: 10, padding: '6px', minWidth: 180, zIndex: 200,
+                      }}>
+                        <div style={{ padding: '8px 12px 10px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{user.email}</div>
+                        </div>
+                        <Link
+                          to={`/profile/${user.username}`}
+                          onClick={() => setMenuOpen(false)}
+                          style={{
+                            display: 'block', padding: '8px 12px', borderRadius: 6,
+                            fontSize: 14, color: 'var(--text)',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--border)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          My profile
+                        </Link>
+                        {isAdmin && (
+                          <Link
+                            to="/admin"
+                            onClick={() => setMenuOpen(false)}
+                            style={{
+                              display: 'block', padding: '8px 12px', borderRadius: 6,
+                              fontSize: 14, color: 'var(--text)',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--border)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            Admin Panel
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => { handleLogout(); setMenuOpen(false); }}
+                          style={{
+                            width: '100%', textAlign: 'left', padding: '8px 12px',
+                            background: 'transparent', border: 'none', cursor: 'pointer',
+                            borderRadius: 6, fontSize: 14, color: 'var(--danger)',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--border)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          Sign out
+                        </button>
                       </div>
-                      <DropdownItem onClick={() => { navigate(`/profile/${user.username}`); setMenuOpen(false); }} label="My profile" />
-                      {isAdmin && (
-                        <DropdownItem onClick={() => { navigate('/admin'); setMenuOpen(false); }} label="Admin Panel" />
-                      )}
-                      <DropdownItem onClick={() => { handleLogout(); setMenuOpen(false); }} label="Sign out" danger />
-                    </div>
+                    </>
                   )}
                 </div>
               </>
@@ -116,12 +151,10 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      {/* Main */}
       <main style={{ flex: 1 }}>
         {children}
       </main>
 
-      {/* Footer */}
       <footer style={{
         borderTop: '1px solid var(--border)',
         padding: '28px 24px',
@@ -158,22 +191,5 @@ function NavLink({ to, label, active, accent }) {
     }}>
       {label}
     </Link>
-  );
-}
-
-function DropdownItem({ onClick, label, danger }) {
-  return (
-    <button onClick={onClick} style={{
-      width: '100%', textAlign: 'left', padding: '8px 12px',
-      background: 'transparent', border: 'none', cursor: 'pointer',
-      borderRadius: 6, fontSize: 14,
-      color: danger ? 'var(--danger)' : 'var(--text)',
-      transition: 'background 0.1s',
-    }}
-    onMouseEnter={e => e.target.style.background = 'var(--border)'}
-    onMouseLeave={e => e.target.style.background = 'transparent'}
-    >
-      {label}
-    </button>
   );
 }

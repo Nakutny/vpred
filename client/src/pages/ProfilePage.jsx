@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { profile as profileApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import PostCard from '../components/PostCard';
@@ -7,33 +7,33 @@ import PostCard from '../components/PostCard';
 export default function ProfilePage() {
   const { username } = useParams();
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [tab, setTab] = useState('posts');
 
-  // Bio edit
   const [bio, setBio] = useState('');
   const [bioMsg, setBioMsg] = useState('');
   const [bioSaving, setBioSaving] = useState(false);
 
-  // Password change
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [pwMsg, setPwMsg] = useState('');
   const [pwError, setPwError] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
 
-  const isOwn = user?.username === username;
+  const isOwn = user?.username?.toLowerCase() === username?.toLowerCase();
 
   useEffect(() => {
     setLoading(true);
+    setError('');
+    setData(null);
     profileApi.get(username)
       .then(d => {
         setData(d);
         setBio(d.user.bio || '');
       })
-      .catch(() => navigate('/'))
+      .catch(err => setError(err.message || 'Failed to load profile.'))
       .finally(() => setLoading(false));
   }, [username]);
 
@@ -86,7 +86,16 @@ export default function ProfilePage() {
   }
 
   if (loading) return (
-    <div style={{ maxWidth: 900, margin: '60px auto', padding: '0 24px', color: 'var(--muted)' }}>Loading...</div>
+    <div style={{ maxWidth: 900, margin: '60px auto', padding: '0 24px', color: 'var(--muted)', fontSize: 14 }}>
+      Loading profile...
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ maxWidth: 900, margin: '60px auto', padding: '0 24px' }}>
+      <div style={{ color: 'var(--danger)', fontSize: 14, marginBottom: 16 }}>{error}</div>
+      <Link to="/" className="btn btn-ghost btn-sm">← Back to feed</Link>
+    </div>
   );
 
   if (!data) return null;
@@ -103,7 +112,6 @@ export default function ProfilePage() {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       {/* Profile header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 36, paddingBottom: 32, borderBottom: '1px solid var(--border)' }}>
-        {/* Avatar */}
         <div style={{
           width: 72, height: 72, borderRadius: '50%',
           background: 'var(--accent)', flexShrink: 0,
@@ -123,7 +131,7 @@ export default function ProfilePage() {
             </p>
           ) : isOwn ? (
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 10, fontStyle: 'italic' }}>
-              No bio yet. Add one below.
+              No bio yet. Add one in "Edit profile".
             </p>
           ) : null}
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -194,7 +202,6 @@ export default function ProfilePage() {
                 maxLength={300}
               />
             </div>
-
             {bioMsg && (
               <div style={{
                 padding: '10px 14px', borderRadius: 7, marginBottom: 14, fontSize: 13,
@@ -205,7 +212,6 @@ export default function ProfilePage() {
                 {bioMsg}
               </div>
             )}
-
             <button type="submit" disabled={bioSaving} className="btn btn-primary">
               {bioSaving ? 'Saving...' : 'Save bio'}
             </button>
@@ -222,44 +228,29 @@ export default function ProfilePage() {
           <form onSubmit={handlePasswordChange}>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Current password</label>
-              <input
-                className="input"
-                type="password"
-                placeholder="••••••••"
+              <input className="input" type="password" placeholder="••••••••"
                 value={pwForm.currentPassword}
                 onChange={e => setPwForm(f => ({ ...f, currentPassword: e.target.value }))}
-                required
-              />
+                required />
             </div>
-
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>New password</label>
-              <input
-                className="input"
-                type="password"
-                placeholder="Min. 8 characters"
+              <input className="input" type="password" placeholder="Min. 8 characters"
                 value={pwForm.newPassword}
                 onChange={e => setPwForm(f => ({ ...f, newPassword: e.target.value }))}
-                required minLength={8}
-              />
+                required minLength={8} />
             </div>
-
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Confirm new password</label>
-              <input
-                className="input"
-                type="password"
-                placeholder="Repeat new password"
+              <input className="input" type="password" placeholder="Repeat new password"
                 value={pwForm.confirmPassword}
                 onChange={e => setPwForm(f => ({ ...f, confirmPassword: e.target.value }))}
                 required
-                style={pwForm.confirmPassword && pwForm.newPassword !== pwForm.confirmPassword ? { borderColor: 'var(--danger)' } : {}}
-              />
+                style={pwForm.confirmPassword && pwForm.newPassword !== pwForm.confirmPassword ? { borderColor: 'var(--danger)' } : {}} />
               {pwForm.confirmPassword && pwForm.newPassword !== pwForm.confirmPassword && (
                 <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>Passwords do not match.</p>
               )}
             </div>
-
             {pwError && (
               <div style={{ background: 'rgba(224,82,82,0.1)', border: '1px solid var(--danger)', borderRadius: 7, padding: '10px 14px', marginBottom: 14, color: 'var(--danger)', fontSize: 13 }}>
                 {pwError}
@@ -270,7 +261,6 @@ export default function ProfilePage() {
                 {pwMsg}
               </div>
             )}
-
             <button type="submit" disabled={pwSaving} className="btn btn-primary">
               {pwSaving ? 'Updating...' : 'Change password'}
             </button>

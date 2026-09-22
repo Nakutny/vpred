@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// IMPORTANT: /me routes must come BEFORE /:username to avoid Express treating "me" as a username
+// PATCH /me routes MUST come before /:username
 
 // PATCH /api/profile/me/bio
 router.patch('/me/bio', requireAuth, async (req, res) => {
@@ -26,20 +26,17 @@ router.patch('/me/bio', requireAuth, async (req, res) => {
 router.patch('/me/password', requireAuth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'Both current and new password are required.' });
     }
     if (newPassword.length < 8) {
       return res.status(400).json({ error: 'New password must be at least 8 characters.' });
     }
-
     const result = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
     const valid = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Current password is incorrect.' });
     }
-
     const newHash = await bcrypt.hash(newPassword, 12);
     await query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, req.user.id]);
     res.json({ message: 'Password updated.' });
@@ -49,14 +46,17 @@ router.patch('/me/password', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/profile/:username - public profile (must be last)
+// GET /api/profile/:username
 router.get('/:username', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, username, bio, created_at FROM users WHERE username = $1 AND is_banned = FALSE`,
+      `SELECT id, username, bio, created_at FROM users WHERE LOWER(username) = LOWER($1)`,
       [req.params.username]
     );
-    if (!result.rows[0]) return res.status(404).json({ error: 'User not found.' });
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
 
     const posts = await query(
       `SELECT p.id, p.title, p.slug, p.summary, p.view_count, p.created_at,
