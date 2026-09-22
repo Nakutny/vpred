@@ -53,9 +53,16 @@ export const categories = {
 // Admin
 export const admin = {
   users: () => request('/api/admin/users'),
-  banUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'POST' }),
-  unbanUser: (id) => request(`/api/admin/users/${id}/unban`, { method: 'POST' }),
+  banUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned: true }) }),
+  unbanUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned: false }) }),
   setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-  pendingPosts: () => request('/api/admin/posts/pending'),
-  removePost: (id) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
+  posts: () => request('/api/admin/posts'),
+  setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+};
+
+// Profile
+export const profile = {
+  get: (username) => request(`/api/profile/${username}`),
+  updateBio: (bio) => request('/api/profile/me/bio', { method: 'PATCH', body: JSON.stringify({ bio }) }),
+  changePassword: (body) => request('/api/profile/me/password', { method: 'PATCH', body: JSON.stringify(body) }),
 };

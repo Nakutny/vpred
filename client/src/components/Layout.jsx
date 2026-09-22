@@ -97,6 +97,7 @@ export default function Layout({ children }) {
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username}</div>
                         <div style={{ color: 'var(--muted)', fontSize: 12 }}>{user.email}</div>
                       </div>
+                      <DropdownItem onClick={() => { navigate(`/profile/${user.username}`); setMenuOpen(false); }} label="My profile" />
                       {isAdmin && (
                         <DropdownItem onClick={() => { navigate('/admin'); setMenuOpen(false); }} label="Admin Panel" />
                       )}

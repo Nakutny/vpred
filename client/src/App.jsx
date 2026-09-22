@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import AdminPage from './pages/AdminPage';
 import CategoryPage from './pages/CategoryPage';
 import CategoriesPage from './pages/CategoriesPage';
+import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/category/:slug" element={<CategoryPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/profile/:username" element={<ProfilePage />} />
           </Routes>
         </Layout>
       </AuthProvider>
