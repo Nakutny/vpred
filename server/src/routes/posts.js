@@ -6,10 +6,10 @@ import { requireAuth, requireAdmin, requireModerator, optionalAuth } from '../mi
 const router = express.Router();
 
 function makeSlug(title) {
-  return slugify(title, { lower: true, strict: true, locale: 'de' }) + '-' + Date.now().toString(36);
+  return slugify(title, { lower: true, strict: true }) + '-' + Date.now().toString(36);
 }
 
-// GET /api/posts - alle Posts (mit Pagination)
+// GET /api/posts
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -66,11 +66,11 @@ router.get('/', optionalAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('Get posts error:', err);
-    res.status(500).json({ error: 'Fehler beim Laden der Posts' });
+    res.status(500).json({ error: 'Failed to load posts.' });
   }
 });
 
-// GET /api/posts/:slug - einzelner Post
+// GET /api/posts/:slug
 router.get('/:slug', optionalAuth, async (req, res) => {
   try {
     const result = await query(
@@ -90,13 +90,11 @@ router.get('/:slug', optionalAuth, async (req, res) => {
     );
 
     if (!result.rows[0]) {
-      return res.status(404).json({ error: 'Post nicht gefunden' });
+      return res.status(404).json({ error: 'Post not found.' });
     }
 
-    // View Count erhöhen
     await query('UPDATE posts SET view_count = view_count + 1 WHERE id = $1', [result.rows[0].id]);
 
-    // Hat eingeloggter User gevoted?
     let userVoted = false;
     if (req.user) {
       const voteResult = await query(
@@ -109,20 +107,20 @@ router.get('/:slug', optionalAuth, async (req, res) => {
     res.json({ post: { ...result.rows[0], userVoted } });
   } catch (err) {
     console.error('Get post error:', err);
-    res.status(500).json({ error: 'Fehler beim Laden des Posts' });
+    res.status(500).json({ error: 'Failed to load post.' });
   }
 });
 
-// POST /api/posts - Post erstellen
+// POST /api/posts
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { title, content, summary, category_id, status = 'published' } = req.body;
 
     if (!title?.trim() || !content?.trim()) {
-      return res.status(400).json({ error: 'Titel und Inhalt sind erforderlich' });
+      return res.status(400).json({ error: 'Title and content are required.' });
     }
     if (title.length > 300) {
-      return res.status(400).json({ error: 'Titel zu lang (max 300 Zeichen)' });
+      return res.status(400).json({ error: 'Title is too long (max 300 characters).' });
     }
 
     const slug = makeSlug(title);
@@ -137,20 +135,20 @@ router.post('/', requireAuth, async (req, res) => {
     res.status(201).json({ post: result.rows[0] });
   } catch (err) {
     console.error('Create post error:', err);
-    res.status(500).json({ error: 'Fehler beim Erstellen des Posts' });
+    res.status(500).json({ error: 'Failed to create post.' });
   }
 });
 
-// PATCH /api/posts/:id - Post bearbeiten
+// PATCH /api/posts/:id
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const post = await query('SELECT * FROM posts WHERE id = $1', [req.params.id]);
-    if (!post.rows[0]) return res.status(404).json({ error: 'Post nicht gefunden' });
+    if (!post.rows[0]) return res.status(404).json({ error: 'Post not found.' });
 
     const isOwner = post.rows[0].author_id === req.user.id;
     const isAdmin = req.user.role === 'admin';
     if (!isOwner && !isAdmin) {
-      return res.status(403).json({ error: 'Keine Berechtigung' });
+      return res.status(403).json({ error: 'You do not have permission to edit this post.' });
     }
 
     const { title, content, summary, category_id, status } = req.body;
@@ -171,31 +169,31 @@ router.patch('/:id', requireAuth, async (req, res) => {
     res.json({ post: result.rows[0] });
   } catch (err) {
     console.error('Update post error:', err);
-    res.status(500).json({ error: 'Fehler beim Bearbeiten' });
+    res.status(500).json({ error: 'Failed to update post.' });
   }
 });
 
-// DELETE /api/posts/:id - Post entfernen (nur Admin/Autor)
+// DELETE /api/posts/:id
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const post = await query('SELECT * FROM posts WHERE id = $1', [req.params.id]);
-    if (!post.rows[0]) return res.status(404).json({ error: 'Post nicht gefunden' });
+    if (!post.rows[0]) return res.status(404).json({ error: 'Post not found.' });
 
     const isOwner = post.rows[0].author_id === req.user.id;
     const isAdmin = req.user.role === 'admin';
     if (!isOwner && !isAdmin) {
-      return res.status(403).json({ error: 'Keine Berechtigung' });
+      return res.status(403).json({ error: 'You do not have permission to remove this post.' });
     }
 
     await query("UPDATE posts SET status = 'removed' WHERE id = $1", [req.params.id]);
-    res.json({ message: 'Post entfernt' });
+    res.json({ message: 'Post removed.' });
   } catch (err) {
     console.error('Delete post error:', err);
-    res.status(500).json({ error: 'Fehler beim Entfernen' });
+    res.status(500).json({ error: 'Failed to remove post.' });
   }
 });
 
-// POST /api/posts/:id/vote - Upvote
+// POST /api/posts/:id/vote
 router.post('/:id/vote', requireAuth, async (req, res) => {
   try {
     const existing = await query(
@@ -214,7 +212,7 @@ router.post('/:id/vote', requireAuth, async (req, res) => {
     res.json({ voted: true });
   } catch (err) {
     console.error('Vote error:', err);
-    res.status(500).json({ error: 'Fehler beim Abstimmen' });
+    res.status(500).json({ error: 'Failed to register vote.' });
   }
 });
 

@@ -4,11 +4,11 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// GET /api/comments?post_id=... - Kommentare eines Posts
+// GET /api/comments?post_id=...
 router.get('/', async (req, res) => {
   try {
     const { post_id } = req.query;
-    if (!post_id) return res.status(400).json({ error: 'post_id erforderlich' });
+    if (!post_id) return res.status(400).json({ error: 'post_id is required.' });
 
     const result = await query(
       `SELECT
@@ -21,31 +21,29 @@ router.get('/', async (req, res) => {
       [post_id]
     );
 
-    // Entfernte Kommentare verschleiern
     const comments = result.rows.map(c => ({
       ...c,
-      content: c.is_removed ? '[Kommentar wurde entfernt]' : c.content,
+      content: c.is_removed ? '[Comment removed]' : c.content,
     }));
 
     res.json({ comments });
   } catch (err) {
     console.error('Get comments error:', err);
-    res.status(500).json({ error: 'Fehler beim Laden der Kommentare' });
+    res.status(500).json({ error: 'Failed to load comments.' });
   }
 });
 
-// POST /api/comments - Kommentar erstellen
+// POST /api/comments
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { content, post_id, parent_id } = req.body;
 
-    if (!content?.trim()) return res.status(400).json({ error: 'Inhalt erforderlich' });
-    if (!post_id) return res.status(400).json({ error: 'post_id erforderlich' });
-    if (content.length > 5000) return res.status(400).json({ error: 'Kommentar zu lang' });
+    if (!content?.trim()) return res.status(400).json({ error: 'Comment content is required.' });
+    if (!post_id) return res.status(400).json({ error: 'post_id is required.' });
+    if (content.length > 5000) return res.status(400).json({ error: 'Comment is too long (max 5000 characters).' });
 
-    // Prüfen ob Post existiert
     const post = await query("SELECT id FROM posts WHERE id = $1 AND status = 'published'", [post_id]);
-    if (!post.rows[0]) return res.status(404).json({ error: 'Post nicht gefunden' });
+    if (!post.rows[0]) return res.status(404).json({ error: 'Post not found.' });
 
     const result = await query(
       `INSERT INTO comments (content, author_id, post_id, parent_id)
@@ -63,25 +61,25 @@ router.post('/', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('Create comment error:', err);
-    res.status(500).json({ error: 'Fehler beim Erstellen des Kommentars' });
+    res.status(500).json({ error: 'Failed to post comment.' });
   }
 });
 
-// DELETE /api/comments/:id - Kommentar entfernen
+// DELETE /api/comments/:id
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const comment = await query('SELECT * FROM comments WHERE id = $1', [req.params.id]);
-    if (!comment.rows[0]) return res.status(404).json({ error: 'Kommentar nicht gefunden' });
+    if (!comment.rows[0]) return res.status(404).json({ error: 'Comment not found.' });
 
     const isOwner = comment.rows[0].author_id === req.user.id;
     const isAdmin = ['admin', 'moderator'].includes(req.user.role);
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'You do not have permission to remove this comment.' });
 
     await query('UPDATE comments SET is_removed = TRUE WHERE id = $1', [req.params.id]);
-    res.json({ message: 'Kommentar entfernt' });
+    res.json({ message: 'Comment removed.' });
   } catch (err) {
     console.error('Delete comment error:', err);
-    res.status(500).json({ error: 'Fehler beim Entfernen' });
+    res.status(500).json({ error: 'Failed to remove comment.' });
   }
 });
 

@@ -19,16 +19,16 @@ router.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
 
     if (!username || !email || !password) {
-      return res.status(400).json({ error: 'Alle Felder sind erforderlich' });
+      return res.status(400).json({ error: 'All fields are required.' });
     }
     if (username.length < 3 || username.length > 50) {
-      return res.status(400).json({ error: 'Benutzername muss 3-50 Zeichen lang sein' });
+      return res.status(400).json({ error: 'Username must be between 3 and 50 characters.' });
     }
     if (password.length < 8) {
-      return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein' });
+      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
     }
     if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-      return res.status(400).json({ error: 'Benutzername darf nur Buchstaben, Zahlen, _ und - enthalten' });
+      return res.status(400).json({ error: 'Username may only contain letters, numbers, _ and -.' });
     }
 
     const existing = await query(
@@ -36,7 +36,7 @@ router.post('/register', async (req, res) => {
       [email.toLowerCase(), username]
     );
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'E-Mail oder Benutzername bereits vergeben' });
+      return res.status(409).json({ error: 'Email or username is already taken.' });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -54,7 +54,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({ user, token });
   } catch (err) {
     console.error('Register error:', err);
-    res.status(500).json({ error: 'Registrierung fehlgeschlagen' });
+    res.status(500).json({ error: 'Registration failed. Please try again.' });
   }
 });
 
@@ -64,7 +64,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'E-Mail und Passwort erforderlich' });
+      return res.status(400).json({ error: 'Email and password are required.' });
     }
 
     const result = await query(
@@ -74,15 +74,15 @@ router.post('/login', async (req, res) => {
 
     const user = result.rows[0];
     if (!user) {
-      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+      return res.status(401).json({ error: 'Invalid email or password.' });
     }
     if (user.is_banned) {
-      return res.status(403).json({ error: 'Konto gesperrt' });
+      return res.status(403).json({ error: 'Your account has been suspended.' });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+      return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
     const token = createToken(user.id);
@@ -91,7 +91,7 @@ router.post('/login', async (req, res) => {
     res.json({ user: safeUser, token });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Login fehlgeschlagen' });
+    res.status(500).json({ error: 'Login failed. Please try again.' });
   }
 });
 

@@ -19,17 +19,17 @@ router.get('/', async (req, res) => {
     res.json({ categories: result.rows });
   } catch (err) {
     console.error('Get categories error:', err);
-    res.status(500).json({ error: 'Fehler beim Laden der Kategorien' });
+    res.status(500).json({ error: 'Failed to load categories.' });
   }
 });
 
-// POST /api/categories - nur Admin
+// POST /api/categories - admin only
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, description } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: 'Name erforderlich' });
+    if (!name?.trim()) return res.status(400).json({ error: 'Category name is required.' });
 
-    const slug = slugify(name, { lower: true, strict: true, locale: 'de' });
+    const slug = slugify(name, { lower: true, strict: true });
 
     const result = await query(
       `INSERT INTO categories (name, slug, description, created_by)
@@ -40,21 +40,21 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     res.status(201).json({ category: result.rows[0] });
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ error: 'Kategorie existiert bereits' });
+      return res.status(409).json({ error: 'A category with this name already exists.' });
     }
     console.error('Create category error:', err);
-    res.status(500).json({ error: 'Fehler beim Erstellen' });
+    res.status(500).json({ error: 'Failed to create category.' });
   }
 });
 
-// DELETE /api/categories/:id - nur Admin
+// DELETE /api/categories/:id - admin only
 router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     await query('DELETE FROM categories WHERE id = $1', [req.params.id]);
-    res.json({ message: 'Kategorie gelöscht' });
+    res.json({ message: 'Category deleted.' });
   } catch (err) {
     console.error('Delete category error:', err);
-    res.status(500).json({ error: 'Fehler beim Löschen' });
+    res.status(500).json({ error: 'Failed to delete category.' });
   }
 });
 

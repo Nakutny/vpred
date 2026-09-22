@@ -5,7 +5,7 @@ export async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Nicht eingeloggt' });
+      return res.status(401).json({ error: 'You must be signed in to do this.' });
     }
 
     const token = authHeader.slice(7);
@@ -17,30 +17,30 @@ export async function requireAuth(req, res, next) {
     );
 
     if (!result.rows[0]) {
-      return res.status(401).json({ error: 'Benutzer nicht gefunden' });
+      return res.status(401).json({ error: 'User not found.' });
     }
 
     if (result.rows[0].is_banned) {
-      return res.status(403).json({ error: 'Konto gesperrt' });
+      return res.status(403).json({ error: 'Your account has been suspended.' });
     }
 
     req.user = result.rows[0];
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Ungültiger Token' });
+    return res.status(401).json({ error: 'Invalid or expired token.' });
   }
 }
 
 export function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Keine Adminrechte' });
+    return res.status(403).json({ error: 'Admin access required.' });
   }
   next();
 }
 
 export function requireModerator(req, res, next) {
   if (!['admin', 'moderator'].includes(req.user?.role)) {
-    return res.status(403).json({ error: 'Keine Moderatorrechte' });
+    return res.status(403).json({ error: 'Moderator access required.' });
   }
   next();
 }

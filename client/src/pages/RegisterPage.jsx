@@ -6,16 +6,28 @@ import { useAuth } from '../contexts/AuthContext';
 export default function RegisterPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: '', email: '', password: '' });
+  const [form, setForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    if (form.password !== form.confirmPassword) {
+      return setError('Passwords do not match.');
+    }
+    if (form.password.length < 8) {
+      return setError('Password must be at least 8 characters.');
+    }
+
+    setLoading(true);
     try {
-      const d = await auth.register(form);
+      const d = await auth.register({
+        username: form.username,
+        email: form.email,
+        password: form.password,
+      });
       login(d.user, d.token);
       navigate('/');
     } catch (err) {
@@ -65,7 +77,7 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Password</label>
               <input
                 className="input"
@@ -75,6 +87,22 @@ export default function RegisterPage() {
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 required minLength={8}
               />
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Confirm password</label>
+              <input
+                className="input"
+                type="password"
+                placeholder="Repeat your password"
+                value={form.confirmPassword}
+                onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                required
+                style={form.confirmPassword && form.password !== form.confirmPassword ? { borderColor: 'var(--danger)' } : {}}
+              />
+              {form.confirmPassword && form.password !== form.confirmPassword && (
+                <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>Passwords do not match.</p>
+              )}
             </div>
 
             {error && (
