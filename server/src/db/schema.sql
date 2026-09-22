@@ -1,8 +1,8 @@
--- vpred.org Datenbankschema
+-- vpred.org Database Schema
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Benutzer
+-- Users
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   username VARCHAR(50) UNIQUE NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Kategorien
+-- Categories
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(100) UNIQUE NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS posts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Kommentare
+-- Comments
 CREATE TABLE IF NOT EXISTS comments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   content TEXT NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS comments (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Likes/Upvotes auf Posts
+-- Post votes / upvotes
 CREATE TABLE IF NOT EXISTS post_votes (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -62,14 +62,14 @@ CREATE TABLE IF NOT EXISTS post_votes (
   PRIMARY KEY (user_id, post_id)
 );
 
--- Standard-Kategorien einfügen
+-- Default categories
 INSERT INTO categories (name, slug, description) VALUES
-  ('Online Casinos', 'online-casinos', 'Recherchen zu Online-Casino-Betreibern und deren Strukturen'),
-  ('Supplement Shops', 'supplement-shops', 'Analyse von Online-Supplement-Händlern'),
-  ('Allgemein', 'allgemein', 'Sonstige Recherchen und Berichte')
+  ('Online Casinos', 'online-casinos', 'Research on online casino operators and their structures'),
+  ('Supplement Shops', 'supplement-shops', 'Analysis of online supplement retailers'),
+  ('General', 'general', 'General research and reports')
 ON CONFLICT (slug) DO NOTHING;
 
--- Indizes für Performance
+-- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
 CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id);
 CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status);
