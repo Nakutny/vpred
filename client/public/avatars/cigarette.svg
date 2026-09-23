@@ -1,32 +1,110 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#0d0d0d"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="60%" r="65%">
+      <stop offset="0%" stop-color="#0f0a08"/>
+      <stop offset="100%" stop-color="#020100"/>
+    </radialGradient>
+    <linearGradient id="paper" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f2ede4"/>
+      <stop offset="40%" stop-color="#e8e0d0"/>
+      <stop offset="100%" stop-color="#d8cfc0"/>
+    </linearGradient>
+    <linearGradient id="filter" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d4a882"/>
+      <stop offset="50%" stop-color="#b88860"/>
+      <stop offset="100%" stop-color="#a07850"/>
+    </linearGradient>
+    <radialGradient id="ember" cx="40%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#ffdd44"/>
+      <stop offset="30%" stop-color="#ff8800"/>
+      <stop offset="65%" stop-color="#ff3300"/>
+      <stop offset="100%" stop-color="#880000"/>
+    </radialGradient>
+    <filter id="smokeFx">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <filter id="emberGlow">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+
+  <rect width="400" height="400" fill="url(#bg)"/>
+
+  <!-- Smoke wisps - background layer -->
+  <g opacity="0.12" filter="url(#smokeFx)">
+    <path d="M85 210 Q65 160 80 110 Q95 70 75 30" fill="none" stroke="#e0d8c8" stroke-width="25"/>
+    <path d="M105 200 Q90 145 108 95 Q124 55 105 15" fill="none" stroke="#d0c8b8" stroke-width="18"/>
+    <path d="M70 220 Q42 165 55 112 Q68 68 45 28" fill="none" stroke="#c8c0b0" stroke-width="20"/>
+  </g>
+
+  <!-- Smoke wisps - mid layer -->
+  <g opacity="0.18" filter="url(#smokeFx)">
+    <path d="M85 215 Q68 170 84 122 Q98 82 80 42" fill="none" stroke="#ccc5b5" stroke-width="14"/>
+    <path d="M100 205 Q84 155 100 108 Q115 68 98 28" fill="none" stroke="#bbb5a8" stroke-width="10"/>
+  </g>
+
+  <!-- Smoke fine wisps -->
+  <g opacity="0.3">
+    <path d="M88 218 Q70 178 86 138 Q100 102 84 65" fill="none" stroke="#aaa598" stroke-width="2" stroke-linecap="round"/>
+    <path d="M96 214 Q80 174 95 134 Q108 98 93 62" fill="none" stroke="#9a948a" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
   <!-- Ashtray -->
-  <ellipse cx="50" cy="72" rx="28" ry="8" fill="#1a1a1a" stroke="#2a2a2a" stroke-width="1"/>
-  <ellipse cx="50" cy="70" rx="24" ry="6" fill="#141414"/>
+  <ellipse cx="200" cy="340" rx="170" ry="35" fill="#1a1510" stroke="#2a2018" stroke-width="2"/>
+  <ellipse cx="200" cy="332" rx="155" ry="25" fill="#151008"/>
+  <!-- Ashtray rim highlight -->
+  <path d="M50 335 Q90 325 140 330" stroke="#2a2018" stroke-width="2" fill="none" opacity="0.6"/>
   <!-- Ash in tray -->
-  <ellipse cx="50" cy="70" rx="10" ry="2.5" fill="#3a3a3a"/>
-  <!-- Cigarette resting on ashtray -->
-  <rect x="22" y="63" width="56" height="7" rx="3.5" fill="#f5f0e8"/>
-  <!-- Filter -->
-  <rect x="70" y="63" width="12" height="7" rx="3.5" fill="#c4a882"/>
-  <rect x="70" y="63" width="12" height="7" rx="3.5" fill="#d4a882"/>
-  <!-- Filter lines -->
-  <line x1="73" y1="64" x2="73" y2="69" stroke="#b89870" stroke-width="0.5" opacity="0.6"/>
-  <line x1="76" y1="64" x2="76" y2="69" stroke="#b89870" stroke-width="0.5" opacity="0.6"/>
-  <line x1="79" y1="64" x2="79" y2="69" stroke="#b89870" stroke-width="0.5" opacity="0.6"/>
-  <!-- Ember/lit end -->
-  <circle cx="22" cy="66.5" r="4" fill="#ff4400" opacity="0.95"/>
-  <circle cx="22" cy="66.5" r="3" fill="#ff6600"/>
-  <circle cx="22" cy="66.5" r="2" fill="#ff9900"/>
-  <circle cx="22" cy="66.5" r="1" fill="#ffcc00"/>
-  <!-- Paper texture -->
-  <line x1="35" y1="63.5" x2="35" y2="69.5" stroke="#e0dbd0" stroke-width="0.3" opacity="0.5"/>
-  <line x1="48" y1="63.5" x2="48" y2="69.5" stroke="#e0dbd0" stroke-width="0.3" opacity="0.5"/>
-  <line x1="61" y1="63.5" x2="61" y2="69.5" stroke="#e0dbd0" stroke-width="0.3" opacity="0.5"/>
-  <!-- Smoke wisps -->
-  <path d="M22 62 Q19 55 22 48 Q25 41 21 35" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
-  <path d="M25 61 Q28 52 24 44 Q20 38 24 30" fill="none" stroke="#666" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
-  <path d="M20 60 Q15 50 18 42 Q21 36 18 28" fill="none" stroke="#777" stroke-width="0.8" stroke-linecap="round" opacity="0.25"/>
-  <!-- Brand ring -->
-  <line x1="54" y1="63" x2="54" y2="70" stroke="#c0a860" stroke-width="1.5" opacity="0.7"/>
+  <ellipse cx="200" cy="330" rx="80" ry="12" fill="#2a2520"/>
+  <ellipse cx="200" cy="328" rx="55" ry="7" fill="#333028" opacity="0.8"/>
+
+  <!-- Ashtray notch for cigarette -->
+  <path d="M85 315 Q88 310 92 315 L92 325 Q88 328 85 325Z" fill="#120e08"/>
+
+  <!-- Cigarette body - lying in ashtray at slight angle -->
+  <g transform="rotate(-2 200 300)" filter="url(#shadow)">
+    <!-- Paper white part -->
+    <rect x="88" y="290" width="220" height="28" rx="14" fill="url(#paper)"/>
+    <!-- Paper seam line -->
+    <line x1="95" y1="304" x2="290" y2="304" stroke="#d8d0c0" stroke-width="0.8" opacity="0.6"/>
+    <!-- Brand band -->
+    <rect x="188" y="290" width="36" height="28" rx="0" fill="#f0ebe0"/>
+    <rect x="190" y="293" width="32" height="6" rx="0.5" fill="#c8a040" opacity="0.7"/>
+    <text x="206" y="308" font-family="Arial" font-size="6" fill="#8a6020" text-anchor="middle" font-weight="bold">PREMIUM</text>
+    <!-- Paper texture lines -->
+    <line x1="150" y1="291" x2="150" y2="317" stroke="#e0d8c8" stroke-width="0.5" opacity="0.5"/>
+    <line x1="175" y1="291" x2="175" y2="317" stroke="#e0d8c8" stroke-width="0.5" opacity="0.5"/>
+    <line x1="230" y1="291" x2="230" y2="317" stroke="#e0d8c8" stroke-width="0.5" opacity="0.5"/>
+    <line x1="260" y1="291" x2="260" y2="317" stroke="#e0d8c8" stroke-width="0.5" opacity="0.5"/>
+
+    <!-- Filter - cork pattern -->
+    <rect x="296" y="290" width="48" height="28" rx="14" fill="url(#filter)"/>
+    <!-- Filter lines -->
+    <line x1="302" y1="291" x2="302" y2="317" stroke="#c89860" stroke-width="0.8" opacity="0.6"/>
+    <line x1="308" y1="291" x2="308" y2="317" stroke="#c89860" stroke-width="0.8" opacity="0.6"/>
+    <line x1="314" y1="291" x2="314" y2="317" stroke="#c89860" stroke-width="0.8" opacity="0.6"/>
+    <line x1="320" y1="291" x2="320" y2="317" stroke="#c89860" stroke-width="0.8" opacity="0.6"/>
+    <line x1="326" y1="291" x2="326" y2="317" stroke="#c89860" stroke-width="0.8" opacity="0.6"/>
+    <line x1="332" y1="291" x2="332" y2="317" stroke="#c89860" stroke-width="0.8" opacity="0.6"/>
+    <line x1="338" y1="291" x2="338" y2="317" stroke="#c89860" stroke-width="0.8" opacity="0.6"/>
+
+    <!-- Ash on lit end -->
+    <ellipse cx="97" cy="304" rx="10" ry="10" fill="#3a3530"/>
+    <ellipse cx="95" cy="304" rx="7" ry="8" fill="#4a4540" opacity="0.8"/>
+  </g>
+
+  <!-- Ember - glowing tip -->
+  <g filter="url(#emberGlow)">
+    <circle cx="88" cy="303" r="16" fill="#881000" opacity="0.5"/>
+    <circle cx="88" cy="303" r="11" fill="url(#ember)"/>
+    <circle cx="88" cy="303" r="6" fill="#ffee00"/>
+    <circle cx="86" cy="301" r="2" fill="#ffffff" opacity="0.7"/>
+  </g>
+
+  <!-- Ember light on ashtray -->
+  <ellipse cx="100" cy="318" rx="20" ry="8" fill="#ff4400" opacity="0.08" filter="url(#smokeFx)"/>
 </svg>

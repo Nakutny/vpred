@@ -1,22 +1,108 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#1a2e1a"/>
-  <!-- Bill background -->
-  <rect x="12" y="33" width="76" height="34" rx="3" fill="#2d5a1b"/>
-  <rect x="14" y="35" width="72" height="30" rx="2" fill="#3a7322"/>
-  <!-- Fine line border pattern -->
-  <rect x="16" y="37" width="68" height="26" rx="1" fill="none" stroke="#4a9030" stroke-width="0.5"/>
-  <rect x="18" y="39" width="64" height="22" rx="1" fill="none" stroke="#4a9030" stroke-width="0.3"/>
-  <!-- Center oval -->
-  <ellipse cx="50" cy="50" rx="12" ry="9" fill="#2d5a1b" stroke="#4a9030" stroke-width="0.8"/>
-  <!-- Portrait silhouette -->
-  <ellipse cx="50" cy="47" rx="4" ry="4.5" fill="#4a9030"/>
-  <path d="M44 54 Q50 50 56 54 L56 56 Q50 53 44 56Z" fill="#4a9030"/>
-  <!-- 100 text -->
-  <text x="24" y="53" font-family="serif" font-size="7" fill="#85c466" font-weight="bold">100</text>
-  <text x="69" y="53" font-family="serif" font-size="7" fill="#85c466" font-weight="bold">100</text>
-  <!-- Serial number -->
-  <text x="28" y="61" font-family="monospace" font-size="3.5" fill="#5a8a40" letter-spacing="0.5">AB 12345678 C</text>
-  <!-- Corner ornaments -->
-  <rect x="16" y="37" width="8" height="6" rx="0.5" fill="#2a5218" stroke="#4a9030" stroke-width="0.3"/>
-  <rect x="76" y="57" width="8" height="6" rx="0.5" fill="#2a5218" stroke="#4a9030" stroke-width="0.3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0d1a0d"/>
+      <stop offset="100%" stop-color="#020502"/>
+    </radialGradient>
+    <linearGradient id="bill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a7a3a"/>
+      <stop offset="30%" stop-color="#3a6a2a"/>
+      <stop offset="70%" stop-color="#2d5520"/>
+      <stop offset="100%" stop-color="#1e4015"/>
+    </linearGradient>
+    <linearGradient id="billLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5a9040"/>
+      <stop offset="100%" stop-color="#2a5020"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity="0.9"/>
+    </filter>
+  </defs>
+
+  <rect width="400" height="400" fill="url(#bg)"/>
+
+  <!-- Stack of bills behind -->
+  <g opacity="0.4">
+    <rect x="55" y="125" width="300" height="160" rx="6" fill="#2a5020" transform="rotate(-3 200 200)"/>
+    <rect x="55" y="125" width="300" height="160" rx="6" fill="#2d5525" transform="rotate(-1.5 200 200)"/>
+  </g>
+
+  <!-- Main bill -->
+  <g filter="url(#shadow)">
+    <rect x="48" y="132" width="304" height="156" rx="5" fill="#1e4015"/>
+    <rect x="50" y="134" width="300" height="152" rx="4" fill="url(#bill)"/>
+
+    <!-- Fine border pattern -->
+    <rect x="54" y="138" width="292" height="144" rx="3" fill="none" stroke="#5a9040" stroke-width="1.5"/>
+    <rect x="58" y="142" width="284" height="136" rx="2" fill="none" stroke="#4a8030" stroke-width="0.7"/>
+
+    <!-- Corner patterns - ornate -->
+    <path d="M58 142 L80 142 L80 148 L64 148 L64 162 L58 162Z" fill="none" stroke="#5a9040" stroke-width="1"/>
+    <path d="M342 142 L320 142 L320 148 L336 148 L336 162 L342 162Z" fill="none" stroke="#5a9040" stroke-width="1"/>
+    <path d="M58 278 L80 278 L80 272 L64 272 L64 258 L58 258Z" fill="none" stroke="#5a9040" stroke-width="1"/>
+    <path d="M342 278 L320 278 L320 272 L336 272 L336 258 L342 258Z" fill="none" stroke="#5a9040" stroke-width="1"/>
+
+    <!-- Left oval portrait area -->
+    <ellipse cx="115" cy="210" rx="42" ry="48" fill="#2a5520" stroke="#5a9040" stroke-width="1"/>
+    <!-- Lincoln portrait silhouette -->
+    <ellipse cx="115" cy="198" rx="20" ry="22" fill="#3a7030"/>
+    <path d="M93 220 Q95 210 115 206 Q135 210 137 220 L137 230 Q115 226 93 230Z" fill="#3a7030"/>
+    <ellipse cx="115" cy="196" rx="12" ry="14" fill="#4a8540"/>
+    <!-- Tie -->
+    <path d="M111 220 L115 235 L119 220Z" fill="#2a5520"/>
+
+    <!-- Center large 5 -->
+    <text x="200" y="225" font-family="Georgia,serif" font-size="72" fill="#1a3a12" text-anchor="middle" font-weight="bold" opacity="0.3">5</text>
+
+    <!-- FIVE text -->
+    <text x="200" y="200" font-family="Georgia,serif" font-size="28" fill="#c8e8a0" text-anchor="middle" font-weight="bold" letter-spacing="8">FIVE</text>
+    <text x="200" y="222" font-family="Georgia,serif" font-size="11" fill="#8ab870" text-anchor="middle" letter-spacing="3">DOLLARS</text>
+
+    <!-- THE UNITED STATES OF AMERICA -->
+    <text x="200" y="158" font-family="Arial" font-size="9" fill="#7aaa58" text-anchor="middle" letter-spacing="1.5">THE UNITED STATES OF AMERICA</text>
+
+    <!-- Federal Reserve text -->
+    <text x="200" y="172" font-family="Arial" font-size="7.5" fill="#6a9848" text-anchor="middle">FEDERAL RESERVE NOTE</text>
+
+    <!-- Serial number top -->
+    <text x="215" y="248" font-family="Courier,monospace" font-size="8.5" fill="#8ab870" letter-spacing="1">HB 78234561 A</text>
+
+    <!-- Right corner 5s -->
+    <text x="304" y="168" font-family="Georgia,serif" font-size="24" fill="#c8e8a0" text-anchor="middle" font-weight="bold">5</text>
+    <text x="304" y="262" font-family="Georgia,serif" font-size="24" fill="#c8e8a0" text-anchor="middle" font-weight="bold">5</text>
+
+    <!-- Lincoln Memorial on right -->
+    <rect x="265" y="178" width="64" height="76" rx="2" fill="#2a5520" stroke="#4a8030" stroke-width="0.8"/>
+    <!-- Memorial columns -->
+    <g fill="#3a7030" stroke="#4a8540" stroke-width="0.5">
+      <rect x="270" y="182" width="4" height="62" rx="1"/>
+      <rect x="278" y="182" width="4" height="62" rx="1"/>
+      <rect x="286" y="182" width="4" height="62" rx="1"/>
+      <rect x="294" y="182" width="4" height="62" rx="1"/>
+      <rect x="302" y="182" width="4" height="62" rx="1"/>
+      <rect x="310" y="182" width="4" height="62" rx="1"/>
+      <rect x="318" y="182" width="4" height="62" rx="1"/>
+    </g>
+    <!-- Pediment -->
+    <path d="M268 184 L297 178 L326 184Z" fill="#3a7030" stroke="#4a8540" stroke-width="0.5"/>
+    <!-- Steps -->
+    <rect x="267" y="242" width="62" height="4" rx="0.5" fill="#3a7030"/>
+    <rect x="265" y="246" width="66" height="4" rx="0.5" fill="#2a5520"/>
+
+    <!-- LINCOLN MEMORIAL text -->
+    <text x="297" y="260" font-family="Arial" font-size="5" fill="#6a9848" text-anchor="middle">LINCOLN MEMORIAL</text>
+
+    <!-- Security strip hint -->
+    <rect x="174" y="134" width="3" height="152" fill="#90c060" opacity="0.15"/>
+
+    <!-- Microprinting strip -->
+    <text x="174" y="148" font-family="monospace" font-size="3" fill="#4a8030" opacity="0.8">THE USA THE USA THE USA</text>
+
+    <!-- In God We Trust -->
+    <text x="200" y="268" font-family="Georgia,serif" font-size="8" fill="#7aaa58" text-anchor="middle" font-style="italic">IN GOD WE TRUST</text>
+
+    <!-- Treasurer signature line -->
+    <line x1="90" y1="258" x2="160" y2="258" stroke="#5a8840" stroke-width="0.8"/>
+    <text x="125" y="266" font-family="Arial" font-size="6" fill="#5a8840" text-anchor="middle">TREASURER</text>
+  </g>
 </svg>

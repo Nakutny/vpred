@@ -334,8 +334,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Save / Remove buttons */}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               onClick={handleSaveAvatar}
               disabled={avatarSaving || !hasUnsavedAvatar}
@@ -344,21 +343,21 @@ export default function ProfilePage() {
             >
               {avatarSaving ? 'Saving...' : 'Save avatar'}
             </button>
-            {savedAvatar && (
-              <button
-                onClick={() => { setSelectedAvatar(null); }}
-                className="btn btn-ghost btn-sm"
-                style={{ color: 'var(--danger)' }}
-              >
-                Remove avatar
-              </button>
-            )}
             {hasUnsavedAvatar && (
               <button
                 onClick={() => setSelectedAvatar(savedAvatar)}
                 className="btn btn-ghost btn-sm"
               >
                 Cancel
+              </button>
+            )}
+            {savedAvatar && (
+              <button
+                onClick={() => setSelectedAvatar(null)}
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--danger)' }}
+              >
+                Reset to default
               </button>
             )}
           </div>

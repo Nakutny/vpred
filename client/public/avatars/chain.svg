@@ -1,30 +1,141 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#0d0a00"/>
-  <!-- Chain links - gold Cuban link style -->
-  <!-- Row 1 -->
-  <ellipse cx="38" cy="38" rx="8" ry="5" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="38" cy="38" rx="8" ry="5" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <ellipse cx="62" cy="38" rx="8" ry="5" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="62" cy="38" rx="8" ry="5" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <!-- Row 2 - vertical links -->
-  <ellipse cx="50" cy="44" rx="5" ry="8" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="50" cy="44" rx="5" ry="8" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <!-- Row 3 -->
-  <ellipse cx="34" cy="52" rx="8" ry="5" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="34" cy="52" rx="8" ry="5" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <ellipse cx="66" cy="52" rx="8" ry="5" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="66" cy="52" rx="8" ry="5" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <!-- Row 4 - vertical -->
-  <ellipse cx="50" cy="58" rx="5" ry="8" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="50" cy="58" rx="5" ry="8" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <!-- Row 5 -->
-  <ellipse cx="38" cy="66" rx="8" ry="5" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="38" cy="66" rx="8" ry="5" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <ellipse cx="62" cy="66" rx="8" ry="5" fill="none" stroke="#c8860a" stroke-width="3.5"/>
-  <ellipse cx="62" cy="66" rx="8" ry="5" fill="none" stroke="#f0a820" stroke-width="1.5"/>
-  <!-- Shine highlights -->
-  <ellipse cx="34" cy="50" rx="2.5" ry="1" fill="#ffd700" opacity="0.6"/>
-  <ellipse cx="66" cy="50" rx="2.5" ry="1" fill="#ffd700" opacity="0.6"/>
-  <ellipse cx="48" cy="42" rx="1" ry="2.5" fill="#ffd700" opacity="0.6"/>
-  <ellipse cx="52" cy="60" rx="1" ry="2.5" fill="#ffd700" opacity="0.6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0d0a00"/>
+      <stop offset="100%" stop-color="#030200"/>
+    </radialGradient>
+    <linearGradient id="gold1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd700"/>
+      <stop offset="25%" stop-color="#c89500"/>
+      <stop offset="50%" stop-color="#ffd700"/>
+      <stop offset="75%" stop-color="#a07800"/>
+      <stop offset="100%" stop-color="#e8b800"/>
+    </linearGradient>
+    <linearGradient id="gold2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffe566"/>
+      <stop offset="30%" stop-color="#d4a800"/>
+      <stop offset="60%" stop-color="#ffd700"/>
+      <stop offset="100%" stop-color="#886600"/>
+    </linearGradient>
+    <filter id="goldGlow">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="2" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.8"/>
+    </filter>
+    <radialGradient id="pendant" cx="40%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#ffe566"/>
+      <stop offset="50%" stop-color="#d4a800"/>
+      <stop offset="100%" stop-color="#886600"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="400" height="400" fill="url(#bg)"/>
+
+  <!-- Chain links - Cuban link style, realistic -->
+  <!-- Each link is an oval with 3D appearance -->
+
+  <!-- Row of links arranged in a curved chain pattern -->
+  <!-- Link macro: oval shape with inner shadow and outer highlight -->
+
+  <!-- TOP ARC OF CHAIN -->
+  <g filter="url(#shadow)">
+    <!-- Link 1 - horizontal -->
+    <ellipse cx="130" cy="110" rx="32" ry="14" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="130" cy="110" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="130" cy="110" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <!-- Link 2 - vertical -->
+    <ellipse cx="180" cy="110" rx="14" ry="32" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="180" cy="110" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="180" cy="110" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <!-- Link 3 - horizontal -->
+    <ellipse cx="230" cy="110" rx="32" ry="14" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="230" cy="110" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="230" cy="110" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <!-- Link 4 - vertical -->
+    <ellipse cx="280" cy="110" rx="14" ry="32" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="280" cy="110" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="280" cy="110" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+  </g>
+
+  <!-- MIDDLE ROW -->
+  <g filter="url(#shadow)">
+    <ellipse cx="108" cy="165" rx="32" ry="14" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="108" cy="165" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="108" cy="165" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="158" cy="165" rx="14" ry="32" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="158" cy="165" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="158" cy="165" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <!-- Large pendant cross -->
+    <g>
+      <!-- Cross body -->
+      <rect x="185" y="148" width="30" height="80" rx="4" fill="url(#pendant)" stroke="#c89500" stroke-width="1.5"/>
+      <rect x="170" y="170" width="60" height="28" rx="4" fill="url(#pendant)" stroke="#c89500" stroke-width="1.5"/>
+      <!-- Cross detail -->
+      <rect x="190" y="153" width="20" height="70" rx="3" fill="url(#gold1)" opacity="0.4"/>
+      <rect x="175" y="175" width="50" height="18" rx="3" fill="url(#gold1)" opacity="0.4"/>
+      <!-- Center gem -->
+      <circle cx="200" cy="188" r="8" fill="#1a0a00" stroke="#ffd700" stroke-width="1.5"/>
+      <circle cx="200" cy="188" r="5" fill="#2a1500"/>
+      <circle cx="197" cy="185" r="2" fill="#ffd700" opacity="0.6"/>
+      <!-- Highlight -->
+      <path d="M188 155 Q193 150 198 155" stroke="#ffe566" stroke-width="2" fill="none" opacity="0.6"/>
+    </g>
+
+    <ellipse cx="244" cy="165" rx="14" ry="32" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="244" cy="165" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="244" cy="165" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="294" cy="165" rx="32" ry="14" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="294" cy="165" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="294" cy="165" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+  </g>
+
+  <!-- BOTTOM ROW -->
+  <g filter="url(#shadow)">
+    <ellipse cx="130" cy="245" rx="32" ry="14" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="130" cy="245" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="130" cy="245" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="180" cy="245" rx="14" ry="32" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="180" cy="245" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="180" cy="245" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="230" cy="245" rx="32" ry="14" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="230" cy="245" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="230" cy="245" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="280" cy="245" rx="14" ry="32" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="280" cy="245" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="280" cy="245" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+  </g>
+
+  <!-- LOWEST ROW -->
+  <g filter="url(#shadow)">
+    <ellipse cx="108" cy="305" rx="32" ry="14" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="108" cy="305" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="108" cy="305" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="158" cy="305" rx="14" ry="32" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="158" cy="305" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="158" cy="305" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="208" cy="305" rx="32" ry="14" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="208" cy="305" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="208" cy="305" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="258" cy="305" rx="14" ry="32" fill="none" stroke="url(#gold1)" stroke-width="16"/>
+    <ellipse cx="258" cy="305" rx="14" ry="32" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="258" cy="305" rx="9" ry="27" fill="none" stroke="#886600" stroke-width="3"/>
+
+    <ellipse cx="308" cy="305" rx="32" ry="14" fill="none" stroke="url(#gold2)" stroke-width="16"/>
+    <ellipse cx="308" cy="305" rx="32" ry="14" fill="none" stroke="#ffe566" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="308" cy="305" rx="27" ry="9" fill="none" stroke="#886600" stroke-width="3"/>
+  </g>
 </svg>

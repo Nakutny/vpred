@@ -1,24 +1,93 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#0a0a18"/>
-  <!-- Shadow figure -->
-  <ellipse cx="50" cy="82" rx="18" ry="4" fill="#000" opacity="0.5"/>
-  <!-- Body silhouette - mysterious hooded figure -->
-  <path d="M50 20 C38 20 30 28 30 38 C30 42 32 46 35 49 L35 75 L65 75 L65 49 C68 46 70 42 70 38 C70 28 62 20 50 20Z" fill="#1a1a2e"/>
-  <!-- Hood -->
-  <path d="M34 36 C34 24 38 18 50 16 C62 18 66 24 66 36 C66 44 62 50 50 52 C38 50 34 44 34 36Z" fill="#1e1e35"/>
-  <!-- Deep shadow face area -->
-  <ellipse cx="50" cy="38" rx="10" ry="11" fill="#0a0a14"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#080818"/>
+      <stop offset="100%" stop-color="#010108"/>
+    </radialGradient>
+    <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#80a8ff"/>
+      <stop offset="60%" stop-color="#4060e0"/>
+      <stop offset="100%" stop-color="#1030a0" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glowStrong">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glowSoft">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="hood" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a30"/>
+      <stop offset="100%" stop-color="#08080f"/>
+    </linearGradient>
+    <radialGradient id="faceVoid" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#050510"/>
+      <stop offset="100%" stop-color="#010108"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="400" height="400" fill="url(#bg)"/>
+
+  <!-- Atmospheric particles -->
+  <g filter="url(#glowSoft)" opacity="0.3">
+    <circle cx="80" cy="120" r="2" fill="#3050c0"/>
+    <circle cx="320" cy="150" r="1.5" fill="#3050c0"/>
+    <circle cx="60" cy="280" r="1" fill="#3050c0"/>
+    <circle cx="340" cy="260" r="2" fill="#3050c0"/>
+    <circle cx="150" cy="60" r="1" fill="#4060d0"/>
+    <circle cx="260" cy="70" r="1.5" fill="#4060d0"/>
+    <circle cx="100" cy="350" r="1" fill="#3050c0"/>
+    <circle cx="300" cy="340" r="1.5" fill="#3050c0"/>
+  </g>
+
+  <!-- Ground shadow -->
+  <ellipse cx="200" cy="375" rx="110" ry="18" fill="#1020a0" opacity="0.2" filter="url(#glowSoft)"/>
+
+  <!-- Robe/cloak body -->
+  <path d="M200 360 L80 380 L60 340 L70 280 L80 230 L100 200 L130 185 L200 180 L270 185 L300 200 L320 230 L330 280 L340 340 L320 380Z"
+        fill="#0a0a18"/>
+  <!-- Robe folds -->
+  <path d="M150 360 L130 300 L140 260 L145 220 L155 200 L170 190"
+        stroke="#14142a" stroke-width="3" fill="none" opacity="0.8"/>
+  <path d="M250 360 L270 300 L260 260 L255 220 L245 200 L230 190"
+        stroke="#14142a" stroke-width="3" fill="none" opacity="0.8"/>
+  <path d="M200 360 L200 220 L195 190"
+        stroke="#12122a" stroke-width="2" fill="none" opacity="0.6"/>
+
+  <!-- Hood outer -->
+  <path d="M100 200 L110 155 L125 120 L145 95 L165 78 L200 70 L235 78 L255 95 L275 120 L290 155 L300 200 L270 185 L200 180 L130 185Z"
+        fill="url(#hood)"/>
+
+  <!-- Hood inner shadow -->
+  <path d="M120 195 L128 158 L142 128 L160 105 L180 88 L200 82 L220 88 L240 105 L258 128 L272 158 L280 195 L268 185 L200 178 L132 185Z"
+        fill="#050510"/>
+
+  <!-- Face void - deep shadow -->
+  <ellipse cx="200" cy="155" rx="62" ry="68" fill="url(#faceVoid)"/>
+
   <!-- Glowing eyes -->
-  <ellipse cx="45" cy="37" rx="3" ry="2" fill="#4f8ef7" opacity="0.9"/>
-  <ellipse cx="55" cy="37" rx="3" ry="2" fill="#4f8ef7" opacity="0.9"/>
-  <ellipse cx="45" cy="37" rx="1.5" ry="1" fill="#8ab8ff"/>
-  <ellipse cx="55" cy="37" rx="1.5" ry="1" fill="#8ab8ff"/>
-  <!-- Question mark glow -->
-  <text x="50" y="66" font-family="Georgia,serif" font-size="18" fill="#4f8ef7" text-anchor="middle" font-weight="bold" opacity="0.9">?</text>
-  <text x="50" y="66" font-family="Georgia,serif" font-size="18" fill="#8ab8ff" text-anchor="middle" font-weight="bold" opacity="0.4">?</text>
-  <!-- Particle effects -->
-  <circle cx="30" cy="25" r="1" fill="#4f8ef7" opacity="0.4"/>
-  <circle cx="70" cy="30" r="0.8" fill="#4f8ef7" opacity="0.3"/>
-  <circle cx="25" cy="55" r="0.6" fill="#4f8ef7" opacity="0.25"/>
-  <circle cx="75" cy="48" r="0.8" fill="#4f8ef7" opacity="0.3"/>
+  <g filter="url(#glowStrong)">
+    <!-- Left eye glow aura -->
+    <ellipse cx="174" cy="148" rx="18" ry="12" fill="#1030a0" opacity="0.6"/>
+    <!-- Right eye glow aura -->
+    <ellipse cx="226" cy="148" rx="18" ry="12" fill="#1030a0" opacity="0.6"/>
+
+    <!-- Left eye -->
+    <ellipse cx="174" cy="148" rx="12" ry="8" fill="#4060e0"/>
+    <ellipse cx="174" cy="148" rx="7" ry="5" fill="#80a8ff"/>
+    <ellipse cx="172" cy="146" rx="3" ry="2" fill="#c0d8ff"/>
+
+    <!-- Right eye -->
+    <ellipse cx="226" cy="148" rx="12" ry="8" fill="#4060e0"/>
+    <ellipse cx="226" cy="148" rx="7" ry="5" fill="#80a8ff"/>
+    <ellipse cx="224" cy="146" rx="3" ry="2" fill="#c0d8ff"/>
+  </g>
+
+  <!-- Question mark - glowing -->
+  <g filter="url(#glowStrong)">
+    <text x="200" y="260" font-family="Georgia,serif" font-size="80" fill="#1030a0" text-anchor="middle" font-weight="bold" opacity="0.5">?</text>
+    <text x="200" y="260" font-family="Georgia,serif" font-size="80" fill="#4f8ef7" text-anchor="middle" font-weight="bold" opacity="0.8">?</text>
+    <text x="200" y="260" font-family="Georgia,serif" font-size="80" fill="#90b8ff" text-anchor="middle" font-weight="bold" opacity="0.4">?</text>
+  </g>
 </svg>

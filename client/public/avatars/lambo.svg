@@ -1,33 +1,206 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#0d0d0d"/>
-  <!-- Ground shadow -->
-  <ellipse cx="50" cy="72" rx="32" ry="4" fill="#111" opacity="0.8"/>
-  <!-- Main body - Lamborghini Huracán silhouette -->
-  <path d="M14 60 L18 52 L24 48 L30 45 L42 42 L58 42 L68 44 L76 48 L82 55 L84 60 L14 60Z" fill="#c8a000"/>
-  <!-- Roof/cabin -->
-  <path d="M30 45 L35 38 L42 35 L58 35 L65 38 L68 44Z" fill="#d4b000"/>
-  <!-- Windshield -->
-  <path d="M35 38 L40 36 L60 36 L65 38 L62 44 L38 44Z" fill="#1a2a3a" opacity="0.9"/>
-  <path d="M36 38 L40 36.5 L60 36.5 L64 38 L61 43 L39 43Z" fill="#1e3347" opacity="0.7"/>
-  <!-- Side window -->
-  <path d="M30 45 L35 38 L38 44 L32 46Z" fill="#1a2a3a" opacity="0.8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="60%" r="55%">
+      <stop offset="0%" stop-color="#1a0800"/>
+      <stop offset="100%" stop-color="#000"/>
+    </radialGradient>
+    <radialGradient id="floor" cx="50%" cy="100%" r="50%">
+      <stop offset="0%" stop-color="#1a1008" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Orange body gradient -->
+    <linearGradient id="body" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff9a00"/>
+      <stop offset="30%" stop-color="#e85d00"/>
+      <stop offset="70%" stop-color="#c04a00"/>
+      <stop offset="100%" stop-color="#7a2a00"/>
+    </linearGradient>
+    <linearGradient id="bodyTop" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffb347"/>
+      <stop offset="40%" stop-color="#e86000"/>
+      <stop offset="100%" stop-color="#a03800"/>
+    </linearGradient>
+    <linearGradient id="roofGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff8c00"/>
+      <stop offset="100%" stop-color="#7a2a00"/>
+    </linearGradient>
+    <linearGradient id="headlight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a0d8ff"/>
+      <stop offset="50%" stop-color="#e8f4ff"/>
+      <stop offset="100%" stop-color="#60b0f0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="headGlow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softShadow">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.7"/>
+    </filter>
+    <radialGradient id="wheel1" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#444"/>
+      <stop offset="100%" stop-color="#111"/>
+    </radialGradient>
+    <radialGradient id="wheelReflect" cx="30%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#666" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#111" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <!-- Studio floor reflection -->
+  <ellipse cx="200" cy="370" rx="170" ry="30" fill="#200800" opacity="0.6"/>
+  <rect x="0" y="340" width="400" height="60" fill="url(#floor)"/>
+
+  <!-- Car shadow on ground -->
+  <ellipse cx="205" cy="355" rx="155" ry="18" fill="#000" opacity="0.7"/>
+
+  <!-- === CAR BODY === -->
+  <g filter="url(#softShadow)">
+    <!-- Main lower body / sill -->
+    <path d="M55 285 L75 270 L105 258 L160 250 L245 248 L305 252 L340 265 L355 280 L350 295 L55 295Z"
+          fill="url(#body)"/>
+
+    <!-- Main mid body -->
+    <path d="M70 270 L90 248 L130 235 L175 228 L240 226 L295 230 L330 245 L348 265 L340 270 L305 252 L245 248 L160 250 L105 258 L75 270Z"
+          fill="url(#bodyTop)"/>
+
+    <!-- Roof / cabin -->
+    <path d="M130 235 L150 205 L175 192 L220 188 L260 190 L285 202 L295 220 L295 230 L240 226 L175 228Z"
+          fill="url(#roofGrad)"/>
+
+    <!-- Windshield -->
+    <path d="M153 208 L172 192 L220 188 L258 192 L280 206 L278 218 L270 224 L175 228 L155 225Z"
+          fill="#0d1a2e" opacity="0.92"/>
+    <!-- Windshield reflection -->
+    <path d="M158 210 L175 195 L215 191 L245 194 L265 205 L260 210 L195 212Z"
+          fill="#2a4a7a" opacity="0.35"/>
+    <path d="M163 212 L178 198 L205 193 L235 196 L250 205 L235 207 L180 209Z"
+          fill="#4a7aaa" opacity="0.2"/>
+
+    <!-- Side window -->
+    <path d="M130 235 L150 205 L153 208 L155 225 L150 232 L138 237Z"
+          fill="#0d1a2e" opacity="0.88"/>
+
+    <!-- Rear quarter window -->
+    <path d="M278 218 L285 202 L292 210 L293 222 L288 226Z"
+          fill="#0d1a2e" opacity="0.85"/>
+
+    <!-- Door line -->
+    <path d="M150 232 L155 225 L278 218 L285 226 L280 235 L155 238Z"
+          fill="#d05500" opacity="0.4"/>
+    <line x1="150" y1="232" x2="285" y2="226" stroke="#b84800" stroke-width="1" opacity="0.6"/>
+
+    <!-- Front bumper / nose - Revuelto angular style -->
+    <path d="M55 285 L58 265 L68 248 L80 238 L95 232 L130 235 L105 258 L75 270Z"
+          fill="#c05000"/>
+    <!-- Front splitter -->
+    <path d="M52 290 L58 278 L75 272 L105 264 L110 270 L78 276 L62 285Z"
+          fill="#1a0800"/>
+
+    <!-- Rear -->
+    <path d="M295 230 L308 228 L330 238 L345 252 L352 268 L348 278 L340 265 L305 252Z"
+          fill="#902800"/>
+
+    <!-- Rear diffuser -->
+    <path d="M338 270 L350 278 L352 290 L340 292 L330 280Z"
+          fill="#0d0500"/>
+
+    <!-- Side skirt -->
+    <path d="M78 275 L105 264 L240 260 L305 264 L330 272 L330 278 L305 270 L240 266 L105 270 L78 280Z"
+          fill="#7a2800"/>
+  </g>
+
+  <!-- === HEADLIGHTS - Y-shaped Revuelto style === -->
+  <g filter="url(#headGlow)">
+    <!-- Headlight housing -->
+    <path d="M58 258 L70 248 L90 244 L110 246 L118 255 L108 262 L85 264 L65 262Z"
+          fill="#050a10"/>
+    <!-- DRL / Y-shape light -->
+    <path d="M65 256 L72 250 L82 248 L72 254 Z" fill="url(#headlight)" opacity="0.95"/>
+    <path d="M72 254 L72 262 L78 262 L80 254Z" fill="url(#headlight)" opacity="0.9"/>
+    <path d="M80 254 L92 250 L98 255 L87 258Z" fill="url(#headlight)" opacity="0.85"/>
+    <!-- Inner blue light -->
+    <ellipse cx="88" cy="256" rx="6" ry="4" fill="#b8d8ff" opacity="0.7"/>
+    <!-- Glow -->
+    <ellipse cx="75" cy="255" rx="20" ry="10" fill="#6090d0" opacity="0.25"/>
+  </g>
+
+  <!-- === TAIL LIGHTS === -->
+  <rect x="338" y="256" width="14" height="18" rx="2" fill="#ff1500" opacity="0.9"/>
+  <rect x="340" y="258" width="10" height="14" rx="1" fill="#ff4422" opacity="0.8"/>
+  <ellipse cx="347" cy="265" rx="8" ry="6" fill="#ff1500" opacity="0.2" filter="url(#glow)"/>
+
+  <!-- === WHEELS === -->
   <!-- Front wheel -->
-  <circle cx="28" cy="61" r="8" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
-  <circle cx="28" cy="61" r="5" fill="#111" stroke="#555" stroke-width="1"/>
-  <circle cx="28" cy="61" r="2.5" fill="#c8a000"/>
+  <g>
+    <circle cx="112" cy="305" r="48" fill="#111" stroke="#222" stroke-width="2"/>
+    <circle cx="112" cy="305" r="42" fill="url(#wheel1)" stroke="#333" stroke-width="1"/>
+    <!-- Spokes - Y-spoke style -->
+    <g stroke="#555" stroke-width="5" stroke-linecap="round">
+      <line x1="112" y1="305" x2="112" y2="263"/>
+      <line x1="112" y1="305" x2="148" y2="326"/>
+      <line x1="112" y1="305" x2="76" y2="326"/>
+      <line x1="112" y1="305" x2="148" y2="284"/>
+      <line x1="112" y1="305" x2="76" y2="284"/>
+    </g>
+    <g stroke="#444" stroke-width="3" stroke-linecap="round">
+      <line x1="112" y1="305" x2="112" y2="263"/>
+      <line x1="112" y1="305" x2="148" y2="326"/>
+      <line x1="112" y1="305" x2="76" y2="326"/>
+      <line x1="112" y1="305" x2="148" y2="284"/>
+      <line x1="112" y1="305" x2="76" y2="284"/>
+    </g>
+    <circle cx="112" cy="305" r="16" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
+    <circle cx="112" cy="305" r="10" fill="#0d0d0d" stroke="#444" stroke-width="1"/>
+    <!-- Hub cap - Lamborghini bull logo hint -->
+    <circle cx="112" cy="305" r="7" fill="#222"/>
+    <circle cx="112" cy="305" r="5" fill="#c8860a"/>
+    <!-- Tire reflection -->
+    <path d="M78 272 Q90 268 100 278" stroke="#444" stroke-width="3" fill="none" opacity="0.5"/>
+  </g>
+
   <!-- Rear wheel -->
-  <circle cx="72" cy="61" r="8" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
-  <circle cx="72" cy="61" r="5" fill="#111" stroke="#555" stroke-width="1"/>
-  <circle cx="72" cy="61" r="2.5" fill="#c8a000"/>
-  <!-- Headlights -->
-  <path d="M14 56 L18 52 L22 54 L18 58Z" fill="#fff9e0" opacity="0.95"/>
-  <path d="M15 56 L18.5 53 L21 54.5 L18 57.5Z" fill="#ffe87a"/>
-  <!-- Tail lights -->
-  <rect x="80" y="55" width="5" height="4" rx="1" fill="#ff2200" opacity="0.9"/>
-  <!-- Door line -->
-  <path d="M38 44 L38 59 M55 43 L55 59" stroke="#b89000" stroke-width="0.5" opacity="0.6"/>
-  <!-- Air intake -->
-  <rect x="15" y="57" width="6" height="2" rx="0.5" fill="#111" stroke="#c8a000" stroke-width="0.4"/>
-  <!-- Logo hint -->
-  <rect x="47" y="42.5" width="6" height="1" fill="#ffd700" opacity="0.8"/>
+  <g>
+    <circle cx="295" cy="305" r="48" fill="#111" stroke="#222" stroke-width="2"/>
+    <circle cx="295" cy="305" r="42" fill="url(#wheel1)" stroke="#333" stroke-width="1"/>
+    <g stroke="#555" stroke-width="5" stroke-linecap="round">
+      <line x1="295" y1="305" x2="295" y2="263"/>
+      <line x1="295" y1="305" x2="331" y2="326"/>
+      <line x1="295" y1="305" x2="259" y2="326"/>
+      <line x1="295" y1="305" x2="331" y2="284"/>
+      <line x1="295" y1="305" x2="259" y2="284"/>
+    </g>
+    <g stroke="#444" stroke-width="3" stroke-linecap="round">
+      <line x1="295" y1="305" x2="295" y2="263"/>
+      <line x1="295" y1="305" x2="331" y2="326"/>
+      <line x1="295" y1="305" x2="259" y2="326"/>
+      <line x1="295" y1="305" x2="331" y2="284"/>
+      <line x1="295" y1="305" x2="259" y2="284"/>
+    </g>
+    <circle cx="295" cy="305" r="16" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
+    <circle cx="295" cy="305" r="10" fill="#0d0d0d" stroke="#444" stroke-width="1"/>
+    <circle cx="295" cy="305" r="7" fill="#222"/>
+    <circle cx="295" cy="305" r="5" fill="#c8860a"/>
+    <path d="M261 272 Q273 268 283 278" stroke="#444" stroke-width="3" fill="none" opacity="0.5"/>
+  </g>
+
+  <!-- Brake caliper front -->
+  <rect x="118" y="290" width="14" height="22" rx="2" fill="#e03000" opacity="0.9"/>
+  <!-- Brake caliper rear -->
+  <rect x="278" y="290" width="14" height="22" rx="2" fill="#e03000" opacity="0.9"/>
+
+  <!-- Studio light reflection on body -->
+  <path d="M160 228 Q200 222 240 228 Q220 232 200 232 Q180 232 160 228Z"
+        fill="#ffaa40" opacity="0.35"/>
+  <path d="M170 240 Q200 236 230 240 Q215 243 200 243 Q185 243 170 240Z"
+        fill="#ffaa40" opacity="0.2"/>
+
+  <!-- Lamborghini badge on hood -->
+  <rect x="188" y="242" width="24" height="10" rx="1" fill="#c8860a"/>
+  <rect x="190" y="244" width="20" height="6" rx="0.5" fill="#e8a820"/>
 </svg>
