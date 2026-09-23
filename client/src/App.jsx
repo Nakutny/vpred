@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import PostPage from './pages/PostPage';
 import NewPostPage from './pages/NewPostPage';
+import EditPostPage from './pages/EditPostPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminPage from './pages/AdminPage';
@@ -19,6 +20,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/post/:slug" element={<PostPage />} />
+            <Route path="/post/:slug/edit" element={<EditPostPage />} />
             <Route path="/new" element={<NewPostPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />

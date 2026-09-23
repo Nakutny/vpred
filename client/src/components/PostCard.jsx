@@ -12,22 +12,24 @@ function timeAgo(dateStr) {
   return 'just now';
 }
 
+function readTime(content) {
+  if (!content) return null;
+  const text = content.replace(/<[^>]*>/g, '');
+  const words = text.trim().split(/\s+/).length;
+  const mins = Math.max(1, Math.round(words / 200));
+  return `${mins} min read`;
+}
+
 export default function PostCard({ post }) {
   return (
-    <article style={{
-      padding: '20px 24px',
-      borderBottom: '1px solid var(--border)',
-      transition: 'background 0.15s',
-    }}
-    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface)'}
-    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    <article
+      style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', transition: 'background 0.15s' }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         {/* Vote count */}
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          minWidth: 40, paddingTop: 2,
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40, paddingTop: 2 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2">
             <path d="M12 19V5M5 12l7-7 7 7"/>
           </svg>
@@ -41,15 +43,29 @@ export default function PostCard({ post }) {
           {/* Meta row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
             {post.category_name && (
-              <Link to={`/category/${post.category_slug}`} className="tag">
+              <Link to={`/?category=${post.category_slug}`} className="tag">
                 {post.category_name}
               </Link>
             )}
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-              by <strong style={{ color: 'var(--text)', fontWeight: 500 }}>{post.author_username}</strong>
+              by{' '}
+              <Link
+                to={`/profile/${post.author_username}`}
+                style={{ color: 'var(--text)', fontWeight: 500 }}
+                onMouseEnter={e => e.target.style.color = 'var(--accent)'}
+                onMouseLeave={e => e.target.style.color = 'var(--text)'}
+              >
+                {post.author_username}
+              </Link>
             </span>
             <span style={{ color: 'var(--border)', fontSize: 12 }}>·</span>
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>{timeAgo(post.created_at)}</span>
+            {readTime(post.summary || post.content) && (
+              <>
+                <span style={{ color: 'var(--border)', fontSize: 12 }}>·</span>
+                <span style={{ color: 'var(--muted)', fontSize: 12 }}>{readTime(post.summary || post.content)}</span>
+              </>
+            )}
           </div>
 
           {/* Title */}
@@ -73,8 +89,7 @@ export default function PostCard({ post }) {
           {/* Summary */}
           {post.summary && (
             <p style={{
-              color: 'var(--muted)', fontSize: 14, lineHeight: 1.6,
-              marginBottom: 12,
+              color: 'var(--muted)', fontSize: 14, lineHeight: 1.6, marginBottom: 12,
               display: '-webkit-box', WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical', overflow: 'hidden',
             }}>

@@ -15,6 +15,14 @@ function timeAgo(dateStr) {
   return 'just now';
 }
 
+function readTime(content) {
+  if (!content) return '1 min read';
+  const text = content.replace(/<[^>]*>/g, '');
+  const words = text.trim().split(/\s+/).length;
+  const mins = Math.max(1, Math.round(words / 200));
+  return `${mins} min read`;
+}
+
 export default function PostPage() {
   const { slug } = useParams();
   const { user, isAdmin } = useAuth();
@@ -90,7 +98,6 @@ export default function PostPage() {
     } catch {}
   }
 
-  // Build threaded comments
   function buildTree(comments) {
     const map = {};
     const roots = [];
@@ -107,14 +114,19 @@ export default function PostPage() {
       <div style={{ marginLeft: depth > 0 ? 28 : 0, borderLeft: depth > 0 ? '2px solid var(--border)' : 'none', paddingLeft: depth > 0 ? 16 : 0 }}>
         <div style={{ padding: '14px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <div style={{
+            <Link to={`/profile/${comment.author_username}`} style={{
               width: 26, height: 26, borderRadius: '50%', background: 'var(--surface2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 600, color: 'var(--accent)',
+              fontSize: 11, fontWeight: 600, color: 'var(--accent)', flexShrink: 0,
             }}>
               {comment.author_username?.[0]?.toUpperCase() || '?'}
-            </div>
-            <span style={{ fontWeight: 500, fontSize: 13 }}>{comment.author_username || 'Unknown'}</span>
+            </Link>
+            <Link to={`/profile/${comment.author_username}`} style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)' }}
+              onMouseEnter={e => e.target.style.color = 'var(--accent)'}
+              onMouseLeave={e => e.target.style.color = 'var(--text)'}
+            >
+              {comment.author_username || 'Unknown'}
+            </Link>
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>{timeAgo(comment.created_at)}</span>
             {(isAdmin || user?.id === comment.author_id) && !comment.is_removed && (
               <button onClick={() => handleDeleteComment(comment.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>
@@ -161,6 +173,7 @@ export default function PostPage() {
   if (!post) return null;
 
   const tree = buildTree(commentList);
+  const canEdit = isAdmin || user?.id === post.author_id;
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
@@ -178,11 +191,10 @@ export default function PostPage() {
         </span>
       </div>
 
-      {/* Article */}
       <article>
         {/* Category */}
         {post.category_name && (
-          <Link to={`/category/${post.category_slug}`} className="tag" style={{ marginBottom: 14, display: 'inline-flex' }}>
+          <Link to={`/?category=${post.category_slug}`} className="tag" style={{ marginBottom: 14, display: 'inline-flex' }}>
             {post.category_name}
           </Link>
         )}
@@ -194,25 +206,35 @@ export default function PostPage() {
 
         {/* Meta */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32, flexWrap: 'wrap', paddingBottom: 24, borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Author */}
+          <Link to={`/profile/${post.author_username}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
             <div style={{
-              width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
+              width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 600, color: '#fff',
+              fontSize: 14, fontWeight: 600, color: '#fff', flexShrink: 0,
             }}>
               {post.author_username?.[0]?.toUpperCase()}
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{post.author_username}</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{timeAgo(post.created_at)}</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}
+                onMouseEnter={e => e.target.style.color = 'var(--accent)'}
+                onMouseLeave={e => e.target.style.color = 'var(--text)'}
+              >
+                {post.author_username}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 6 }}>
+                <span>{timeAgo(post.created_at)}</span>
+                <span>·</span>
+                <span>{readTime(post.content)}</span>
+              </div>
             </div>
-          </div>
+          </Link>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span style={{ color: 'var(--muted)', fontSize: 13 }}>
-              {post.view_count} views
-            </span>
-            {/* Vote button */}
+          {/* Actions */}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--muted)', fontSize: 13 }}>{post.view_count} views</span>
+
+            {/* Vote */}
             <button
               onClick={handleVote}
               style={{
@@ -230,10 +252,17 @@ export default function PostPage() {
               {voteCount} upvotes
             </button>
 
-            {/* Admin/author controls */}
-            {(isAdmin || user?.id === post.author_id) && (
+            {/* Edit (admin or author) */}
+            {canEdit && (
+              <Link to={`/post/${post.slug}/edit`} className="btn btn-ghost btn-sm">
+                Edit post
+              </Link>
+            )}
+
+            {/* Delete (admin or author) */}
+            {canEdit && (
               <button onClick={handleDeletePost} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>
-                Remove post
+                Remove
               </button>
             )}
           </div>
@@ -249,7 +278,6 @@ export default function PostPage() {
           {commentList.filter(c => !c.is_removed).length} Comments
         </h2>
 
-        {/* Comment form */}
         {user ? (
           !replyTo && (
             <div style={{ marginBottom: 32 }}>
@@ -274,7 +302,6 @@ export default function PostPage() {
           </div>
         )}
 
-        {/* Comment list */}
         <div>
           {tree.length === 0 ? (
             <p style={{ color: 'var(--muted)', fontSize: 14 }}>No comments yet.</p>

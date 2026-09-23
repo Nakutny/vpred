@@ -23,19 +23,26 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/categories - admin only
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+// POST /api/categories - any logged-in user can create
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Category name is required.' });
+    if (name.length > 80) return res.status(400).json({ error: 'Category name is too long (max 80 characters).' });
 
-    const slug = slugify(name, { lower: true, strict: true });
+    const slug = slugify(name.trim(), { lower: true, strict: true });
+
+    // Check for duplicate
+    const existing = await query('SELECT id FROM categories WHERE slug = $1', [slug]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'A category with this name already exists.' });
+    }
 
     const result = await query(
       `INSERT INTO categories (name, slug, description, created_by)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [name.trim(), slug, description || null, req.user.id]
+      [name.trim(), slug, description?.trim() || null, req.user.id]
     );
     res.status(201).json({ category: result.rows[0] });
   } catch (err) {
