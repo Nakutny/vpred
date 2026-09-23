@@ -1,10 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#1a1a2e"/>
-  <path d="M15 58 L25 45 L45 42 L65 42 L80 50 L85 58 L15 58Z" fill="#e8b000" stroke="#c99500" stroke-width="1"/>
-  <path d="M28 45 L38 38 L58 38 L65 42" fill="#f0c000" stroke="#c99500" stroke-width="0.5"/>
-  <circle cx="28" cy="60" r="6" fill="#222" stroke="#555" stroke-width="1.5"/>
-  <circle cx="28" cy="60" r="3" fill="#444"/>
-  <circle cx="72" cy="60" r="6" fill="#222" stroke="#555" stroke-width="1.5"/>
-  <circle cx="72" cy="60" r="3" fill="#444"/>
-  <rect x="78" y="52" width="8" height="3" rx="1" fill="#ffee88"/>
+  <rect width="100" height="100" rx="50" fill="#0d0d0d"/>
+  <!-- Ground shadow -->
+  <ellipse cx="50" cy="72" rx="32" ry="4" fill="#111" opacity="0.8"/>
+  <!-- Main body - Lamborghini Huracán silhouette -->
+  <path d="M14 60 L18 52 L24 48 L30 45 L42 42 L58 42 L68 44 L76 48 L82 55 L84 60 L14 60Z" fill="#c8a000"/>
+  <!-- Roof/cabin -->
+  <path d="M30 45 L35 38 L42 35 L58 35 L65 38 L68 44Z" fill="#d4b000"/>
+  <!-- Windshield -->
+  <path d="M35 38 L40 36 L60 36 L65 38 L62 44 L38 44Z" fill="#1a2a3a" opacity="0.9"/>
+  <path d="M36 38 L40 36.5 L60 36.5 L64 38 L61 43 L39 43Z" fill="#1e3347" opacity="0.7"/>
+  <!-- Side window -->
+  <path d="M30 45 L35 38 L38 44 L32 46Z" fill="#1a2a3a" opacity="0.8"/>
+  <!-- Front wheel -->
+  <circle cx="28" cy="61" r="8" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
+  <circle cx="28" cy="61" r="5" fill="#111" stroke="#555" stroke-width="1"/>
+  <circle cx="28" cy="61" r="2.5" fill="#c8a000"/>
+  <!-- Rear wheel -->
+  <circle cx="72" cy="61" r="8" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
+  <circle cx="72" cy="61" r="5" fill="#111" stroke="#555" stroke-width="1"/>
+  <circle cx="72" cy="61" r="2.5" fill="#c8a000"/>
+  <!-- Headlights -->
+  <path d="M14 56 L18 52 L22 54 L18 58Z" fill="#fff9e0" opacity="0.95"/>
+  <path d="M15 56 L18.5 53 L21 54.5 L18 57.5Z" fill="#ffe87a"/>
+  <!-- Tail lights -->
+  <rect x="80" y="55" width="5" height="4" rx="1" fill="#ff2200" opacity="0.9"/>
+  <!-- Door line -->
+  <path d="M38 44 L38 59 M55 43 L55 59" stroke="#b89000" stroke-width="0.5" opacity="0.6"/>
+  <!-- Air intake -->
+  <rect x="15" y="57" width="6" height="2" rx="0.5" fill="#111" stroke="#c8a000" stroke-width="0.4"/>
+  <!-- Logo hint -->
+  <rect x="47" y="42.5" width="6" height="1" fill="#ffd700" opacity="0.8"/>
 </svg>

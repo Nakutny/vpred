@@ -1,8 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#1a2235"/>
-  <rect x="15" y="35" width="70" height="30" rx="4" fill="#2a9d5c" stroke="#1e7a45" stroke-width="1.5"/>
-  <circle cx="50" cy="50" r="10" fill="#1e7a45"/>
-  <text x="50" y="54" font-family="serif" font-size="12" fill="#2a9d5c" text-anchor="middle" font-weight="bold">$</text>
-  <rect x="19" y="39" width="8" height="6" rx="1" fill="#1e7a45" opacity="0.6"/>
-  <rect x="73" y="55" width="8" height="6" rx="1" fill="#1e7a45" opacity="0.6"/>
+  <rect width="100" height="100" rx="50" fill="#1a2e1a"/>
+  <!-- Bill background -->
+  <rect x="12" y="33" width="76" height="34" rx="3" fill="#2d5a1b"/>
+  <rect x="14" y="35" width="72" height="30" rx="2" fill="#3a7322"/>
+  <!-- Fine line border pattern -->
+  <rect x="16" y="37" width="68" height="26" rx="1" fill="none" stroke="#4a9030" stroke-width="0.5"/>
+  <rect x="18" y="39" width="64" height="22" rx="1" fill="none" stroke="#4a9030" stroke-width="0.3"/>
+  <!-- Center oval -->
+  <ellipse cx="50" cy="50" rx="12" ry="9" fill="#2d5a1b" stroke="#4a9030" stroke-width="0.8"/>
+  <!-- Portrait silhouette -->
+  <ellipse cx="50" cy="47" rx="4" ry="4.5" fill="#4a9030"/>
+  <path d="M44 54 Q50 50 56 54 L56 56 Q50 53 44 56Z" fill="#4a9030"/>
+  <!-- 100 text -->
+  <text x="24" y="53" font-family="serif" font-size="7" fill="#85c466" font-weight="bold">100</text>
+  <text x="69" y="53" font-family="serif" font-size="7" fill="#85c466" font-weight="bold">100</text>
+  <!-- Serial number -->
+  <text x="28" y="61" font-family="monospace" font-size="3.5" fill="#5a8a40" letter-spacing="0.5">AB 12345678 C</text>
+  <!-- Corner ornaments -->
+  <rect x="16" y="37" width="8" height="6" rx="0.5" fill="#2a5218" stroke="#4a9030" stroke-width="0.3"/>
+  <rect x="76" y="57" width="8" height="6" rx="0.5" fill="#2a5218" stroke="#4a9030" stroke-width="0.3"/>
 </svg>

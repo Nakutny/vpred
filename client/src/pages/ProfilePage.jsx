@@ -5,13 +5,13 @@ import { useAuth } from '../contexts/AuthContext';
 import PostCard from '../components/PostCard';
 
 const PRESET_AVATARS = [
-  { id: 'banknote', label: 'Banknote', url: '/avatars/banknote.svg' },
-  { id: 'lambo', label: 'Lambo', url: '/avatars/lambo.svg' },
-  { id: 'watch', label: 'Watch', url: '/avatars/watch.svg' },
-  { id: 'chain', label: 'Chain', url: '/avatars/chain.svg' },
-  { id: 'vault', label: 'Vault', url: '/avatars/vault.svg' },
-  { id: 'question', label: 'Mystery', url: '/avatars/question.svg' },
-  { id: 'cigarette', label: 'Cigarette', url: '/avatars/cigarette.svg' },
+  { id: 'banknote', url: '/avatars/banknote.svg' },
+  { id: 'lambo', url: '/avatars/lambo.svg' },
+  { id: 'watch', url: '/avatars/watch.svg' },
+  { id: 'chain', url: '/avatars/chain.svg' },
+  { id: 'vault', url: '/avatars/vault.svg' },
+  { id: 'question', url: '/avatars/question.svg' },
+  { id: 'cigarette', url: '/avatars/cigarette.svg' },
 ];
 
 function Avatar({ url, username, size = 72 }) {
@@ -56,10 +56,11 @@ export default function ProfilePage() {
   const [pwError, setPwError] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
 
-  // Avatar
+  // Avatar - separate selected vs saved
+  const [savedAvatar, setSavedAvatar] = useState(null);
+  const [selectedAvatar, setSelectedAvatar] = useState(null); // what user clicked but not yet saved
   const [avatarMsg, setAvatarMsg] = useState('');
   const [avatarSaving, setAvatarSaving] = useState(false);
-  const [currentAvatar, setCurrentAvatar] = useState(null);
   const fileInputRef = useRef(null);
 
   const isOwn = user?.username?.toLowerCase() === username?.toLowerCase();
@@ -72,7 +73,8 @@ export default function ProfilePage() {
       .then(d => {
         setData(d);
         setBio(d.user.bio || '');
-        setCurrentAvatar(d.user.avatar_url || null);
+        setSavedAvatar(d.user.avatar_url || null);
+        setSelectedAvatar(d.user.avatar_url || null);
       })
       .catch(err => setError(err.message || 'Failed to load profile.'))
       .finally(() => setLoading(false));
@@ -113,13 +115,13 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleSetAvatar(url) {
+  async function handleSaveAvatar() {
     setAvatarSaving(true);
     try {
-      await profileApi.updateAvatar(url);
-      setCurrentAvatar(url);
-      setData(d => ({ ...d, user: { ...d.user, avatar_url: url } }));
-      flash(setAvatarMsg, 'Avatar updated.');
+      await profileApi.updateAvatar(selectedAvatar);
+      setSavedAvatar(selectedAvatar);
+      setData(d => ({ ...d, user: { ...d.user, avatar_url: selectedAvatar } }));
+      flash(setAvatarMsg, 'Avatar saved!');
     } catch (err) {
       flash(setAvatarMsg, 'Error: ' + err.message);
     } finally {
@@ -134,14 +136,12 @@ export default function ProfilePage() {
     if (file.size > 500 * 1024) return flash(setAvatarMsg, 'Image too large. Max 500KB.');
 
     const reader = new FileReader();
-    reader.onload = async (ev) => {
-      await handleSetAvatar(ev.target.result);
+    reader.onload = (ev) => {
+      setSelectedAvatar(ev.target.result);
     };
     reader.readAsDataURL(file);
-  }
-
-  async function handleRemoveAvatar() {
-    await handleSetAvatar(null);
+    // Reset file input
+    e.target.value = '';
   }
 
   function timeAgo(dateStr) {
@@ -176,11 +176,13 @@ export default function ProfilePage() {
     ] : []),
   ];
 
+  const hasUnsavedAvatar = selectedAvatar !== savedAvatar;
+
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 36, paddingBottom: 32, borderBottom: '1px solid var(--border)' }}>
-        <Avatar url={data.user.avatar_url} username={data.user.username} size={72} />
+        <Avatar url={savedAvatar} username={data.user.username} size={72} />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 4 }}>
             {data.user.username}
@@ -238,20 +240,35 @@ export default function ProfilePage() {
 
       {/* Avatar tab */}
       {tab === 'avatar' && isOwn && (
-        <div style={{ maxWidth: 560 }}>
-          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 20 }}>
+        <div style={{ maxWidth: 580 }}>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 6 }}>
             Choose your avatar
           </h2>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 24 }}>
+            Select a preset or upload your own image. Click "Save avatar" to apply.
+          </p>
 
-          {/* Current avatar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 28, padding: '16px 20px', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)' }}>
-            <Avatar url={currentAvatar} username={data.user.username} size={56} />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Current avatar</div>
-              {currentAvatar && (
-                <button onClick={handleRemoveAvatar} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 13 }}>
-                  Remove avatar
-                </button>
+          {/* Preview */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 28, padding: '20px 24px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ position: 'relative' }}>
+              <Avatar url={selectedAvatar} username={data.user.username} size={64} />
+              {hasUnsavedAvatar && (
+                <div style={{
+                  position: 'absolute', bottom: -2, right: -2,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: 'var(--accent)', border: '2px solid var(--surface)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                </div>
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+                {hasUnsavedAvatar ? 'Preview — not saved yet' : 'Current avatar'}
+              </div>
+              {hasUnsavedAvatar && (
+                <div style={{ fontSize: 13, color: 'var(--muted)' }}>Click "Save avatar" to apply this change.</div>
               )}
             </div>
           </div>
@@ -281,43 +298,69 @@ export default function ProfilePage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={avatarSaving}
               className="btn btn-ghost"
               style={{ display: 'flex', alignItems: 'center', gap: 8 }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              {avatarSaving ? 'Uploading...' : 'Upload image (max 500KB)'}
+              Upload image (max 500KB)
             </button>
           </div>
 
-          {/* Preset avatars */}
-          <div>
+          {/* Presets */}
+          <div style={{ marginBottom: 28 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Choose a preset
+              Preset avatars
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))', gap: 10 }}>
               {PRESET_AVATARS.map(avatar => (
                 <button
                   key={avatar.id}
-                  onClick={() => handleSetAvatar(avatar.url)}
-                  disabled={avatarSaving}
+                  onClick={() => setSelectedAvatar(avatar.url)}
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                    padding: '12px 8px', borderRadius: 10, cursor: 'pointer',
-                    border: currentAvatar === avatar.url ? '2px solid var(--accent)' : '2px solid var(--border)',
-                    background: currentAvatar === avatar.url ? 'rgba(79,142,247,0.08)' : 'var(--surface)',
+                    padding: '10px', borderRadius: 12, cursor: 'pointer',
+                    border: selectedAvatar === avatar.url ? '2px solid var(--accent)' : '2px solid var(--border)',
+                    background: selectedAvatar === avatar.url ? 'rgba(79,142,247,0.08)' : 'var(--surface)',
                     transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
-                  onMouseEnter={e => { if (currentAvatar !== avatar.url) e.currentTarget.style.borderColor = '#3a3f55'; }}
-                  onMouseLeave={e => { if (currentAvatar !== avatar.url) e.currentTarget.style.borderColor = 'var(--border)'; }}
+                  onMouseEnter={e => { if (selectedAvatar !== avatar.url) e.currentTarget.style.borderColor = '#3a3f55'; }}
+                  onMouseLeave={e => { if (selectedAvatar !== avatar.url) e.currentTarget.style.borderColor = 'var(--border)'; }}
                 >
-                  <img src={avatar.url} alt={avatar.label} style={{ width: 52, height: 52, borderRadius: '50%' }} />
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{avatar.label}</span>
+                  <img src={avatar.url} alt="" style={{ width: 60, height: 60, borderRadius: '50%' }} />
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Save / Remove buttons */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              onClick={handleSaveAvatar}
+              disabled={avatarSaving || !hasUnsavedAvatar}
+              className="btn btn-primary"
+              style={{ opacity: hasUnsavedAvatar ? 1 : 0.5 }}
+            >
+              {avatarSaving ? 'Saving...' : 'Save avatar'}
+            </button>
+            {savedAvatar && (
+              <button
+                onClick={() => { setSelectedAvatar(null); }}
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--danger)' }}
+              >
+                Remove avatar
+              </button>
+            )}
+            {hasUnsavedAvatar && (
+              <button
+                onClick={() => setSelectedAvatar(savedAvatar)}
+                className="btn btn-ghost btn-sm"
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       )}

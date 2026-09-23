@@ -1,4 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#1a1a2e"/>
-  <text x="50" y="64" font-family="Georgia,serif" font-size="52" fill="#4f8ef7" text-anchor="middle" font-weight="bold">?</text>
+  <rect width="100" height="100" rx="50" fill="#0a0a18"/>
+  <!-- Shadow figure -->
+  <ellipse cx="50" cy="82" rx="18" ry="4" fill="#000" opacity="0.5"/>
+  <!-- Body silhouette - mysterious hooded figure -->
+  <path d="M50 20 C38 20 30 28 30 38 C30 42 32 46 35 49 L35 75 L65 75 L65 49 C68 46 70 42 70 38 C70 28 62 20 50 20Z" fill="#1a1a2e"/>
+  <!-- Hood -->
+  <path d="M34 36 C34 24 38 18 50 16 C62 18 66 24 66 36 C66 44 62 50 50 52 C38 50 34 44 34 36Z" fill="#1e1e35"/>
+  <!-- Deep shadow face area -->
+  <ellipse cx="50" cy="38" rx="10" ry="11" fill="#0a0a14"/>
+  <!-- Glowing eyes -->
+  <ellipse cx="45" cy="37" rx="3" ry="2" fill="#4f8ef7" opacity="0.9"/>
+  <ellipse cx="55" cy="37" rx="3" ry="2" fill="#4f8ef7" opacity="0.9"/>
+  <ellipse cx="45" cy="37" rx="1.5" ry="1" fill="#8ab8ff"/>
+  <ellipse cx="55" cy="37" rx="1.5" ry="1" fill="#8ab8ff"/>
+  <!-- Question mark glow -->
+  <text x="50" y="66" font-family="Georgia,serif" font-size="18" fill="#4f8ef7" text-anchor="middle" font-weight="bold" opacity="0.9">?</text>
+  <text x="50" y="66" font-family="Georgia,serif" font-size="18" fill="#8ab8ff" text-anchor="middle" font-weight="bold" opacity="0.4">?</text>
+  <!-- Particle effects -->
+  <circle cx="30" cy="25" r="1" fill="#4f8ef7" opacity="0.4"/>
+  <circle cx="70" cy="30" r="0.8" fill="#4f8ef7" opacity="0.3"/>
+  <circle cx="25" cy="55" r="0.6" fill="#4f8ef7" opacity="0.25"/>
+  <circle cx="75" cy="48" r="0.8" fill="#4f8ef7" opacity="0.3"/>
 </svg>

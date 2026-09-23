@@ -1,8 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="50" fill="#111"/>
-  <rect x="18" y="46" width="50" height="8" rx="2" fill="#f5f0e8"/>
-  <rect x="62" y="46" width="12" height="8" rx="1" fill="#c8a882"/>
-  <rect x="74" y="46" width="8" height="8" rx="1" fill="#ff6b35" opacity="0.9"/>
-  <path d="M76 44 Q78 36 75 30 Q80 34 79 42" fill="none" stroke="#aaa" stroke-width="1.5" opacity="0.6"/>
-  <path d="M80 44 Q83 32 80 24 Q86 30 84 42" fill="none" stroke="#888" stroke-width="1" opacity="0.4"/>
+  <rect width="100" height="100" rx="50" fill="#0d0d0d"/>
+  <!-- Ashtray -->
+  <ellipse cx="50" cy="72" rx="28" ry="8" fill="#1a1a1a" stroke="#2a2a2a" stroke-width="1"/>
+  <ellipse cx="50" cy="70" rx="24" ry="6" fill="#141414"/>
+  <!-- Ash in tray -->
+  <ellipse cx="50" cy="70" rx="10" ry="2.5" fill="#3a3a3a"/>
+  <!-- Cigarette resting on ashtray -->
+  <rect x="22" y="63" width="56" height="7" rx="3.5" fill="#f5f0e8"/>
+  <!-- Filter -->
+  <rect x="70" y="63" width="12" height="7" rx="3.5" fill="#c4a882"/>
+  <rect x="70" y="63" width="12" height="7" rx="3.5" fill="#d4a882"/>
+  <!-- Filter lines -->
+  <line x1="73" y1="64" x2="73" y2="69" stroke="#b89870" stroke-width="0.5" opacity="0.6"/>
+  <line x1="76" y1="64" x2="76" y2="69" stroke="#b89870" stroke-width="0.5" opacity="0.6"/>
+  <line x1="79" y1="64" x2="79" y2="69" stroke="#b89870" stroke-width="0.5" opacity="0.6"/>
+  <!-- Ember/lit end -->
+  <circle cx="22" cy="66.5" r="4" fill="#ff4400" opacity="0.95"/>
+  <circle cx="22" cy="66.5" r="3" fill="#ff6600"/>
+  <circle cx="22" cy="66.5" r="2" fill="#ff9900"/>
+  <circle cx="22" cy="66.5" r="1" fill="#ffcc00"/>
+  <!-- Paper texture -->
+  <line x1="35" y1="63.5" x2="35" y2="69.5" stroke="#e0dbd0" stroke-width="0.3" opacity="0.5"/>
+  <line x1="48" y1="63.5" x2="48" y2="69.5" stroke="#e0dbd0" stroke-width="0.3" opacity="0.5"/>
+  <line x1="61" y1="63.5" x2="61" y2="69.5" stroke="#e0dbd0" stroke-width="0.3" opacity="0.5"/>
+  <!-- Smoke wisps -->
+  <path d="M22 62 Q19 55 22 48 Q25 41 21 35" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <path d="M25 61 Q28 52 24 44 Q20 38 24 30" fill="none" stroke="#666" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+  <path d="M20 60 Q15 50 18 42 Q21 36 18 28" fill="none" stroke="#777" stroke-width="0.8" stroke-linecap="round" opacity="0.25"/>
+  <!-- Brand ring -->
+  <line x1="54" y1="63" x2="54" y2="70" stroke="#c0a860" stroke-width="1.5" opacity="0.7"/>
 </svg>
