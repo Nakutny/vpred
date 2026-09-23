@@ -78,9 +78,14 @@ export default function Layout({ children }) {
                       background: 'var(--accent)', border: 'none', cursor: 'pointer',
                       color: '#fff', fontWeight: 600, fontSize: 13,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', padding: 0,
                     }}
                   >
-                    {user.username[0].toUpperCase()}
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt={user.username} style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: '50%' }} />
+                    ) : (
+                      user.username[0].toUpperCase()
+                    )}
                   </button>
                   {menuOpen && (
                     <>
@@ -169,8 +174,13 @@ export default function Layout({ children }) {
               vpred.org — Open Research Collective
             </span>
           </div>
-          <div style={{ color: 'var(--muted)', fontSize: 12, maxWidth: 520 }}>
-            All content represents personal research and opinions based on publicly available information. Not legal advice. Sources must be cited.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+              All content represents personal research based on publicly available information. Not legal advice.
+            </span>
+            <Link to="/impressum" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+              Impressum
+            </Link>
           </div>
         </div>
       </footer>

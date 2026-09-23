@@ -65,4 +65,11 @@ export const profile = {
   get: (username) => request(`/api/profile/${username}`),
   updateBio: (bio) => request('/api/profile/me/bio', { method: 'PATCH', body: JSON.stringify({ bio }) }),
   changePassword: (body) => request('/api/profile/me/password', { method: 'PATCH', body: JSON.stringify(body) }),
+  updateAvatar: (avatar_url) => request('/api/profile/me/avatar', { method: 'PATCH', body: JSON.stringify({ avatar_url }) }),
+};
+
+// Legal pages
+export const legal = {
+  get: (key) => request(`/api/legal/${key}`),
+  update: (key, content) => request(`/api/legal/${key}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
 };

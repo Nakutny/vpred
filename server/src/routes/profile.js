@@ -7,6 +7,27 @@ const router = express.Router();
 
 // PATCH /me routes MUST come before /:username
 
+// PATCH /api/profile/me/avatar
+router.patch('/me/avatar', requireAuth, async (req, res) => {
+  try {
+    const { avatar_url } = req.body;
+
+    // Allow preset avatars or base64 images (max ~500KB)
+    if (avatar_url && avatar_url.startsWith('data:image')) {
+      const sizeKB = Buffer.byteLength(avatar_url, 'utf8') / 1024;
+      if (sizeKB > 500) {
+        return res.status(400).json({ error: 'Image too large. Max 500KB.' });
+      }
+    }
+
+    await query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatar_url || null, req.user.id]);
+    res.json({ message: 'Avatar updated.', avatar_url: avatar_url || null });
+  } catch (err) {
+    console.error('Update avatar error:', err);
+    res.status(500).json({ error: 'Failed to update avatar.' });
+  }
+});
+
 // PATCH /api/profile/me/bio
 router.patch('/me/bio', requireAuth, async (req, res) => {
   try {

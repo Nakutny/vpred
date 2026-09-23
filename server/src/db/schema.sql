@@ -76,3 +76,10 @@ CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status);
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
 CREATE INDEX IF NOT EXISTS idx_comments_author ON comments(author_id);
+
+-- Legal pages (editable by admin)
+CREATE TABLE IF NOT EXISTS legal_pages (
+  key VARCHAR(50) PRIMARY KEY,
+  content TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

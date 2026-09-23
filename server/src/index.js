@@ -8,6 +8,7 @@ import commentRoutes from './routes/comments.js';
 import categoryRoutes from './routes/categories.js';
 import adminRoutes from './routes/admin.js';
 import profileRoutes from './routes/profile.js';
+import legalRoutes from './routes/legal.js';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/legal', legalRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 
