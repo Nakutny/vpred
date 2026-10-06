@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { posts, comments as commentsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import SEO from '../components/SEO';
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -21,6 +22,11 @@ function readTime(content) {
   const words = text.trim().split(/\s+/).length;
   const mins = Math.max(1, Math.round(words / 200));
   return `${mins} min read`;
+}
+
+function stripHtml(html) {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export default function PostPage() {
@@ -175,13 +181,50 @@ export default function PostPage() {
   const tree = buildTree(commentList);
   const canEdit = isAdmin || user?.id === post.author_id;
 
+  // Build description for SEO
+  const seoDesc = post.summary || stripHtml(post.content).slice(0, 200);
+
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
+      {/* SEO */}
+      <SEO
+        title={post.title}
+        description={seoDesc}
+        url={`/post/${post.slug}`}
+        type="article"
+        author={post.author_username}
+        publishedAt={post.created_at}
+      />
+
       {/* Back */}
       <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Back to feed
       </Link>
+
+      {/* Parent post breadcrumb (if this is an expand post) */}
+      {post.parent_slug && (
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          padding: '10px 16px',
+          marginBottom: 20,
+          display: 'flex',
+          gap: 10,
+          alignItems: 'center',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" style={{ flexShrink: 0 }}>
+            <path d="M3 17l4-4-4-4M9 17h12"/>
+          </svg>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+            Continuation of{' '}
+            <Link to={`/post/${post.parent_slug}`} style={{ color: 'var(--accent)', fontWeight: 500 }}>
+              {post.parent_title}
+            </Link>
+          </span>
+        </div>
+      )}
 
       {/* Disclaimer */}
       <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 16px', marginBottom: 28, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -252,6 +295,27 @@ export default function PostPage() {
               {voteCount} upvotes
             </button>
 
+            {/* Expand / Write follow-up */}
+            {user && (
+              <Link
+                to="/new"
+                state={{ parentPostId: post.id, parentPostTitle: post.title, parentPostSlug: post.slug }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)',
+                  color: 'var(--muted)', fontSize: 13, fontWeight: 500,
+                  textDecoration: 'none', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)'; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 17l4-4-4-4M9 17h12"/>
+                </svg>
+                Expand
+              </Link>
+            )}
+
             {/* Edit (admin or author) */}
             {canEdit && (
               <Link to={`/post/${post.slug}/edit`} className="btn btn-ghost btn-sm">
@@ -271,6 +335,44 @@ export default function PostPage() {
         {/* Content */}
         <div className="prose" dangerouslySetInnerHTML={{ __html: post.content }} style={{ maxWidth: '100%' }} />
       </article>
+
+      {/* Expand Posts (follow-ups) */}
+      {post.expand_posts && post.expand_posts.length > 0 && (
+        <section style={{ marginTop: 48, paddingTop: 32, borderTop: '1px solid var(--border)' }}>
+          <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.2rem', fontWeight: 400, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
+              <path d="M3 17l4-4-4-4M9 17h12"/>
+            </svg>
+            {post.expand_posts.length} Follow-up{post.expand_posts.length !== 1 ? 's' : ''}
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {post.expand_posts.map(ep => (
+              <Link
+                key={ep.id}
+                to={`/post/${ep.slug}`}
+                style={{
+                  display: 'block',
+                  padding: '14px 18px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  textDecoration: 'none',
+                  transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              >
+                <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>
+                  {ep.title}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  by {ep.author_username} · {timeAgo(ep.created_at)}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Comments */}
       <section style={{ marginTop: 56 }}>

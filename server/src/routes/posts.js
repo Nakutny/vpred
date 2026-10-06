@@ -1,7 +1,7 @@
 import express from 'express';
 import slugify from 'slugify';
 import { query } from '../db/client.js';
-import { requireAuth, requireAdmin, requireModerator, optionalAuth } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ router.get('/', optionalAuth, async (req, res) => {
     const category = req.query.category;
     const search = req.query.search;
 
-    let whereClause = "WHERE p.status = 'published'";
+    let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL";
     const params = [];
 
     if (category) {
@@ -38,12 +38,14 @@ router.get('/', optionalAuth, async (req, res) => {
         u.username as author_username, u.id as author_id,
         c.name as category_name, c.slug as category_slug,
         COUNT(DISTINCT cm.id) as comment_count,
-        COUNT(DISTINCT pv.user_id) as vote_count
+        COUNT(DISTINCT pv.user_id) as vote_count,
+        COUNT(DISTINCT ep.id) as expand_count
        FROM posts p
        LEFT JOIN users u ON p.author_id = u.id
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN comments cm ON cm.post_id = p.id AND cm.is_removed = FALSE
        LEFT JOIN post_votes pv ON pv.post_id = p.id
+       LEFT JOIN posts ep ON ep.parent_post_id = p.id AND ep.status = 'published'
        ${whereClause}
        GROUP BY p.id, u.username, u.id, c.name, c.slug
        ORDER BY p.created_at DESC
@@ -76,16 +78,18 @@ router.get('/:slug', optionalAuth, async (req, res) => {
     const result = await query(
       `SELECT
         p.id, p.title, p.slug, p.content, p.summary, p.view_count,
-        p.created_at, p.updated_at, p.status,
+        p.created_at, p.updated_at, p.status, p.parent_post_id,
         u.username as author_username, u.id as author_id, u.bio as author_bio,
         c.name as category_name, c.slug as category_slug, c.id as category_id,
-        COUNT(DISTINCT pv.user_id) as vote_count
+        COUNT(DISTINCT pv.user_id) as vote_count,
+        pp.title as parent_title, pp.slug as parent_slug
        FROM posts p
        LEFT JOIN users u ON p.author_id = u.id
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN post_votes pv ON pv.post_id = p.id
+       LEFT JOIN posts pp ON pp.id = p.parent_post_id
        WHERE p.slug = $1 AND p.status = 'published'
-       GROUP BY p.id, u.username, u.id, u.bio, c.name, c.slug, c.id`,
+       GROUP BY p.id, u.username, u.id, u.bio, c.name, c.slug, c.id, pp.title, pp.slug`,
       [req.params.slug]
     );
 
@@ -94,6 +98,16 @@ router.get('/:slug', optionalAuth, async (req, res) => {
     }
 
     await query('UPDATE posts SET view_count = view_count + 1 WHERE id = $1', [result.rows[0].id]);
+
+    // Get expand posts (follow-ups)
+    const expandResult = await query(
+      `SELECT p.id, p.title, p.slug, p.created_at, u.username as author_username
+       FROM posts p
+       LEFT JOIN users u ON p.author_id = u.id
+       WHERE p.parent_post_id = $1 AND p.status = 'published'
+       ORDER BY p.created_at ASC`,
+      [result.rows[0].id]
+    );
 
     let userVoted = false;
     if (req.user) {
@@ -104,7 +118,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
       userVoted = voteResult.rows.length > 0;
     }
 
-    res.json({ post: { ...result.rows[0], userVoted } });
+    res.json({ post: { ...result.rows[0], userVoted, expand_posts: expandResult.rows } });
   } catch (err) {
     console.error('Get post error:', err);
     res.status(500).json({ error: 'Failed to load post.' });
@@ -114,7 +128,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 // POST /api/posts
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { title, content, summary, category_id, status = 'published' } = req.body;
+    const { title, content, summary, category_id, status = 'published', parent_post_id } = req.body;
 
     if (!title?.trim() || !content?.trim()) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -123,13 +137,21 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Title is too long (max 300 characters).' });
     }
 
+    // Validate parent post exists if provided
+    if (parent_post_id) {
+      const parentCheck = await query('SELECT id FROM posts WHERE id = $1 AND status = $2', [parent_post_id, 'published']);
+      if (!parentCheck.rows[0]) {
+        return res.status(400).json({ error: 'Parent post not found.' });
+      }
+    }
+
     const slug = makeSlug(title);
 
     const result = await query(
-      `INSERT INTO posts (title, slug, content, summary, author_id, category_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO posts (title, slug, content, summary, author_id, category_id, status, parent_post_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, title, slug, created_at`,
-      [title.trim(), slug, content, summary || null, req.user.id, category_id || null, status]
+      [title.trim(), slug, content, summary || null, req.user.id, category_id || null, status, parent_post_id || null]
     );
 
     res.status(201).json({ post: result.rows[0] });

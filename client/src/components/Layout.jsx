@@ -178,6 +178,12 @@ export default function Layout({ children }) {
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>
               All content represents personal research based on publicly available information. Not legal advice.
             </span>
+            <Link to="/about" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+              About
+            </Link>
+            <Link to="/privacy" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+              Privacy
+            </Link>
             <Link to="/impressum" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
               Impressum
             </Link>

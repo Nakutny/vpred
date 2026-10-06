@@ -12,6 +12,8 @@ import CategoryPage from './pages/CategoryPage';
 import CategoriesPage from './pages/CategoriesPage';
 import ProfilePage from './pages/ProfilePage';
 import ImpressumPage from './pages/ImpressumPage';
+import PrivacyPage from './pages/PrivacyPage';
+import AboutPage from './pages/AboutPage';
 
 export default function App() {
   return (
@@ -30,6 +32,8 @@ export default function App() {
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/profile/:username" element={<ProfilePage />} />
             <Route path="/impressum" element={<ImpressumPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/about" element={<AboutPage />} />
           </Routes>
         </Layout>
       </AuthProvider>

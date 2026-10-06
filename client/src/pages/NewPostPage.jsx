@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -27,6 +27,13 @@ function ToolbarBtn({ onClick, active, title, children }) {
 export default function NewPostPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Expand / follow-up state from navigation
+  const parentPostId = location.state?.parentPostId || null;
+  const parentPostTitle = location.state?.parentPostTitle || null;
+  const parentPostSlug = location.state?.parentPostSlug || null;
+
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -64,6 +71,7 @@ export default function NewPostPage() {
         summary: summary.trim() || undefined,
         category_id: categoryId || undefined,
         status: 'published',
+        parent_post_id: parentPostId || undefined,
       });
       navigate(`/post/${d.post.slug}`);
     } catch (err) {
@@ -76,8 +84,38 @@ export default function NewPostPage() {
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
       <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 8 }}>
-        New Post
+        {parentPostId ? 'Write a Follow-up' : 'New Post'}
       </h1>
+
+      {/* Expand banner */}
+      {parentPostId && (
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--accent)',
+          borderRadius: 8,
+          padding: '10px 16px',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" style={{ flexShrink: 0 }}>
+            <path d="M3 17l4-4-4-4M9 17h12"/>
+          </svg>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+            This post will be linked as a continuation of{' '}
+            <strong style={{ color: 'var(--text)' }}>{parentPostTitle}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => navigate(`/post/${parentPostSlug}`)}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}
+          >
+            Cancel expand
+          </button>
+        </div>
+      )}
+
       <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 32 }}>
         All posts must be based on publicly available information. Unsupported claims may be removed.
       </p>
@@ -164,7 +202,7 @@ export default function NewPostPage() {
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="submit" disabled={submitting} className="btn btn-primary">
-            {submitting ? 'Publishing...' : 'Publish post'}
+            {submitting ? 'Publishing...' : (parentPostId ? 'Publish follow-up' : 'Publish post')}
           </button>
           <button type="button" onClick={() => navigate(-1)} className="btn btn-ghost">
             Cancel
