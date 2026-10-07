@@ -45,6 +45,7 @@ export default function Layout({ children }) {
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <NavLink to="/" label="Feed" active={location.pathname === '/'} />
             <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
+            <NavLink to="/support" label="Support" active={location.pathname === '/support'} />
             {isAdmin && <NavLink to="/admin" label="Admin" active={location.pathname.startsWith('/admin')} accent />}
           </nav>
 
@@ -178,6 +179,9 @@ export default function Layout({ children }) {
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>
               All content represents personal research based on publicly available information. Not legal advice.
             </span>
+            <Link to="/support" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+              Support
+            </Link>
             <Link to="/about" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
               About
             </Link>

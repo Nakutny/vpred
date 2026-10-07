@@ -81,6 +81,25 @@ export default function NewPostPage() {
     }
   }
 
+  // Build hierarchical category options: top-level first, then subcategories indented
+  const topLevel = categoryList.filter(c => !c.parent_id);
+  const subCats = categoryList.filter(c => !!c.parent_id);
+
+  function renderCategoryOptions() {
+    const options = [];
+    topLevel.forEach(parent => {
+      options.push(<option key={parent.id} value={parent.id}>{parent.name}</option>);
+      const children = subCats.filter(c => c.parent_id === parent.id);
+      children.forEach(child => {
+        options.push(<option key={child.id} value={child.id}>{'  ↳ '}{child.name}</option>);
+      });
+    });
+    // Any subcategories whose parent is itself a sub (unlikely but safe)
+    const orphans = subCats.filter(c => !topLevel.find(p => p.id === c.parent_id));
+    orphans.forEach(o => options.push(<option key={o.id} value={o.id}>{o.name}</option>));
+    return options;
+  }
+
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
       <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 8 }}>
@@ -149,7 +168,7 @@ export default function NewPostPage() {
           />
         </div>
 
-        {/* Category */}
+        {/* Category — hierarchical */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Category</label>
           <select
@@ -159,9 +178,7 @@ export default function NewPostPage() {
             style={{ cursor: 'pointer' }}
           >
             <option value="">— Select category —</option>
-            {categoryList.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
+            {renderCategoryOptions()}
           </select>
         </div>
 

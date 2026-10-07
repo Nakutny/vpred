@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
     const result = await query(
       `SELECT
         c.id, c.content, c.parent_id, c.is_removed, c.created_at,
-        u.username as author_username, u.id as author_id
+        u.username as author_username, u.id as author_id, u.avatar_url as author_avatar
        FROM comments c
        LEFT JOIN users u ON c.author_id = u.id
        WHERE c.post_id = $1
@@ -57,6 +57,7 @@ router.post('/', requireAuth, async (req, res) => {
         ...result.rows[0],
         author_username: req.user.username,
         author_id: req.user.id,
+        author_avatar: req.user.avatar_url || null,
       }
     });
   } catch (err) {

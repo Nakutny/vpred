@@ -14,6 +14,7 @@ import ProfilePage from './pages/ProfilePage';
 import ImpressumPage from './pages/ImpressumPage';
 import PrivacyPage from './pages/PrivacyPage';
 import AboutPage from './pages/AboutPage';
+import SupportPage from './pages/SupportPage';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/impressum" element={<ImpressumPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/support" element={<SupportPage />} />
           </Routes>
         </Layout>
       </AuthProvider>

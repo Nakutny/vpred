@@ -9,7 +9,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [categoryList, setCategoryList] = useState([]);
-  const [newCategory, setNewCategory] = useState({ name: '', description: '' });
+  const [newCategory, setNewCategory] = useState({ name: '', description: '', parent_id: '' });
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
 
@@ -44,15 +44,19 @@ export default function AdminPage() {
     e.preventDefault();
     if (!newCategory.name.trim()) return;
     try {
-      const d = await categories.create(newCategory);
+      const d = await categories.create({
+        name: newCategory.name,
+        description: newCategory.description,
+        parent_id: newCategory.parent_id || undefined,
+      });
       setCategoryList(prev => [...prev, d.category]);
-      setNewCategory({ name: '', description: '' });
+      setNewCategory({ name: '', description: '', parent_id: '' });
       flash('Category created.');
     } catch (err) { flash('Error: ' + err.message); }
   }
 
   async function handleDeleteCategory(id) {
-    if (!confirm('Delete this category?')) return;
+    if (!confirm('Delete this category? Posts in it will become uncategorised.')) return;
     try {
       await categories.delete(id);
       setCategoryList(prev => prev.filter(c => c.id !== id));
@@ -71,6 +75,9 @@ export default function AdminPage() {
       </span>
     );
   }
+
+  // Top-level categories (no parent) — usable as parents
+  const topLevelCats = categoryList.filter(c => !c.parent_id);
 
   const tabs = [
     { id: 'users', label: 'Users' },
@@ -169,20 +176,39 @@ export default function AdminPage() {
 
           {/* Categories tab */}
           {tab === 'categories' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 28 }}>
-              {/* List */}
-              <div className="card" style={{ overflow: 'hidden', alignSelf: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 28, alignItems: 'start' }}>
+              {/* Category list with hierarchy */}
+              <div className="card" style={{ overflow: 'hidden' }}>
                 {categoryList.length === 0 ? (
                   <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>No categories yet.</div>
                 ) : (
                   categoryList.map((c, i) => (
-                    <div key={c.id} style={{ padding: '14px 20px', borderBottom: i < categoryList.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div key={c.id} style={{
+                      padding: '14px 20px',
+                      paddingLeft: c.parent_id ? 36 : 20,
+                      borderBottom: i < categoryList.length - 1 ? '1px solid var(--border)' : 'none',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    }}>
                       <div>
-                        <div style={{ fontWeight: 500, fontSize: 14 }}>{c.name}</div>
-                        {c.description && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>{c.description}</div>}
-                        <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>{c.post_count} posts</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {c.parent_id && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
+                              <path d="M3 17l4-4-4-4M9 17h12"/>
+                            </svg>
+                          )}
+                          <span style={{ fontWeight: c.parent_id ? 400 : 600, fontSize: 14, color: c.parent_id ? 'var(--muted)' : 'var(--text)' }}>
+                            {c.name}
+                          </span>
+                          {c.parent_name && (
+                            <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--surface2)', padding: '1px 7px', borderRadius: 100 }}>
+                              under {c.parent_name}
+                            </span>
+                          )}
+                        </div>
+                        {c.description && <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>{c.description}</div>}
+                        <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>{c.post_count} posts</div>
                       </div>
-                      <button onClick={() => handleDeleteCategory(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>
+                      <button onClick={() => handleDeleteCategory(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)', flexShrink: 0 }}>
                         Delete
                       </button>
                     </div>
@@ -190,20 +216,44 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* Add form */}
-              <div className="card" style={{ padding: '20px 22px', alignSelf: 'start' }}>
+              {/* Add category form */}
+              <div className="card" style={{ padding: '20px 22px' }}>
                 <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.1rem', fontWeight: 400, marginBottom: 16 }}>Add Category</h3>
                 <form onSubmit={handleAddCategory}>
                   <div style={{ marginBottom: 14 }}>
                     <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Name *</label>
                     <input
                       className="input"
-                      placeholder="e.g. Politics"
+                      placeholder="e.g. John Doe"
                       value={newCategory.name}
                       onChange={e => setNewCategory(p => ({ ...p, name: e.target.value }))}
                       required
                     />
                   </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                      Parent category{' '}
+                      <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
+                    </label>
+                    <select
+                      className="input"
+                      value={newCategory.parent_id}
+                      onChange={e => setNewCategory(p => ({ ...p, parent_id: e.target.value }))}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <option value="">— None (top-level) —</option>
+                      {topLevelCats.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    {newCategory.parent_id && (
+                      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5 }}>
+                        This will be a subcategory under the selected parent.
+                      </p>
+                    )}
+                  </div>
+
                   <div style={{ marginBottom: 18 }}>
                     <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Description</label>
                     <textarea

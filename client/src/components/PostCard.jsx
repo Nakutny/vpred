@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import Avatar from './Avatar';
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -47,23 +48,37 @@ export default function PostCard({ post }) {
                 {post.category_name}
               </Link>
             )}
-            <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-              by{' '}
-              <Link
-                to={`/profile/${post.author_username}`}
-                style={{ color: 'var(--text)', fontWeight: 500 }}
+            {/* Author with avatar */}
+            <Link
+              to={`/profile/${post.author_username}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}
+            >
+              <Avatar username={post.author_username} avatarUrl={post.author_avatar} size={20} />
+              <span
+                style={{ color: 'var(--text)', fontWeight: 500, fontSize: 12 }}
                 onMouseEnter={e => e.target.style.color = 'var(--accent)'}
                 onMouseLeave={e => e.target.style.color = 'var(--text)'}
               >
                 {post.author_username}
-              </Link>
-            </span>
+              </span>
+            </Link>
             <span style={{ color: 'var(--border)', fontSize: 12 }}>·</span>
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>{timeAgo(post.created_at)}</span>
             {readTime(post.summary || post.content) && (
               <>
                 <span style={{ color: 'var(--border)', fontSize: 12 }}>·</span>
                 <span style={{ color: 'var(--muted)', fontSize: 12 }}>{readTime(post.summary || post.content)}</span>
+              </>
+            )}
+            {parseInt(post.expand_count) > 0 && (
+              <>
+                <span style={{ color: 'var(--border)', fontSize: 12 }}>·</span>
+                <span style={{ color: 'var(--muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 17l4-4-4-4M9 17h12"/>
+                  </svg>
+                  {post.expand_count} follow-up{post.expand_count !== '1' ? 's' : ''}
+                </span>
               </>
             )}
           </div>

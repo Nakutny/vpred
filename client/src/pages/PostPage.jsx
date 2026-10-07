@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { posts, comments as commentsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import SEO from '../components/SEO';
+import Avatar from '../components/Avatar';
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -120,12 +121,8 @@ export default function PostPage() {
       <div style={{ marginLeft: depth > 0 ? 28 : 0, borderLeft: depth > 0 ? '2px solid var(--border)' : 'none', paddingLeft: depth > 0 ? 16 : 0 }}>
         <div style={{ padding: '14px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Link to={`/profile/${comment.author_username}`} style={{
-              width: 26, height: 26, borderRadius: '50%', background: 'var(--surface2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 600, color: 'var(--accent)', flexShrink: 0,
-            }}>
-              {comment.author_username?.[0]?.toUpperCase() || '?'}
+            <Link to={`/profile/${comment.author_username}`} style={{ flexShrink: 0 }}>
+              <Avatar username={comment.author_username} avatarUrl={comment.author_avatar} size={26} />
             </Link>
             <Link to={`/profile/${comment.author_username}`} style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)' }}
               onMouseEnter={e => e.target.style.color = 'var(--accent)'}
@@ -251,13 +248,7 @@ export default function PostPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32, flexWrap: 'wrap', paddingBottom: 24, borderBottom: '1px solid var(--border)' }}>
           {/* Author */}
           <Link to={`/profile/${post.author_username}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 600, color: '#fff', flexShrink: 0,
-            }}>
-              {post.author_username?.[0]?.toUpperCase()}
-            </div>
+            <Avatar username={post.author_username} avatarUrl={post.author_avatar} size={36} />
             <div>
               <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}
                 onMouseEnter={e => e.target.style.color = 'var(--accent)'}
