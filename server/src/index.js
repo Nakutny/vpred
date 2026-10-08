@@ -10,6 +10,9 @@ import adminRoutes from './routes/admin.js';
 import profileRoutes from './routes/profile.js';
 import legalRoutes from './routes/legal.js';
 import sitemapRoutes from './routes/sitemap.js';
+import friendshipRoutes from './routes/friendships.js';
+import messageRoutes from './routes/messages.js';
+import blockRoutes from './routes/blocks.js';
 
 dotenv.config();
 
@@ -32,6 +35,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/legal', legalRoutes);
 app.use('/sitemap.xml', sitemapRoutes);
+app.use('/api/friendships', friendshipRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/blocks', blockRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 
@@ -41,5 +47,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v3]`);
+  console.log(`vpred.org server running on port ${PORT} [v4]`);
 });

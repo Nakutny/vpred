@@ -15,6 +15,8 @@ import ImpressumPage from './pages/ImpressumPage';
 import PrivacyPage from './pages/PrivacyPage';
 import AboutPage from './pages/AboutPage';
 import SupportPage from './pages/SupportPage';
+import FriendsPage from './pages/FriendsPage';
+import ChatPage from './pages/ChatPage';
 
 export default function App() {
   return (
@@ -36,6 +38,8 @@ export default function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/support" element={<SupportPage />} />
+            <Route path="/friends" element={<FriendsPage />} />
+            <Route path="/chat/:userId" element={<ChatPage />} />
           </Routes>
         </Layout>
       </AuthProvider>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { profile as profileApi } from '../lib/api';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import PostCard from '../components/PostCard';
 
@@ -39,6 +39,7 @@ function Avatar({ url, username, size = 72 }) {
 export default function ProfilePage() {
   const { username } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,12 +57,18 @@ export default function ProfilePage() {
   const [pwError, setPwError] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
 
-  // Avatar - separate selected vs saved
+  // Avatar
   const [savedAvatar, setSavedAvatar] = useState(null);
-  const [selectedAvatar, setSelectedAvatar] = useState(null); // what user clicked but not yet saved
+  const [selectedAvatar, setSelectedAvatar] = useState(null);
   const [avatarMsg, setAvatarMsg] = useState('');
   const [avatarSaving, setAvatarSaving] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Friendship / Block state (for other user's profile)
+  const [friendship, setFriendship] = useState({ status: 'none', friendshipId: null, iRequested: false });
+  const [blocked, setBlocked] = useState(false); // I blocked them
+  const [socialLoading, setSocialLoading] = useState(false);
+  const [profileUserId, setProfileUserId] = useState(null);
 
   const isOwn = user?.username?.toLowerCase() === username?.toLowerCase();
 
@@ -69,16 +76,37 @@ export default function ProfilePage() {
     setLoading(true);
     setError('');
     setData(null);
+    setFriendship({ status: 'none', friendshipId: null, iRequested: false });
+    setBlocked(false);
     profileApi.get(username)
       .then(d => {
         setData(d);
         setBio(d.user.bio || '');
         setSavedAvatar(d.user.avatar_url || null);
         setSelectedAvatar(d.user.avatar_url || null);
+        setProfileUserId(d.user.id);
       })
       .catch(err => setError(err.message || 'Failed to load profile.'))
       .finally(() => setLoading(false));
   }, [username]);
+
+  // Load friendship + block status once we have the profile user's id
+  useEffect(() => {
+    if (!user || isOwn || !profileUserId) return;
+
+    async function loadSocial() {
+      try {
+        const [frRes, blRes] = await Promise.all([
+          friendshipsApi.status(profileUserId),
+          blocksApi.list(),
+        ]);
+        setFriendship(frRes);
+        const isBlocked = blRes.blocks.some(b => b.blocked_id === profileUserId);
+        setBlocked(isBlocked);
+      } catch {}
+    }
+    loadSocial();
+  }, [user, isOwn, profileUserId]);
 
   function flash(setter, msg, duration = 3000) {
     setter(msg);
@@ -134,14 +162,88 @@ export default function ProfilePage() {
     if (!file) return;
     if (!file.type.startsWith('image/')) return flash(setAvatarMsg, 'Please select an image file.');
     if (file.size > 500 * 1024) return flash(setAvatarMsg, 'Image too large. Max 500KB.');
-
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setSelectedAvatar(ev.target.result);
-    };
+    reader.onload = (ev) => setSelectedAvatar(ev.target.result);
     reader.readAsDataURL(file);
-    // Reset file input
     e.target.value = '';
+  }
+
+  // Social actions
+  async function sendFriendRequest() {
+    setSocialLoading(true);
+    try {
+      const res = await friendshipsApi.send(profileUserId);
+      setFriendship({ status: 'pending', friendshipId: res.friendship.id, iRequested: true });
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSocialLoading(false);
+    }
+  }
+
+  async function cancelFriendRequest() {
+    if (!friendship.friendshipId) return;
+    setSocialLoading(true);
+    try {
+      await friendshipsApi.remove(friendship.friendshipId);
+      setFriendship({ status: 'none', friendshipId: null, iRequested: false });
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSocialLoading(false);
+    }
+  }
+
+  async function acceptFriendRequest() {
+    if (!friendship.friendshipId) return;
+    setSocialLoading(true);
+    try {
+      await friendshipsApi.respond(friendship.friendshipId, 'accepted');
+      setFriendship(f => ({ ...f, status: 'accepted' }));
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSocialLoading(false);
+    }
+  }
+
+  async function unfriend() {
+    if (!friendship.friendshipId || !confirm('Remove this friend?')) return;
+    setSocialLoading(true);
+    try {
+      await friendshipsApi.remove(friendship.friendshipId);
+      setFriendship({ status: 'none', friendshipId: null, iRequested: false });
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSocialLoading(false);
+    }
+  }
+
+  async function handleBlock() {
+    if (!confirm(`Block ${username}? They won't be able to contact you and any friendship will be removed.`)) return;
+    setSocialLoading(true);
+    try {
+      await blocksApi.block(profileUserId);
+      setBlocked(true);
+      setFriendship({ status: 'none', friendshipId: null, iRequested: false });
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSocialLoading(false);
+    }
+  }
+
+  async function handleUnblock() {
+    setSocialLoading(true);
+    try {
+      await blocksApi.unblock(profileUserId);
+      setBlocked(false);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSocialLoading(false);
+    }
   }
 
   function timeAgo(dateStr) {
@@ -196,11 +298,67 @@ export default function ProfilePage() {
               No bio yet. Add one in "Edit profile".
             </p>
           ) : null}
-          <div style={{ display: 'flex', gap: 20 }}>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--muted)', fontSize: 13 }}>
               <strong style={{ color: 'var(--text)' }}>{data.posts.length}</strong> posts
             </span>
             <span style={{ color: 'var(--muted)', fontSize: 13 }}>Joined {timeAgo(data.user.created_at)}</span>
+
+            {/* Social actions for other users */}
+            {!isOwn && user && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {blocked ? (
+                  <button
+                    onClick={handleUnblock}
+                    disabled={socialLoading}
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                  >
+                    Unblock
+                  </button>
+                ) : (
+                  <>
+                    {friendship.status === 'none' && (
+                      <button onClick={sendFriendRequest} disabled={socialLoading} className="btn btn-primary btn-sm">
+                        + Add Friend
+                      </button>
+                    )}
+                    {friendship.status === 'pending' && friendship.iRequested && (
+                      <button onClick={cancelFriendRequest} disabled={socialLoading} className="btn btn-ghost btn-sm">
+                        Request Sent ✓
+                      </button>
+                    )}
+                    {friendship.status === 'pending' && !friendship.iRequested && (
+                      <button onClick={acceptFriendRequest} disabled={socialLoading} className="btn btn-primary btn-sm">
+                        Accept Request
+                      </button>
+                    )}
+                    {friendship.status === 'accepted' && (
+                      <>
+                        <Link
+                          to={`/chat/${profileUserId}`}
+                          className="btn btn-primary btn-sm"
+                        >
+                          Message
+                        </Link>
+                        <button onClick={unfriend} disabled={socialLoading} className="btn btn-ghost btn-sm">
+                          Friends ✓
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={handleBlock}
+                      disabled={socialLoading}
+                      className="btn btn-ghost btn-sm"
+                      style={{ color: 'var(--muted)', fontSize: 12 }}
+                      title="Block user"
+                    >
+                      Block
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -248,14 +406,12 @@ export default function ProfilePage() {
             Select a preset or upload your own image. Click "Save avatar" to apply.
           </p>
 
-          {/* Preview */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 28, padding: '20px 24px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ position: 'relative' }}>
               <Avatar url={selectedAvatar} username={data.user.username} size={64} />
               {hasUnsavedAvatar && (
                 <div style={{
-                  position: 'absolute', bottom: -2, right: -2,
-                  width: 16, height: 16, borderRadius: '50%',
+                  position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%',
                   background: 'var(--accent)', border: '2px solid var(--surface)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
@@ -284,23 +440,12 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Upload own */}
           <div style={{ marginBottom: 28 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Upload your own
             </h3>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="btn btn-ghost"
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-            >
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+            <button onClick={() => fileInputRef.current?.click()} className="btn btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
@@ -308,7 +453,6 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {/* Presets */}
           <div style={{ marginBottom: 28 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Preset avatars
@@ -325,8 +469,6 @@ export default function ProfilePage() {
                     transition: 'all 0.15s',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
-                  onMouseEnter={e => { if (selectedAvatar !== avatar.url) e.currentTarget.style.borderColor = '#3a3f55'; }}
-                  onMouseLeave={e => { if (selectedAvatar !== avatar.url) e.currentTarget.style.borderColor = 'var(--border)'; }}
                 >
                   <img src={avatar.url} alt="" style={{ width: 60, height: 60, borderRadius: '50%' }} />
                 </button>
@@ -335,28 +477,14 @@ export default function ProfilePage() {
           </div>
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={handleSaveAvatar}
-              disabled={avatarSaving || !hasUnsavedAvatar}
-              className="btn btn-primary"
-              style={{ opacity: hasUnsavedAvatar ? 1 : 0.5 }}
-            >
+            <button onClick={handleSaveAvatar} disabled={avatarSaving || !hasUnsavedAvatar} className="btn btn-primary" style={{ opacity: hasUnsavedAvatar ? 1 : 0.5 }}>
               {avatarSaving ? 'Saving...' : 'Save avatar'}
             </button>
             {hasUnsavedAvatar && (
-              <button
-                onClick={() => setSelectedAvatar(savedAvatar)}
-                className="btn btn-ghost btn-sm"
-              >
-                Cancel
-              </button>
+              <button onClick={() => setSelectedAvatar(savedAvatar)} className="btn btn-ghost btn-sm">Cancel</button>
             )}
             {savedAvatar && (
-              <button
-                onClick={() => setSelectedAvatar(null)}
-                className="btn btn-ghost btn-sm"
-                style={{ color: 'var(--danger)' }}
-              >
+              <button onClick={() => setSelectedAvatar(null)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>
                 Reset to default
               </button>
             )}

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { friendships as friendshipsApi, messages as messagesApi } from '../lib/api';
 
 export default function Layout({ children }) {
   const { user, logout, isAdmin } = useAuth();
@@ -8,6 +9,28 @@ export default function Layout({ children }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
+  const [pendingCount, setPendingCount] = useState(0);
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+
+  // Poll for pending friend requests + unread messages
+  useEffect(() => {
+    if (!user) { setPendingCount(0); setUnreadMsgCount(0); return; }
+
+    async function fetchCounts() {
+      try {
+        const [frRes, msgRes] = await Promise.all([
+          friendshipsApi.list(),
+          messagesApi.unreadCount(),
+        ]);
+        setPendingCount(frRes.incoming?.length || 0);
+        setUnreadMsgCount(msgRes.count || 0);
+      } catch {}
+    }
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, [user, location.pathname]);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -21,6 +44,8 @@ export default function Layout({ children }) {
     logout();
     navigate('/');
   }
+
+  const totalBadge = pendingCount + unreadMsgCount;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -46,6 +71,14 @@ export default function Layout({ children }) {
             <NavLink to="/" label="Feed" active={location.pathname === '/'} />
             <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
             <NavLink to="/support" label="Support" active={location.pathname === '/support'} />
+            {user && (
+              <NavLinkBadge
+                to="/friends"
+                label="Friends"
+                active={location.pathname === '/friends'}
+                badge={pendingCount}
+              />
+            )}
             {isAdmin && <NavLink to="/admin" label="Admin" active={location.pathname.startsWith('/admin')} accent />}
           </nav>
 
@@ -67,6 +100,28 @@ export default function Layout({ children }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
             {user ? (
               <>
+                {/* Chat icon with unread badge */}
+                <Link
+                  to="/friends"
+                  title="Messages"
+                  style={{ position: 'relative', display: 'flex', alignItems: 'center', color: 'var(--muted)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  {unreadMsgCount > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -4, right: -4,
+                      background: 'var(--accent)', color: '#fff',
+                      borderRadius: 9999, fontSize: 9, fontWeight: 700,
+                      minWidth: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '0 3px',
+                    }}>
+                      {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+                    </span>
+                  )}
+                </Link>
+
                 <Link to="/new" className="btn btn-primary btn-sm">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
                   Write
@@ -90,7 +145,6 @@ export default function Layout({ children }) {
                   </button>
                   {menuOpen && (
                     <>
-                      {/* Backdrop to close menu */}
                       <div
                         onClick={() => setMenuOpen(false)}
                         style={{ position: 'fixed', inset: 0, zIndex: 150 }}
@@ -104,32 +158,9 @@ export default function Layout({ children }) {
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username}</div>
                           <div style={{ color: 'var(--muted)', fontSize: 12 }}>{user.email}</div>
                         </div>
-                        <Link
-                          to={`/profile/${user.username}`}
-                          onClick={() => setMenuOpen(false)}
-                          style={{
-                            display: 'block', padding: '8px 12px', borderRadius: 6,
-                            fontSize: 14, color: 'var(--text)',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--border)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                          My profile
-                        </Link>
-                        {isAdmin && (
-                          <Link
-                            to="/admin"
-                            onClick={() => setMenuOpen(false)}
-                            style={{
-                              display: 'block', padding: '8px 12px', borderRadius: 6,
-                              fontSize: 14, color: 'var(--text)',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--border)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          >
-                            Admin Panel
-                          </Link>
-                        )}
+                        <MenuItem to={`/profile/${user.username}`} label="My profile" onClose={() => setMenuOpen(false)} />
+                        <MenuItem to="/friends" label={`Friends${pendingCount > 0 ? ` (${pendingCount})` : ''}`} onClose={() => setMenuOpen(false)} />
+                        {isAdmin && <MenuItem to="/admin" label="Admin Panel" onClose={() => setMenuOpen(false)} />}
                         <button
                           onClick={() => { handleLogout(); setMenuOpen(false); }}
                           style={{
@@ -161,36 +192,22 @@ export default function Layout({ children }) {
         {children}
       </main>
 
-      <footer style={{
-        borderTop: '1px solid var(--border)',
-        padding: '28px 24px',
-        marginTop: 60,
-      }}>
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '28px 24px', marginTop: 60 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L3 20h18L12 2z" fill="var(--accent)" opacity="0.7"/>
             </svg>
-            <span style={{ color: 'var(--muted)', fontSize: 13 }}>
-              vpred.org — Open Research Collective
-            </span>
+            <span style={{ color: 'var(--muted)', fontSize: 13 }}>vpred.org — Open Research Collective</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>
               All content represents personal research based on publicly available information. Not legal advice.
             </span>
-            <Link to="/support" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-              Support
-            </Link>
-            <Link to="/about" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-              About
-            </Link>
-            <Link to="/privacy" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-              Privacy
-            </Link>
-            <Link to="/impressum" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-              Impressum
-            </Link>
+            <Link to="/support" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Support</Link>
+            <Link to="/about" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>About</Link>
+            <Link to="/privacy" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Privacy</Link>
+            <Link to="/impressum" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Impressum</Link>
           </div>
         </div>
       </footer>
@@ -201,14 +218,51 @@ export default function Layout({ children }) {
 function NavLink({ to, label, active, accent }) {
   return (
     <Link to={to} style={{
-      padding: '5px 12px',
-      borderRadius: 6,
-      fontSize: 14,
+      padding: '5px 12px', borderRadius: 6, fontSize: 14,
       fontWeight: active ? 500 : 400,
       color: accent ? 'var(--accent)' : active ? 'var(--text)' : 'var(--muted)',
       background: active ? 'var(--surface2)' : 'transparent',
       transition: 'all 0.15s',
     }}>
+      {label}
+    </Link>
+  );
+}
+
+function NavLinkBadge({ to, label, active, badge }) {
+  return (
+    <Link to={to} style={{
+      position: 'relative', display: 'inline-flex', alignItems: 'center',
+      padding: '5px 12px', borderRadius: 6, fontSize: 14,
+      fontWeight: active ? 500 : 400,
+      color: active ? 'var(--text)' : 'var(--muted)',
+      background: active ? 'var(--surface2)' : 'transparent',
+      transition: 'all 0.15s',
+    }}>
+      {label}
+      {badge > 0 && (
+        <span style={{
+          marginLeft: 5, background: 'var(--accent)', color: '#fff',
+          borderRadius: 9999, fontSize: 10, fontWeight: 700,
+          minWidth: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 4px',
+        }}>
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function MenuItem({ to, label, onClose }) {
+  return (
+    <Link
+      to={to}
+      onClick={onClose}
+      style={{ display: 'block', padding: '8px 12px', borderRadius: 6, fontSize: 14, color: 'var(--text)' }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--border)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
       {label}
     </Link>
   );

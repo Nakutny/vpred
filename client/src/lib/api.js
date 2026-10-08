@@ -73,3 +73,27 @@ export const legal = {
   get: (key) => request(`/api/legal/${key}`),
   update: (key, content) => request(`/api/legal/${key}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
 };
+
+// Friendships
+export const friendships = {
+  list: () => request('/api/friendships'),
+  status: (userId) => request(`/api/friendships/status/${userId}`),
+  send: (addressee_id) => request('/api/friendships', { method: 'POST', body: JSON.stringify({ addressee_id }) }),
+  respond: (id, status) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  remove: (id) => request(`/api/friendships/${id}`, { method: 'DELETE' }),
+};
+
+// Messages
+export const messages = {
+  conversations: () => request('/api/messages/conversations'),
+  get: (userId) => request(`/api/messages/${userId}`),
+  send: (receiver_id, content) => request('/api/messages', { method: 'POST', body: JSON.stringify({ receiver_id, content }) }),
+  unreadCount: () => request('/api/messages/unread/count'),
+};
+
+// Blocks
+export const blocks = {
+  list: () => request('/api/blocks'),
+  block: (blocked_id) => request('/api/blocks', { method: 'POST', body: JSON.stringify({ blocked_id }) }),
+  unblock: (userId) => request(`/api/blocks/${userId}`, { method: 'DELETE' }),
+};
