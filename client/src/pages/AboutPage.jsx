@@ -3,6 +3,25 @@ import { useAuth } from '../contexts/AuthContext';
 import { legal } from '../lib/api';
 import SEO from '../components/SEO';
 
+const DEFAULT_CONTENT = `<h2>About vpred.org</h2>
+
+<p>vpred.org is an open research collective dedicated to investigative citizen journalism. All content published here is based exclusively on publicly available information — court records, official documents, news archives, and other open sources.</p>
+
+<p>The platform exists to make research accessible, structured, and collaborative. Anyone can read. Registered members can publish research, write essays, and participate in the discussion.</p>
+
+<h3>Our Principles</h3>
+<ul>
+  <li>Only publicly available sources</li>
+  <li>No personal data is sold or shared with third parties</li>
+  <li>Authors are responsible for their own content</li>
+  <li>Nothing published here constitutes legal advice</li>
+</ul>
+
+<h3>Contact</h3>
+<p>Questions, feedback, or concerns? Reach out at <a href="mailto:vpredmail@gmail.com">vpredmail@gmail.com</a></p>
+
+<p>For legal matters, please see our <a href="/legal-notice">Legal Notice</a> and <a href="/privacy">Privacy Policy</a>.</p>`;
+
 export default function AboutPage() {
   const { isAdmin } = useAuth();
   const [content, setContent] = useState('');
@@ -15,10 +34,14 @@ export default function AboutPage() {
   useEffect(() => {
     legal.get('about')
       .then(d => {
-        setContent(d.page.content);
-        setEditContent(d.page.content);
+        const c = d.page.content || DEFAULT_CONTENT;
+        setContent(c);
+        setEditContent(c);
       })
-      .catch(() => {})
+      .catch(() => {
+        setContent(DEFAULT_CONTENT);
+        setEditContent(DEFAULT_CONTENT);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -66,7 +89,7 @@ export default function AboutPage() {
       ) : editing ? (
         <div>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>
-            You can use plain text or basic HTML ({"<b>, <i>, <a>, <br>, <p>"}).
+            You can use plain text or basic HTML ({"<b>, <i>, <a>, <br>, <p>, <h2>, <h3>, <ul>, <li>"}).
           </p>
           <textarea
             className="input"
@@ -82,18 +105,12 @@ export default function AboutPage() {
             <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
           </div>
         </div>
-      ) : content ? (
+      ) : (
         <div
           className="prose"
           style={{ maxWidth: '100%' }}
           dangerouslySetInnerHTML={{ __html: content.replace(/\n/g, '<br>') }}
         />
-      ) : (
-        <div style={{ color: 'var(--muted)', fontSize: 14 }}>
-          {isAdmin
-            ? 'No about content yet. Click "Edit" to add content.'
-            : 'About page coming soon.'}
-        </div>
       )}
     </div>
   );

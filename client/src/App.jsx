@@ -11,7 +11,7 @@ import AdminPage from './pages/AdminPage';
 import CategoryPage from './pages/CategoryPage';
 import CategoriesPage from './pages/CategoriesPage';
 import ProfilePage from './pages/ProfilePage';
-import ImpressumPage from './pages/ImpressumPage';
+import LegalNoticePage from './pages/LegalNoticePage';
 import PrivacyPage from './pages/PrivacyPage';
 import AboutPage from './pages/AboutPage';
 import SupportPage from './pages/SupportPage';
@@ -36,7 +36,9 @@ export default function App() {
             <Route path="/category/:slug" element={<CategoryPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/profile/:username" element={<ProfilePage />} />
-            <Route path="/impressum" element={<ImpressumPage />} />
+            {/* /legal-notice is the new canonical path; /impressum redirects for backwards compat */}
+            <Route path="/legal-notice" element={<LegalNoticePage />} />
+            <Route path="/impressum" element={<LegalNoticePage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/support" element={<SupportPage />} />

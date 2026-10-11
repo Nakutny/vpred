@@ -52,12 +52,19 @@ export const categories = {
 
 // Admin
 export const admin = {
-  users: () => request('/api/admin/users'),
-  banUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned: true }) }),
-  unbanUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned: false }) }),
+  stats: () => request('/api/admin/stats'),
+  users: (search) => request(`/api/admin/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  userDetail: (id) => request(`/api/admin/users/${id}`),
+  banUser: (id, banned) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned }) }),
   setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-  posts: () => request('/api/admin/posts'),
+  deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
+  warnUser: (id, reason) => request(`/api/admin/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  removeWarning: (warningId) => request(`/api/admin/warnings/${warningId}`, { method: 'DELETE' }),
+  posts: (search) => request(`/api/admin/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
   setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deletePost: (id) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
+  comments: () => request('/api/admin/comments'),
+  removeComment: (id, removed) => request(`/api/admin/comments/${id}/remove`, { method: 'PATCH', body: JSON.stringify({ removed }) }),
 };
 
 // Profile

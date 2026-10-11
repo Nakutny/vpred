@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { friendships as friendshipsApi, messages as messagesApi } from '../lib/api';
+import Avatar from './Avatar';
 
 export default function Layout({ children }) {
   const { user, logout, isAdmin } = useAuth();
@@ -45,8 +46,6 @@ export default function Layout({ children }) {
     navigate('/');
   }
 
-  const totalBadge = pendingCount + unreadMsgCount;
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header style={{
@@ -71,7 +70,7 @@ export default function Layout({ children }) {
             <NavLink to="/" label="Feed" active={location.pathname === '/'} />
             <NavLink to="/essays" label="Essays" active={location.pathname.startsWith('/essays')} />
             <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
-            <NavLink to="/support" label="Support" active={location.pathname === '/support'} />
+            <NavLink to="/support" label="Support me" active={location.pathname === '/support'} />
             {user && (
               <NavLinkBadge
                 to="/friends"
@@ -132,17 +131,12 @@ export default function Layout({ children }) {
                     onClick={() => setMenuOpen(!menuOpen)}
                     style={{
                       width: 34, height: 34, borderRadius: '50%',
-                      background: 'var(--accent)', border: 'none', cursor: 'pointer',
-                      color: '#fff', fontWeight: 600, fontSize: 13,
+                      background: 'var(--surface2)', border: '2px solid var(--border)',
+                      cursor: 'pointer', overflow: 'hidden', padding: 0,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      overflow: 'hidden', padding: 0,
                     }}
                   >
-                    {user.avatar_url ? (
-                      <img src={user.avatar_url} alt={user.username} style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: '50%' }} />
-                    ) : (
-                      user.username[0].toUpperCase()
-                    )}
+                    <Avatar username={user.username} avatarUrl={user.avatar_url} size={34} />
                   </button>
                   {menuOpen && (
                     <>
@@ -207,10 +201,10 @@ export default function Layout({ children }) {
               All content represents personal research based on publicly available information. Not legal advice.
             </span>
             <Link to="/essays" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Essays</Link>
-            <Link to="/support" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Support</Link>
+            <Link to="/support" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Support me</Link>
             <Link to="/about" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>About</Link>
             <Link to="/privacy" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Privacy</Link>
-            <Link to="/impressum" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Impressum</Link>
+            <Link to="/legal-notice" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Legal Notice</Link>
           </div>
         </div>
       </footer>

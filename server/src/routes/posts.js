@@ -9,7 +9,13 @@ function makeSlug(title) {
   return slugify(title, { lower: true, strict: true }) + '-' + Date.now().toString(36);
 }
 
-// GET /api/posts  (research posts only — type=research, or type param)
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+// GET /api/posts
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -19,7 +25,7 @@ router.get('/', optionalAuth, async (req, res) => {
     const search = req.query.search;
     const type = req.query.type || 'research';
 
-    let whereClause = `WHERE p.status = 'published' AND p.parent_post_id IS NULL AND p.type = $1`;
+    let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL AND p.type = $1";
     const params = [type];
 
     if (category) {
@@ -100,28 +106,51 @@ router.get('/:slug', optionalAuth, async (req, res) => {
       return res.status(404).json({ error: 'Post not found.' });
     }
 
-    await query('UPDATE posts SET view_count = view_count + 1 WHERE id = $1', [result.rows[0].id]);
+    const post = result.rows[0];
 
-    // Get expand posts (follow-ups) — only for research posts
+    // Unique view counting: once per IP per post (regardless of login status)
+    const ip = getClientIp(req);
+    try {
+      await query(
+        `INSERT INTO post_views (post_id, ip_address, user_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (post_id, ip_address) DO NOTHING`,
+        [post.id, ip, req.user?.id || null]
+      );
+      // Only update view_count if this was a new unique view
+      const inserted = await query(
+        'SELECT COUNT(*) FROM post_views WHERE post_id = $1',
+        [post.id]
+      );
+      await query('UPDATE posts SET view_count = $1 WHERE id = $2', [
+        parseInt(inserted.rows[0].count),
+        post.id,
+      ]);
+    } catch (viewErr) {
+      // Non-fatal: if post_views table doesn't exist yet, fall back to naive increment
+      await query('UPDATE posts SET view_count = view_count + 1 WHERE id = $1', [post.id]);
+    }
+
+    // Get expand posts (follow-ups)
     const expandResult = await query(
       `SELECT p.id, p.title, p.slug, p.created_at, u.username as author_username
        FROM posts p
        LEFT JOIN users u ON p.author_id = u.id
        WHERE p.parent_post_id = $1 AND p.status = 'published'
        ORDER BY p.created_at ASC`,
-      [result.rows[0].id]
+      [post.id]
     );
 
     let userVoted = false;
     if (req.user) {
       const voteResult = await query(
         'SELECT 1 FROM post_votes WHERE user_id = $1 AND post_id = $2',
-        [req.user.id, result.rows[0].id]
+        [req.user.id, post.id]
       );
       userVoted = voteResult.rows.length > 0;
     }
 
-    res.json({ post: { ...result.rows[0], userVoted, expand_posts: expandResult.rows } });
+    res.json({ post: { ...post, userVoted, expand_posts: expandResult.rows } });
   } catch (err) {
     console.error('Get post error:', err);
     res.status(500).json({ error: 'Failed to load post.' });
@@ -131,11 +160,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 // POST /api/posts
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const {
-      title, content, summary, category_id,
-      status = 'published', parent_post_id,
-      type = 'research', topic, images,
-    } = req.body;
+    const { title, content, summary, category_id, status = 'published', parent_post_id, type = 'research', topic, images } = req.body;
 
     if (!title?.trim() || !content?.trim()) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -146,12 +171,9 @@ router.post('/', requireAuth, async (req, res) => {
     if (!['research', 'essay'].includes(type)) {
       return res.status(400).json({ error: 'Invalid post type.' });
     }
-    if (type === 'essay' && topic && topic.length > 100) {
-      return res.status(400).json({ error: 'Topic is too long (max 100 characters).' });
+    if (images && (!Array.isArray(images) || images.length > 3)) {
+      return res.status(400).json({ error: 'Maximum 3 images allowed.' });
     }
-
-    // Validate images (max 3, each a base64 string or URL)
-    const imageList = Array.isArray(images) ? images.slice(0, 3) : [];
 
     if (parent_post_id) {
       const parentCheck = await query('SELECT id FROM posts WHERE id = $1 AND status = $2', [parent_post_id, 'published']);
@@ -161,22 +183,13 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     const slug = makeSlug(title);
+    const imagesJson = images ? JSON.stringify(images) : '[]';
 
     const result = await query(
       `INSERT INTO posts (title, slug, content, summary, author_id, category_id, status, parent_post_id, type, topic, images)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING id, title, slug, created_at, type, topic`,
-      [
-        title.trim(), slug, content,
-        summary || null,
-        req.user.id,
-        category_id || null,
-        status,
-        parent_post_id || null,
-        type,
-        topic?.trim() || null,
-        JSON.stringify(imageList),
-      ]
+       RETURNING id, title, slug, created_at`,
+      [title.trim(), slug, content, summary || null, req.user.id, category_id || null, status, parent_post_id || null, type, topic || null, imagesJson]
     );
 
     res.status(201).json({ post: result.rows[0] });
@@ -199,7 +212,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
 
     const { title, content, summary, category_id, status, topic, images } = req.body;
-    const imageList = Array.isArray(images) ? images.slice(0, 3) : undefined;
+    const imagesJson = images ? JSON.stringify(images) : undefined;
 
     const result = await query(
       `UPDATE posts SET
@@ -213,7 +226,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
         updated_at = NOW()
        WHERE id = $8
        RETURNING id, title, slug, updated_at`,
-      [title, content, summary, category_id, status, topic || null, imageList ? JSON.stringify(imageList) : null, req.params.id]
+      [title, content, summary, category_id, status, topic, imagesJson, req.params.id]
     );
 
     res.json({ post: result.rows[0] });

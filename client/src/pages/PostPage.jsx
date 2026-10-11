@@ -44,6 +44,7 @@ export default function PostPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [lightboxImg, setLightboxImg] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -177,9 +178,16 @@ export default function PostPage() {
 
   const tree = buildTree(commentList);
   const canEdit = isAdmin || user?.id === post.author_id;
-
-  // Build description for SEO
   const seoDesc = post.summary || stripHtml(post.content).slice(0, 200);
+
+  // Parse essay images safely
+  let essayImages = [];
+  if (post.type === 'essay' && post.images) {
+    try {
+      essayImages = typeof post.images === 'string' ? JSON.parse(post.images) : post.images;
+      if (!Array.isArray(essayImages)) essayImages = [];
+    } catch { essayImages = []; }
+  }
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
@@ -194,22 +202,41 @@ export default function PostPage() {
       />
 
       {/* Back */}
-      <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>
+      <Link
+        to={post.type === 'essay' ? '/essays' : '/'}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Back to feed
+        {post.type === 'essay' ? 'Back to essays' : 'Back to feed'}
       </Link>
 
-      {/* Parent post breadcrumb (if this is an expand post) */}
+      {/* Essay badge */}
+      {post.type === 'essay' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: 'rgba(99,102,241,0.1)', color: '#6366f1',
+            borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 600, letterSpacing: '0.06em',
+          }}>
+            ✍️ ESSAY
+          </span>
+          {post.topic && (
+            <span style={{
+              background: 'rgba(79,142,247,0.1)', color: 'var(--accent)',
+              borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 500,
+            }}>
+              {post.topic}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Parent post breadcrumb */}
       {post.parent_slug && (
         <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          padding: '10px 16px',
-          marginBottom: 20,
-          display: 'flex',
-          gap: 10,
-          alignItems: 'center',
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 20,
+          display: 'flex', gap: 10, alignItems: 'center',
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" style={{ flexShrink: 0 }}>
             <path d="M3 17l4-4-4-4M9 17h12"/>
@@ -286,8 +313,8 @@ export default function PostPage() {
               {voteCount} upvotes
             </button>
 
-            {/* Expand / Write follow-up */}
-            {user && (
+            {/* Expand / Write follow-up (only for research posts) */}
+            {user && post.type !== 'essay' && (
               <Link
                 to="/new"
                 state={{ parentPostId: post.id, parentPostTitle: post.title, parentPostSlug: post.slug }}
@@ -307,14 +334,11 @@ export default function PostPage() {
               </Link>
             )}
 
-            {/* Edit (admin or author) */}
             {canEdit && (
               <Link to={`/post/${post.slug}/edit`} className="btn btn-ghost btn-sm">
                 Edit post
               </Link>
             )}
-
-            {/* Delete (admin or author) */}
             {canEdit && (
               <button onClick={handleDeletePost} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>
                 Remove
@@ -325,7 +349,70 @@ export default function PostPage() {
 
         {/* Content */}
         <div className="prose" dangerouslySetInnerHTML={{ __html: post.content }} style={{ maxWidth: '100%' }} />
+
+        {/* Essay images gallery (below content) */}
+        {essayImages.length > 0 && (
+          <div style={{ marginTop: 36 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.05em', marginBottom: 14, textTransform: 'uppercase' }}>
+              Images
+            </h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: essayImages.length === 1 ? '1fr' : essayImages.length === 2 ? '1fr 1fr' : '1fr 1fr 1fr',
+              gap: 12,
+            }}>
+              {essayImages.map((img, i) => (
+                <div
+                  key={i}
+                  onClick={() => setLightboxImg(img)}
+                  style={{
+                    borderRadius: 10, overflow: 'hidden', cursor: 'zoom-in',
+                    border: '1px solid var(--border)',
+                    aspectRatio: '4/3',
+                  }}
+                >
+                  <img
+                    src={img}
+                    alt={`Image ${i + 1}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </article>
+
+      {/* Lightbox */}
+      {lightboxImg && (
+        <div
+          onClick={() => setLightboxImg(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.85)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out', padding: 24,
+          }}
+        >
+          <img
+            src={lightboxImg}
+            alt="Full size"
+            style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }}
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxImg(null)}
+            style={{
+              position: 'absolute', top: 20, right: 20,
+              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+              borderRadius: '50%', width: 36, height: 36, fontSize: 20,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Expand Posts (follow-ups) */}
       {post.expand_posts && post.expand_posts.length > 0 && (
@@ -342,13 +429,9 @@ export default function PostPage() {
                 key={ep.id}
                 to={`/post/${ep.slug}`}
                 style={{
-                  display: 'block',
-                  padding: '14px 18px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  textDecoration: 'none',
-                  transition: 'border-color 0.15s',
+                  display: 'block', padding: '14px 18px',
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 8, textDecoration: 'none', transition: 'border-color 0.15s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}

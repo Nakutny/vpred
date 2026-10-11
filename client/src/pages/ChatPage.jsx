@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
-import { messages as messagesApi, profile as profileApi } from '../lib/api';
-import Avatar from '../components/Avatar';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { messages as messagesApi } from '../lib/api';
+import Avatar from '../components/Avatar';
 
 export default function ChatPage() {
   const { userId } = useParams();
@@ -17,40 +17,29 @@ export default function ChatPage() {
   const bottomRef = useRef(null);
   const pollRef = useRef(null);
 
-  async function loadMessages() {
+  async function load() {
     try {
-      const res = await messagesApi.get(userId);
-      setMsgs(res.messages);
+      const res = await messagesApi.getThread(userId);
+      setMsgs(res.messages || []);
+      if (res.otherUser) setOtherUser(res.otherUser);
     } catch (e) {
-      setError(e.message);
-    }
-  }
-
-  async function loadOtherUser() {
-    // We need username to show profile link; get from message or profile
-    // Try to load from messages first — if no messages yet, we get the username from profile lookup
-    // We'll try loading their profile by ID via a workaround: find from conversations
-    try {
-      const convRes = await messagesApi.conversations();
-      const conv = convRes.conversations.find(c => c.other_id === userId);
-      if (conv) {
-        setOtherUser({ id: userId, username: conv.other_username, avatar_url: conv.other_avatar });
+      if (e.status === 403) {
+        setError('You can only message your friends.');
+      } else {
+        setError(e.message);
       }
-    } catch {}
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    async function init() {
-      setLoading(true);
-      await Promise.all([loadMessages(), loadOtherUser()]);
-      setLoading(false);
-    }
-    init();
-
-    // Poll every 5 seconds
-    pollRef.current = setInterval(loadMessages, 5000);
+    if (!user) { navigate('/login'); return; }
+    load();
+    // Poll for new messages every 10 seconds
+    pollRef.current = setInterval(load, 10000);
     return () => clearInterval(pollRef.current);
-  }, [userId]);
+  }, [userId, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,120 +47,198 @@ export default function ChatPage() {
 
   async function send(e) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || sending) return;
+    const body = text.trim();
+    setText('');
     setSending(true);
     try {
-      const res = await messagesApi.send(userId, text.trim());
-      setMsgs(prev => [...prev, {
-        ...res.message,
-        sender_username: user.username,
-        sender_avatar: user.avatar_url,
-      }]);
-      setText('');
+      await messagesApi.send(userId, body);
+      await load();
     } catch (e) {
       setError(e.message);
+      setText(body);
     } finally {
       setSending(false);
     }
   }
 
-  function handleKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send(e);
+  function formatTime(dateStr) {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffDays === 0) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
+    if (diffDays === 1) return `Yesterday ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  if (loading) return (
-    <div className="max-w-2xl mx-auto px-4 py-12 text-center text-[var(--color-muted)]">Loading…</div>
-  );
+  // Group consecutive messages by sender
+  function groupMessages(messages) {
+    const groups = [];
+    messages.forEach(msg => {
+      const last = groups[groups.length - 1];
+      if (last && last.senderId === msg.sender_id) {
+        last.msgs.push(msg);
+      } else {
+        groups.push({ senderId: msg.sender_id, msgs: [msg] });
+      }
+    });
+    return groups;
+  }
 
-  const displayName = otherUser?.username || 'User';
+  const grouped = groupMessages(msgs);
+  const title = otherUser ? otherUser.username : '…';
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+    <div style={{
+      maxWidth: 680, margin: '0 auto', padding: '24px 24px 0',
+      display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)',
+    }}>
       {/* Header */}
-      <div className="flex items-center gap-3 pb-4 border-b border-[var(--color-border)] mb-4">
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        paddingBottom: 16, borderBottom: '1px solid var(--border)', marginBottom: 16,
+      }}>
+        <Link to="/friends" style={{ color: 'var(--muted)', textDecoration: 'none', fontSize: 20, lineHeight: 1 }}>
+          ←
+        </Link>
         {otherUser && (
-          <Link to={`/profile/${otherUser.username}`}>
-            <Avatar src={otherUser.avatar_url} username={otherUser.username} size={40} />
-          </Link>
+          <>
+            <Link to={`/profile/${otherUser.username}`}>
+              <Avatar avatarUrl={otherUser.avatar_url} username={otherUser.username} size={38} />
+            </Link>
+            <Link
+              to={`/profile/${otherUser.username}`}
+              style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', textDecoration: 'none' }}
+            >
+              {otherUser.username}
+            </Link>
+          </>
         )}
-        <div>
-          <Link to={`/profile/${displayName}`} className="font-semibold text-[var(--color-text)] hover:text-[var(--color-accent)]">
-            {displayName}
-          </Link>
-          <p className="text-xs text-[var(--color-muted)]">Private conversation</p>
-        </div>
-        <button
-          onClick={() => navigate('/friends')}
-          className="ml-auto text-sm text-[var(--color-muted)] hover:text-[var(--color-text)]"
-        >
-          ← Back
-        </button>
+        {!otherUser && !loading && (
+          <span style={{ fontWeight: 600, fontSize: 16, color: 'var(--muted)' }}>Conversation</span>
+        )}
       </div>
 
-      {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-        {msgs.length === 0 && (
-          <p className="text-center text-[var(--color-muted)] text-sm py-8">
-            No messages yet. Say hello!
-          </p>
+      {/* Message area */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 12 }}>
+        {loading && (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>Loading…</div>
         )}
-        {msgs.map(msg => {
-          const isMe = msg.sender_id === user?.id;
+        {error && !loading && (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--danger)' }}>{error}</div>
+        )}
+        {!loading && !error && msgs.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>
+            <p style={{ marginBottom: 8 }}>No messages yet.</p>
+            <p style={{ fontSize: 13 }}>Say hi to {title}!</p>
+          </div>
+        )}
+
+        {grouped.map((group, gi) => {
+          const isMe = group.senderId === user?.id;
           return (
-            <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className="flex-shrink-0">
-                <Avatar
-                  src={msg.sender_avatar}
-                  username={msg.sender_username}
-                  size={32}
-                />
-              </div>
-              <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
+            <div key={gi} style={{ marginBottom: 16 }}>
+              {group.msgs.map((msg, mi) => (
                 <div
-                  className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
-                    isMe
-                      ? 'bg-[var(--color-accent)] text-white rounded-tr-sm'
-                      : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] rounded-tl-sm'
-                  }`}
+                  key={msg.id}
+                  style={{
+                    display: 'flex',
+                    flexDirection: isMe ? 'row-reverse' : 'row',
+                    alignItems: 'flex-end',
+                    gap: 8,
+                    marginBottom: mi === group.msgs.length - 1 ? 0 : 4,
+                  }}
                 >
-                  {msg.content}
+                  {/* Avatar only on first message in group for other user */}
+                  {!isMe && mi === 0 ? (
+                    <Link to={`/profile/${otherUser?.username || ''}`} style={{ flexShrink: 0 }}>
+                      <Avatar avatarUrl={otherUser?.avatar_url} username={otherUser?.username} size={28} />
+                    </Link>
+                  ) : !isMe ? (
+                    <div style={{ width: 28, flexShrink: 0 }} />
+                  ) : null}
+
+                  <div style={{ maxWidth: '72%' }}>
+                    <div
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: isMe
+                          ? mi === 0 ? '18px 18px 4px 18px' : mi === group.msgs.length - 1 ? '4px 18px 18px 18px' : '4px 18px 18px 4px'
+                          : mi === 0 ? '18px 18px 18px 4px' : mi === group.msgs.length - 1 ? '18px 4px 18px 18px' : '18px 4px 4px 18px',
+                        background: isMe ? 'var(--accent)' : 'var(--surface)',
+                        border: isMe ? 'none' : '1px solid var(--border)',
+                        color: isMe ? '#fff' : 'var(--text)',
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {msg.content}
+                    </div>
+                    {mi === group.msgs.length - 1 && (
+                      <div style={{
+                        fontSize: 10, color: 'var(--muted)',
+                        marginTop: 4,
+                        textAlign: isMe ? 'right' : 'left',
+                        paddingLeft: isMe ? 0 : 4,
+                        paddingRight: isMe ? 4 : 0,
+                      }}>
+                        {formatTime(msg.created_at)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <span className="text-[10px] text-[var(--color-muted)] px-1">
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
+              ))}
             </div>
           );
         })}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <form onSubmit={send} className="mt-4 flex gap-2">
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="Write a message… (Enter to send)"
-          rows={1}
-          maxLength={2000}
-          className="flex-1 resize-none px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] placeholder:text-[var(--color-muted)]"
-          style={{ minHeight: 44, maxHeight: 120, overflowY: 'auto' }}
-        />
-        <button
-          type="submit"
-          disabled={sending || !text.trim()}
-          className="px-4 py-2 rounded-xl bg-[var(--color-accent)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-40"
+      {/* Input area */}
+      {!error && (
+        <form
+          onSubmit={send}
+          style={{
+            display: 'flex', gap: 10, alignItems: 'flex-end',
+            padding: '16px 0 24px',
+            borderTop: '1px solid var(--border)',
+          }}
         >
-          Send
-        </button>
-      </form>
-      <p className="text-[10px] text-[var(--color-muted)] mt-1 text-right">{text.length}/2000</p>
+          <textarea
+            className="input"
+            style={{
+              flex: 1, minHeight: 42, maxHeight: 160, resize: 'none',
+              fontSize: 14, lineHeight: 1.5, paddingTop: 10, paddingBottom: 10,
+              overflowY: 'auto',
+            }}
+            placeholder={`Message ${title}…`}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); }
+            }}
+            rows={1}
+          />
+          <button
+            type="submit"
+            disabled={!text.trim() || sending}
+            style={{
+              padding: '10px 20px', borderRadius: 10, border: 'none',
+              background: text.trim() ? 'var(--accent)' : 'var(--surface)',
+              color: text.trim() ? '#fff' : 'var(--muted)',
+              cursor: text.trim() ? 'pointer' : 'default',
+              fontSize: 14, fontWeight: 600, flexShrink: 0,
+              transition: 'all 0.15s',
+            }}
+          >
+            {sending ? '…' : 'Send'}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
