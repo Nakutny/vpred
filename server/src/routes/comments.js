@@ -1,4 +1,5 @@
 import express from 'express';
+import { createNotification } from './notifications.js';
 import { query } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
 

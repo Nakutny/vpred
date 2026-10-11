@@ -25,8 +25,14 @@ router.get('/', optionalAuth, async (req, res) => {
     const search = req.query.search;
     const type = req.query.type || 'research';
 
-    let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL AND p.type = $1";
-    const params = [type];
+    let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL";
+    const params = [];
+
+    // type=all zeigt research + essay, sonst nur den angegebenen Typ
+    if (type !== 'all') {
+      params.push(type);
+      whereClause += ` AND p.type = $${params.length}`;
+    }
 
     if (category) {
       params.push(category);
@@ -34,7 +40,7 @@ router.get('/', optionalAuth, async (req, res) => {
     }
     if (search) {
       params.push(`%${search}%`);
-      whereClause += ` AND (p.title ILIKE $${params.length} OR p.content ILIKE $${params.length})`;
+      whereClause += ` AND (p.title ILIKE $${params.length} OR p.content ILIKE $${params.length} OR u.username ILIKE $${params.length})`;
     }
 
     params.push(limit, offset);

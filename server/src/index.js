@@ -13,6 +13,8 @@ import sitemapRoutes from './routes/sitemap.js';
 import friendshipRoutes from './routes/friendships.js';
 import messageRoutes from './routes/messages.js';
 import blockRoutes from './routes/blocks.js';
+import reportRoutes from './routes/reports.js';
+import notificationRoutes from './routes/notifications.js';
 
 dotenv.config();
 
@@ -25,7 +27,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '2mb' }));
 
-app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v5', timestamp: new Date().toISOString() }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
@@ -38,6 +40,8 @@ app.use('/sitemap.xml', sitemapRoutes);
 app.use('/api/friendships', friendshipRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/blocks', blockRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 
@@ -47,5 +51,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v4]`);
+  console.log(`vpred.org server running on port ${PORT} [v5]`);
 });
