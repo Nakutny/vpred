@@ -69,6 +69,7 @@ export default function Layout({ children }) {
 
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <NavLink to="/" label="Feed" active={location.pathname === '/'} />
+            <NavLink to="/essays" label="Essays" active={location.pathname.startsWith('/essays')} />
             <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
             <NavLink to="/support" label="Support" active={location.pathname === '/support'} />
             {user && (
@@ -159,6 +160,7 @@ export default function Layout({ children }) {
                           <div style={{ color: 'var(--muted)', fontSize: 12 }}>{user.email}</div>
                         </div>
                         <MenuItem to={`/profile/${user.username}`} label="My profile" onClose={() => setMenuOpen(false)} />
+                        <MenuItem to="/essays" label="Essays" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/friends" label={`Friends${pendingCount > 0 ? ` (${pendingCount})` : ''}`} onClose={() => setMenuOpen(false)} />
                         {isAdmin && <MenuItem to="/admin" label="Admin Panel" onClose={() => setMenuOpen(false)} />}
                         <button
@@ -204,6 +206,7 @@ export default function Layout({ children }) {
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>
               All content represents personal research based on publicly available information. Not legal advice.
             </span>
+            <Link to="/essays" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Essays</Link>
             <Link to="/support" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Support</Link>
             <Link to="/about" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>About</Link>
             <Link to="/privacy" style={{ color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 3 }}>Privacy</Link>

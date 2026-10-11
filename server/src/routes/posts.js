@@ -9,7 +9,7 @@ function makeSlug(title) {
   return slugify(title, { lower: true, strict: true }) + '-' + Date.now().toString(36);
 }
 
-// GET /api/posts
+// GET /api/posts  (research posts only — type=research, or type param)
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -17,9 +17,10 @@ router.get('/', optionalAuth, async (req, res) => {
     const offset = (page - 1) * limit;
     const category = req.query.category;
     const search = req.query.search;
+    const type = req.query.type || 'research';
 
-    let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL";
-    const params = [];
+    let whereClause = `WHERE p.status = 'published' AND p.parent_post_id IS NULL AND p.type = $1`;
+    const params = [type];
 
     if (category) {
       params.push(category);
@@ -35,6 +36,7 @@ router.get('/', optionalAuth, async (req, res) => {
     const result = await query(
       `SELECT
         p.id, p.title, p.slug, p.summary, p.view_count, p.created_at,
+        p.type, p.topic, p.images,
         u.username as author_username, u.id as author_id, u.avatar_url as author_avatar,
         c.name as category_name, c.slug as category_slug,
         COUNT(DISTINCT cm.id) as comment_count,
@@ -79,6 +81,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
       `SELECT
         p.id, p.title, p.slug, p.content, p.summary, p.view_count,
         p.created_at, p.updated_at, p.status, p.parent_post_id,
+        p.type, p.topic, p.images,
         u.username as author_username, u.id as author_id, u.bio as author_bio, u.avatar_url as author_avatar,
         c.name as category_name, c.slug as category_slug, c.id as category_id,
         COUNT(DISTINCT pv.user_id) as vote_count,
@@ -99,7 +102,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 
     await query('UPDATE posts SET view_count = view_count + 1 WHERE id = $1', [result.rows[0].id]);
 
-    // Get expand posts (follow-ups)
+    // Get expand posts (follow-ups) — only for research posts
     const expandResult = await query(
       `SELECT p.id, p.title, p.slug, p.created_at, u.username as author_username
        FROM posts p
@@ -128,7 +131,11 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 // POST /api/posts
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { title, content, summary, category_id, status = 'published', parent_post_id } = req.body;
+    const {
+      title, content, summary, category_id,
+      status = 'published', parent_post_id,
+      type = 'research', topic, images,
+    } = req.body;
 
     if (!title?.trim() || !content?.trim()) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -136,8 +143,16 @@ router.post('/', requireAuth, async (req, res) => {
     if (title.length > 300) {
       return res.status(400).json({ error: 'Title is too long (max 300 characters).' });
     }
+    if (!['research', 'essay'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid post type.' });
+    }
+    if (type === 'essay' && topic && topic.length > 100) {
+      return res.status(400).json({ error: 'Topic is too long (max 100 characters).' });
+    }
 
-    // Validate parent post exists if provided
+    // Validate images (max 3, each a base64 string or URL)
+    const imageList = Array.isArray(images) ? images.slice(0, 3) : [];
+
     if (parent_post_id) {
       const parentCheck = await query('SELECT id FROM posts WHERE id = $1 AND status = $2', [parent_post_id, 'published']);
       if (!parentCheck.rows[0]) {
@@ -148,10 +163,20 @@ router.post('/', requireAuth, async (req, res) => {
     const slug = makeSlug(title);
 
     const result = await query(
-      `INSERT INTO posts (title, slug, content, summary, author_id, category_id, status, parent_post_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, title, slug, created_at`,
-      [title.trim(), slug, content, summary || null, req.user.id, category_id || null, status, parent_post_id || null]
+      `INSERT INTO posts (title, slug, content, summary, author_id, category_id, status, parent_post_id, type, topic, images)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, title, slug, created_at, type, topic`,
+      [
+        title.trim(), slug, content,
+        summary || null,
+        req.user.id,
+        category_id || null,
+        status,
+        parent_post_id || null,
+        type,
+        topic?.trim() || null,
+        JSON.stringify(imageList),
+      ]
     );
 
     res.status(201).json({ post: result.rows[0] });
@@ -173,7 +198,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to edit this post.' });
     }
 
-    const { title, content, summary, category_id, status } = req.body;
+    const { title, content, summary, category_id, status, topic, images } = req.body;
+    const imageList = Array.isArray(images) ? images.slice(0, 3) : undefined;
 
     const result = await query(
       `UPDATE posts SET
@@ -182,10 +208,12 @@ router.patch('/:id', requireAuth, async (req, res) => {
         summary = COALESCE($3, summary),
         category_id = COALESCE($4, category_id),
         status = COALESCE($5, status),
+        topic = COALESCE($6, topic),
+        images = COALESCE($7, images),
         updated_at = NOW()
-       WHERE id = $6
+       WHERE id = $8
        RETURNING id, title, slug, updated_at`,
-      [title, content, summary, category_id, status, req.params.id]
+      [title, content, summary, category_id, status, topic || null, imageList ? JSON.stringify(imageList) : null, req.params.id]
     );
 
     res.json({ post: result.rows[0] });

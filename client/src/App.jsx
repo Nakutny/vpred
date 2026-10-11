@@ -17,6 +17,8 @@ import AboutPage from './pages/AboutPage';
 import SupportPage from './pages/SupportPage';
 import FriendsPage from './pages/FriendsPage';
 import ChatPage from './pages/ChatPage';
+import EssaysPage from './pages/EssaysPage';
+import NewEssayPage from './pages/NewEssayPage';
 
 export default function App() {
   return (
@@ -40,6 +42,8 @@ export default function App() {
             <Route path="/support" element={<SupportPage />} />
             <Route path="/friends" element={<FriendsPage />} />
             <Route path="/chat/:userId" element={<ChatPage />} />
+            <Route path="/essays" element={<EssaysPage />} />
+            <Route path="/essays/new" element={<NewEssayPage />} />
           </Routes>
         </Layout>
       </AuthProvider>
