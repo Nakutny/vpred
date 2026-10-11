@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { messages as messagesApi, profile as profileApi } from '../lib/api';
 import Avatar from '../components/Avatar';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ChatPage() {
   const { userId } = useParams();
