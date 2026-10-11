@@ -53,18 +53,36 @@ export const categories = {
 // Admin
 export const admin = {
   stats: () => request('/api/admin/stats'),
+  // Users
   users: (search) => request(`/api/admin/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
   userDetail: (id) => request(`/api/admin/users/${id}`),
   banUser: (id, banned) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned }) }),
   setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  verifyUser: (id, verified) => request(`/api/admin/users/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ verified }) }),
   deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
   warnUser: (id, reason) => request(`/api/admin/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
   removeWarning: (warningId) => request(`/api/admin/warnings/${warningId}`, { method: 'DELETE' }),
+  exportUsers: () => `${BASE}/api/admin/users/export/csv`,
+  // Posts
   posts: (search) => request(`/api/admin/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
   setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deletePost: (id) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
+  bulkPosts: (ids, action) => request('/api/admin/posts/bulk', { method: 'POST', body: JSON.stringify({ ids, action }) }),
+  exportPosts: () => `${BASE}/api/admin/posts/export/csv`,
+  // Kommentare
   comments: () => request('/api/admin/comments'),
   removeComment: (id, removed) => request(`/api/admin/comments/${id}/remove`, { method: 'PATCH', body: JSON.stringify({ removed }) }),
+  // Reports
+  reports: (status = 'open') => request(`/api/admin/reports?status=${status}`),
+  resolveReport: (id, status) => request(`/api/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  // Audit-Log
+  auditLog: () => request('/api/admin/audit-log'),
+  // IP-Sperren
+  ipBans: () => request('/api/admin/ip-bans'),
+  addIpBan: (ip_address, reason) => request('/api/admin/ip-bans', { method: 'POST', body: JSON.stringify({ ip_address, reason }) }),
+  removeIpBan: (id) => request(`/api/admin/ip-bans/${id}`, { method: 'DELETE' }),
+  // DMs
+  deleteMessage: (id) => request(`/api/admin/messages/${id}`, { method: 'DELETE' }),
 };
 
 // Profile
@@ -103,4 +121,23 @@ export const blocks = {
   list: () => request('/api/blocks'),
   block: (blocked_id) => request('/api/blocks', { method: 'POST', body: JSON.stringify({ blocked_id }) }),
   unblock: (userId) => request(`/api/blocks/${userId}`, { method: 'DELETE' }),
+};
+
+// Reports (Meldungen)
+export const reports = {
+  submit: (target_type, target_id, reason) =>
+    request('/api/reports', { method: 'POST', body: JSON.stringify({ target_type, target_id, reason }) }),
+};
+
+// Notifications
+export const notifications = {
+  list: () => request('/api/notifications'),
+  readAll: () => request('/api/notifications/read-all', { method: 'PATCH' }),
+  read: (id) => request(`/api/notifications/${id}/read`, { method: 'PATCH' }),
+  delete: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
+};
+
+// Globale Suche
+export const search = {
+  all: (q) => request(`/api/posts?search=${encodeURIComponent(q)}&type=all`),
 };

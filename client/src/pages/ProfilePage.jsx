@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import Avatar from '../components/Avatar';
 import PostCard from '../components/PostCard';
 
 const PRESET_AVATARS = [
@@ -14,27 +15,6 @@ const PRESET_AVATARS = [
   { id: 'cigarette', url: '/avatars/cigarette.svg' },
 ];
 
-function Avatar({ url, username, size = 72 }) {
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt={username}
-        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid var(--border)' }}
-      />
-    );
-  }
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: 'var(--accent)', flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.38, fontWeight: 600, color: '#fff',
-    }}>
-      {username?.[0]?.toUpperCase()}
-    </div>
-  );
-}
 
 export default function ProfilePage() {
   const { username } = useParams();
@@ -284,7 +264,7 @@ export default function ProfilePage() {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 36, paddingBottom: 32, borderBottom: '1px solid var(--border)' }}>
-        <Avatar url={savedAvatar} username={data.user.username} size={72} />
+        <Avatar avatarUrl={savedAvatar} username={data.user.username} size={72} />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 4 }}>
             {data.user.username}
@@ -408,7 +388,7 @@ export default function ProfilePage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 28, padding: '20px 24px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ position: 'relative' }}>
-              <Avatar url={selectedAvatar} username={data.user.username} size={64} />
+              <Avatar avatarUrl={selectedAvatar} username={data.user.username} size={64} />
               {hasUnsavedAvatar && (
                 <div style={{
                   position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%',

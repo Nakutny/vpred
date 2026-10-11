@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { friendships as friendshipsApi, messages as messagesApi } from '../lib/api';
+import { friendships as friendshipsApi, messages as messagesApi, notifications as notificationsApi } from '../lib/api';
 import Avatar from './Avatar';
 
 export default function Layout({ children }) {
@@ -9,13 +9,23 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const notifRef = useRef(null);
 
-  // Poll for pending friend requests + unread messages
+  // Poll for pending friend requests + unread messages + notifications
   useEffect(() => {
-    if (!user) { setPendingCount(0); setUnreadMsgCount(0); return; }
+    if (!user) {
+      setPendingCount(0);
+      setUnreadMsgCount(0);
+      setNotifications([]);
+      setUnreadNotifCount(0);
+      return;
+    }
 
     async function fetchCounts() {
       try {
@@ -28,10 +38,49 @@ export default function Layout({ children }) {
       } catch {}
     }
 
+    async function fetchNotifications() {
+      try {
+        const res = await notificationsApi.list();
+        setNotifications(res.notifications || []);
+        setUnreadNotifCount(res.unread || 0);
+      } catch {}
+    }
+
     fetchCounts();
-    const interval = setInterval(fetchCounts, 30000);
+    fetchNotifications();
+    const interval = setInterval(() => { fetchCounts(); fetchNotifications(); }, 30000);
     return () => clearInterval(interval);
   }, [user, location.pathname]);
+
+  // Close notification dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    }
+    if (notifOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [notifOpen]);
+
+  async function markAllRead() {
+    try {
+      await notificationsApi.readAll();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setUnreadNotifCount(0);
+    } catch {}
+  }
+
+  async function deleteNotif(id) {
+    try {
+      await notificationsApi.delete(id);
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      setUnreadNotifCount(prev => {
+        const notif = notifications.find(n => n.id === id);
+        return notif && !notif.is_read ? Math.max(0, prev - 1) : prev;
+      });
+    } catch {}
+  }
 
   function handleSearch(e) {
     e.preventDefault();
@@ -44,6 +93,17 @@ export default function Layout({ children }) {
   function handleLogout() {
     logout();
     navigate('/');
+  }
+
+  function timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return `${min}m`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
   }
 
   return (
@@ -100,12 +160,8 @@ export default function Layout({ children }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
             {user ? (
               <>
-                {/* Chat icon with unread badge */}
-                <Link
-                  to="/friends"
-                  title="Messages"
-                  style={{ position: 'relative', display: 'flex', alignItems: 'center', color: 'var(--muted)' }}
-                >
+                {/* Messages icon */}
+                <Link to="/friends" title="Messages" style={{ position: 'relative', display: 'flex', alignItems: 'center', color: 'var(--muted)' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                   </svg>
@@ -122,10 +178,85 @@ export default function Layout({ children }) {
                   )}
                 </Link>
 
+                {/* Notification Bell */}
+                <div ref={notifRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setNotifOpen(o => !o)}
+                    title="Notifications"
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    {unreadNotifCount > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -3, right: -3,
+                        background: 'var(--danger)', color: '#fff',
+                        borderRadius: 9999, fontSize: 9, fontWeight: 700,
+                        minWidth: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '0 3px',
+                      }}>
+                        {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notifOpen && (
+                    <div style={{
+                      position: 'absolute', right: 0, top: 38,
+                      background: 'var(--surface)', border: '1px solid var(--border)',
+                      borderRadius: 12, width: 340, maxHeight: 440, overflowY: 'auto',
+                      zIndex: 300, boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>Notifications</span>
+                        {unreadNotifCount > 0 && (
+                          <button onClick={markAllRead} style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                          No notifications yet
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 10,
+                            padding: '12px 16px',
+                            background: n.is_read ? 'transparent' : 'rgba(79,142,247,0.06)',
+                            borderBottom: '1px solid var(--border)',
+                          }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              {n.link ? (
+                                <Link to={n.link} onClick={() => setNotifOpen(false)} style={{ display: 'block', color: 'var(--text)', textDecoration: 'none' }}>
+                                  <div style={{ fontWeight: n.is_read ? 400 : 600, fontSize: 13, marginBottom: 2 }}>{n.title}</div>
+                                  {n.body && <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
+                                </Link>
+                              ) : (
+                                <>
+                                  <div style={{ fontWeight: n.is_read ? 400 : 600, fontSize: 13, marginBottom: 2 }}>{n.title}</div>
+                                  {n.body && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{n.body}</div>}
+                                </>
+                              )}
+                              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{timeAgo(n.created_at)}</div>
+                            </div>
+                            <button onClick={() => deleteNotif(n.id)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--muted)', lineHeight: 1, padding: '2px 4px' }}>×</button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <Link to="/new" className="btn btn-primary btn-sm">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
                   Write
                 </Link>
+
                 <div style={{ position: 'relative' }}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
@@ -140,20 +271,19 @@ export default function Layout({ children }) {
                   </button>
                   {menuOpen && (
                     <>
-                      <div
-                        onClick={() => setMenuOpen(false)}
-                        style={{ position: 'fixed', inset: 0, zIndex: 150 }}
-                      />
+                      <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 150 }} />
                       <div style={{
                         position: 'absolute', right: 0, top: 42,
-                        background: 'var(--surface2)', border: '1px solid var(--border)',
+                        background: 'var(--surface)', border: '1px solid var(--border)',
                         borderRadius: 10, padding: '6px', minWidth: 180, zIndex: 200,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                       }}>
                         <div style={{ padding: '8px 12px 10px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username}</div>
                           <div style={{ color: 'var(--muted)', fontSize: 12 }}>{user.email}</div>
                         </div>
                         <MenuItem to={`/profile/${user.username}`} label="My profile" onClose={() => setMenuOpen(false)} />
+                        <MenuItem to="/dashboard" label="My Dashboard" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/essays" label="Essays" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/friends" label={`Friends${pendingCount > 0 ? ` (${pendingCount})` : ''}`} onClose={() => setMenuOpen(false)} />
                         {isAdmin && <MenuItem to="/admin" label="Admin Panel" onClose={() => setMenuOpen(false)} />}
@@ -218,7 +348,7 @@ function NavLink({ to, label, active, accent }) {
       padding: '5px 12px', borderRadius: 6, fontSize: 14,
       fontWeight: active ? 500 : 400,
       color: accent ? 'var(--accent)' : active ? 'var(--text)' : 'var(--muted)',
-      background: active ? 'var(--surface2)' : 'transparent',
+      background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
       transition: 'all 0.15s',
     }}>
       {label}
@@ -233,7 +363,7 @@ function NavLinkBadge({ to, label, active, badge }) {
       padding: '5px 12px', borderRadius: 6, fontSize: 14,
       fontWeight: active ? 500 : 400,
       color: active ? 'var(--text)' : 'var(--muted)',
-      background: active ? 'var(--surface2)' : 'transparent',
+      background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
       transition: 'all 0.15s',
     }}>
       {label}

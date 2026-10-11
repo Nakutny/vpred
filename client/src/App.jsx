@@ -19,6 +19,7 @@ import FriendsPage from './pages/FriendsPage';
 import ChatPage from './pages/ChatPage';
 import EssaysPage from './pages/EssaysPage';
 import NewEssayPage from './pages/NewEssayPage';
+import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
   return (
@@ -36,7 +37,7 @@ export default function App() {
             <Route path="/category/:slug" element={<CategoryPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/profile/:username" element={<ProfilePage />} />
-            {/* /legal-notice is the new canonical path; /impressum redirects for backwards compat */}
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/legal-notice" element={<LegalNoticePage />} />
             <Route path="/impressum" element={<LegalNoticePage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
