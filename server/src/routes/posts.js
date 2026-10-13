@@ -93,7 +93,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
       `SELECT
         p.id, p.title, p.slug, p.content, p.summary, p.view_count,
         p.created_at, p.updated_at, p.status, p.parent_post_id,
-        p.type, p.topic, p.images,
+        p.type, p.topic, p.images, p.erd_data,
         u.username as author_username, u.id as author_id, u.bio as author_bio, u.avatar_url as author_avatar,
         c.name as category_name, c.slug as category_slug, c.id as category_id,
         COUNT(DISTINCT pv.user_id) as vote_count,
@@ -166,7 +166,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 // POST /api/posts
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { title, content, summary, category_id, status = 'published', parent_post_id, type = 'research', topic, images } = req.body;
+    const { title, content, summary, category_id, status = 'published', parent_post_id, type = 'research', topic, images, erd_data } = req.body;
 
     if (!title?.trim() || !content?.trim()) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -190,12 +190,13 @@ router.post('/', requireAuth, async (req, res) => {
 
     const slug = makeSlug(title);
     const imagesJson = images ? JSON.stringify(images) : '[]';
+    const erdJson = erd_data ? JSON.stringify(erd_data) : null;
 
     const result = await query(
-      `INSERT INTO posts (title, slug, content, summary, author_id, category_id, status, parent_post_id, type, topic, images)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO posts (title, slug, content, summary, author_id, category_id, status, parent_post_id, type, topic, images, erd_data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id, title, slug, created_at`,
-      [title.trim(), slug, content, summary || null, req.user.id, category_id || null, status, parent_post_id || null, type, topic || null, imagesJson]
+      [title.trim(), slug, content, summary || null, req.user.id, category_id || null, status, parent_post_id || null, type, topic || null, imagesJson, erdJson]
     );
 
     res.status(201).json({ post: result.rows[0] });
@@ -217,22 +218,32 @@ router.patch('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to edit this post.' });
     }
 
-    const { title, content, summary, category_id, status, topic, images } = req.body;
+    const { title, content, summary, category_id, status, topic, images, erd_data } = req.body;
     const imagesJson = images ? JSON.stringify(images) : undefined;
+    const hasErd = Object.prototype.hasOwnProperty.call(req.body, 'erd_data');
+    const erdJson = hasErd ? (erd_data ? JSON.stringify(erd_data) : null) : undefined;
+
+    // Build dynamic SET clause
+    const setClauses = [
+      'title = COALESCE($1, title)',
+      'content = COALESCE($2, content)',
+      'summary = COALESCE($3, summary)',
+      'category_id = COALESCE($4, category_id)',
+      'status = COALESCE($5, status)',
+      'topic = COALESCE($6, topic)',
+      'images = COALESCE($7, images)',
+      'updated_at = NOW()',
+    ];
+    const params = [title, content, summary, category_id, status, topic, imagesJson, req.params.id];
+
+    if (hasErd) {
+      params.push(erdJson);
+      setClauses.splice(setClauses.length - 1, 0, `erd_data = $${params.length}`);
+    }
 
     const result = await query(
-      `UPDATE posts SET
-        title = COALESCE($1, title),
-        content = COALESCE($2, content),
-        summary = COALESCE($3, summary),
-        category_id = COALESCE($4, category_id),
-        status = COALESCE($5, status),
-        topic = COALESCE($6, topic),
-        images = COALESCE($7, images),
-        updated_at = NOW()
-       WHERE id = $8
-       RETURNING id, title, slug, updated_at`,
-      [title, content, summary, category_id, status, topic, imagesJson, req.params.id]
+      `UPDATE posts SET ${setClauses.join(', ')} WHERE id = $8 RETURNING id, title, slug, updated_at`,
+      params
     );
 
     res.json({ post: result.rows[0] });

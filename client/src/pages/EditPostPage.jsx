@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { posts, categories } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+
+const ErdEditor = lazy(() => import('../components/ErdEditor'));
 
 function ToolbarBtn({ onClick, active, title, children }) {
   return (
@@ -37,6 +39,8 @@ export default function EditPostPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showErd, setShowErd] = useState(false);
+  const [erdData, setErdData] = useState(null);
 
   const editor = useEditor({
     extensions: [
@@ -66,6 +70,7 @@ export default function EditPostPage() {
       setSummary(p.summary || '');
       setCategoryId(p.category_id || '');
       setCategoryList(catData.categories || []);
+      if (p.erd_data) { setErdData(p.erd_data); setShowErd(true); }
       // Set editor content once editor is ready
       if (editor) {
         editor.commands.setContent(p.content);
@@ -95,6 +100,7 @@ export default function EditPostPage() {
         content,
         summary: summary.trim() || undefined,
         category_id: categoryId || undefined,
+        erd_data: erdData || null,
       });
       navigate(`/post/${post.slug}`);
     } catch (err) {
@@ -192,6 +198,38 @@ export default function EditPostPage() {
             </div>
           )}
           <EditorContent editor={editor} style={{ borderRadius: editor ? '0 0 8px 8px' : '8px' }} />
+        </div>
+
+        {/* ERD Section */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Entity-Relationship Diagram{' '}
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowErd(v => !v)}
+              style={{
+                padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                background: showErd ? 'var(--accent)' : 'transparent',
+                color: showErd ? '#fff' : 'var(--muted)',
+                fontSize: 12, cursor: 'pointer', fontWeight: 500,
+              }}
+            >
+              {showErd ? 'Hide ERD' : (erdData ? 'Edit ERD' : 'Add ERD')}
+            </button>
+            {erdData && !showErd && (
+              <span style={{ fontSize: 12, color: 'var(--success)' }}>
+                ERD saved ({erdData.nodes?.length || 0} entities)
+              </span>
+            )}
+          </div>
+          {showErd && (
+            <Suspense fallback={<div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading diagram editor...</div>}>
+              <ErdEditor value={erdData} onChange={setErdData} />
+            </Suspense>
+          )}
         </div>
 
         {error && (

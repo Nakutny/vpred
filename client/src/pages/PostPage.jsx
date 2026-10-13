@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { posts, comments as commentsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import SEO from '../components/SEO';
 import Avatar from '../components/Avatar';
+
+const ErdEditor = lazy(() => import('../components/ErdEditor'));
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -349,6 +351,18 @@ export default function PostPage() {
 
         {/* Content */}
         <div className="prose" dangerouslySetInnerHTML={{ __html: post.content }} style={{ maxWidth: '100%' }} />
+
+        {/* ERD Diagram (below content) */}
+        {post.erd_data && post.erd_data.nodes?.length > 0 && (
+          <div style={{ marginTop: 40 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.05em', marginBottom: 14, textTransform: 'uppercase' }}>
+              Entity-Relationship Diagram
+            </h3>
+            <Suspense fallback={<div style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading diagram...</div>}>
+              <ErdEditor value={post.erd_data} readOnly={true} />
+            </Suspense>
+          </div>
+        )}
 
         {/* Essay images gallery (below content) */}
         {essayImages.length > 0 && (

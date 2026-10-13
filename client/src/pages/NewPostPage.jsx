@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { posts, categories } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+
+const ErdEditor = lazy(() => import('../components/ErdEditor'));
 
 function ToolbarBtn({ onClick, active, title, children }) {
   return (
@@ -29,17 +31,18 @@ export default function NewPostPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Expand / follow-up state from navigation
-  const parentPostId = location.state?.parentPostId || null;
+  const parentPostId    = location.state?.parentPostId    || null;
   const parentPostTitle = location.state?.parentPostTitle || null;
-  const parentPostSlug = location.state?.parentPostSlug || null;
+  const parentPostSlug  = location.state?.parentPostSlug  || null;
 
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
+  const [title, setTitle]           = useState('');
+  const [summary, setSummary]       = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [categoryList, setCategoryList] = useState([]);
-  const [error, setError] = useState('');
+  const [error, setError]           = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showErd, setShowErd]       = useState(false);
+  const [erdData, setErdData]       = useState(null);
 
   useEffect(() => {
     if (!user) navigate('/login');
@@ -51,9 +54,7 @@ export default function NewPostPage() {
       StarterKit,
       Placeholder.configure({ placeholder: 'Write your research here. Cite your sources.' }),
     ],
-    editorProps: {
-      attributes: { class: 'tiptap-editor' },
-    },
+    editorProps: { attributes: { class: 'tiptap-editor' } },
   });
 
   async function handleSubmit(e) {
@@ -61,7 +62,6 @@ export default function NewPostPage() {
     const content = editor?.getHTML() || '';
     if (!title.trim()) return setError('Title is required.');
     if (!content || content === '<p></p>') return setError('Content is required.');
-
     setSubmitting(true);
     setError('');
     try {
@@ -72,8 +72,9 @@ export default function NewPostPage() {
         category_id: categoryId || undefined,
         status: 'published',
         parent_post_id: parentPostId || undefined,
+        erd_data: erdData || undefined,
       });
-      navigate(`/post/${d.post.slug}`);
+      navigate('/post/' + d.post.slug);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -81,22 +82,20 @@ export default function NewPostPage() {
     }
   }
 
-  // Build hierarchical category options: top-level first, then subcategories indented
   const topLevel = categoryList.filter(c => !c.parent_id);
-  const subCats = categoryList.filter(c => !!c.parent_id);
+  const subCats  = categoryList.filter(c => !!c.parent_id);
 
   function renderCategoryOptions() {
     const options = [];
     topLevel.forEach(parent => {
       options.push(<option key={parent.id} value={parent.id}>{parent.name}</option>);
-      const children = subCats.filter(c => c.parent_id === parent.id);
-      children.forEach(child => {
+      subCats.filter(c => c.parent_id === parent.id).forEach(child => {
         options.push(<option key={child.id} value={child.id}>{'  ↳ '}{child.name}</option>);
       });
     });
-    // Any subcategories whose parent is itself a sub (unlikely but safe)
-    const orphans = subCats.filter(c => !topLevel.find(p => p.id === c.parent_id));
-    orphans.forEach(o => options.push(<option key={o.id} value={o.id}>{o.name}</option>));
+    subCats.filter(c => !topLevel.find(p => p.id === c.parent_id)).forEach(o =>
+      options.push(<option key={o.id} value={o.id}>{o.name}</option>)
+    );
     return options;
   }
 
@@ -106,17 +105,10 @@ export default function NewPostPage() {
         {parentPostId ? 'Write a Follow-up' : 'New Post'}
       </h1>
 
-      {/* Expand banner */}
       {parentPostId && (
         <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--accent)',
-          borderRadius: 8,
-          padding: '10px 16px',
-          marginBottom: 20,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
+          background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8,
+          padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" style={{ flexShrink: 0 }}>
             <path d="M3 17l4-4-4-4M9 17h12"/>
@@ -127,11 +119,9 @@ export default function NewPostPage() {
           </span>
           <button
             type="button"
-            onClick={() => navigate(`/post/${parentPostSlug}`)}
+            onClick={() => navigate('/post/' + parentPostSlug)}
             style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}
-          >
-            Cancel expand
-          </button>
+          >Cancel expand</button>
         </div>
       )}
 
@@ -140,53 +130,28 @@ export default function NewPostPage() {
       </p>
 
       <form onSubmit={handleSubmit}>
-        {/* Title */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Title *</label>
-          <input
-            className="input"
-            style={{ fontSize: 16 }}
-            placeholder="A clear, specific title..."
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            maxLength={300}
-          />
+          <input className="input" style={{ fontSize: 16 }} placeholder="A clear, specific title..." value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
         </div>
 
-        {/* Summary */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
             Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
           </label>
-          <textarea
-            className="input"
-            style={{ minHeight: 70, resize: 'vertical' }}
-            placeholder="Brief summary shown in the feed..."
-            value={summary}
-            onChange={e => setSummary(e.target.value)}
-            maxLength={500}
-          />
+          <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="Brief summary shown in the feed..." value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
         </div>
 
-        {/* Category — hierarchical */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Category</label>
-          <select
-            className="input"
-            value={categoryId}
-            onChange={e => setCategoryId(e.target.value)}
-            style={{ cursor: 'pointer' }}
-          >
+          <select className="input" value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ cursor: 'pointer' }}>
             <option value="">— Select category —</option>
             {renderCategoryOptions()}
           </select>
         </div>
 
-        {/* Editor */}
         <div style={{ marginBottom: 24 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Content *</label>
-
-          {/* Toolbar */}
           {editor && (
             <div style={{
               display: 'flex', gap: 2, padding: '6px 10px',
@@ -204,11 +169,42 @@ export default function NewPostPage() {
               <ToolbarBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Inline code">`</ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="Code block">{ }</ToolbarBtn>
               <div style={{ width: 1, background: 'var(--border)', margin: '0 4px' }} />
-              <ToolbarBtn onClick={() => editor.chain().focus().undo().run()} title="Undo">↩</ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} title="Redo">↪</ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().undo().run()} title="Undo">&#8617;</ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} title="Redo">&#8618;</ToolbarBtn>
             </div>
           )}
           <EditorContent editor={editor} style={{ borderRadius: editor ? '0 0 8px 8px' : '8px' }} />
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Entity-Relationship Diagram{' '}
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowErd(v => !v)}
+              style={{
+                padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                background: showErd ? 'var(--accent)' : 'transparent',
+                color: showErd ? '#fff' : 'var(--muted)',
+                fontSize: 12, cursor: 'pointer', fontWeight: 500,
+              }}
+            >
+              {showErd ? 'Hide ERD' : 'Add ERD'}
+            </button>
+            {erdData && !showErd && (
+              <span style={{ fontSize: 12, color: 'var(--success)' }}>
+                ERD saved ({erdData.nodes?.length || 0} entities)
+              </span>
+            )}
+          </div>
+          {showErd && (
+            <Suspense fallback={<div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading diagram editor...</div>}>
+              <ErdEditor value={erdData} onChange={setErdData} />
+            </Suspense>
+          )}
         </div>
 
         {error && (
@@ -221,9 +217,7 @@ export default function NewPostPage() {
           <button type="submit" disabled={submitting} className="btn btn-primary">
             {submitting ? 'Publishing...' : (parentPostId ? 'Publish follow-up' : 'Publish post')}
           </button>
-          <button type="button" onClick={() => navigate(-1)} className="btn btn-ghost">
-            Cancel
-          </button>
+          <button type="button" onClick={() => navigate(-1)} className="btn btn-ghost">Cancel</button>
         </div>
       </form>
     </div>
