@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { posts as postsApi, comments as commentsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
+
+const DRAFT_KEY = 'vpred_post_draft';
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -26,10 +28,20 @@ function StatBox({ label, val, color }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [myPosts, setMyPosts] = useState([]);
+  const navigate  = useNavigate();
+  const [myPosts, setMyPosts]     = useState([]);
   const [myComments, setMyComments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('posts');
+  const [loading, setLoading]     = useState(true);
+  const [tab, setTab]             = useState('posts');
+  const [localDraft, setLocalDraft] = useState(null);
+
+  // Load local draft from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) setLocalDraft(JSON.parse(saved));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -78,7 +90,11 @@ export default function DashboardPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 24 }}>
-        {[{ key: 'posts', label: `My Posts (${myPosts.length})` }, { key: 'comments', label: `My Comments (${myComments.length})` }].map(t => (
+        {[
+          { key: 'posts',    label: `My Posts (${myPosts.length})` },
+          { key: 'comments', label: `My Comments (${myComments.length})` },
+          { key: 'drafts',   label: `Drafts${localDraft ? ' (1)' : ''}` },
+        ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '8px 16px', background: 'none', border: 'none',
             borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
@@ -90,6 +106,59 @@ export default function DashboardPage() {
 
       {loading ? (
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--muted)' }}>Laden…</div>
+      ) : tab === 'drafts' ? (
+        <div>
+          {!localDraft ? (
+            <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--muted)' }}>
+              No saved drafts. Start writing a post and it will auto-save here.
+            </div>
+          ) : (
+            <div className="card" style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Auto-saved draft
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {localDraft.title || '(Untitled)'}
+                  </div>
+                  {localDraft.summary && (
+                    <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {localDraft.summary}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {localDraft.savedAt ? `Saved ${new Date(localDraft.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : 'Saved locally'}
+                    {localDraft.erdData?.nodes?.length ? ` · ERD: ${localDraft.erdData.nodes.length} entities` : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+                  <button
+                    onClick={() => navigate('/new')}
+                    className="btn btn-primary btn-sm"
+                  >
+                    Resume draft
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Discard this draft? This cannot be undone.')) {
+                        localStorage.removeItem(DRAFT_KEY);
+                        setLocalDraft(null);
+                      }
+                    }}
+                    style={{
+                      padding: '5px 12px', borderRadius: 8,
+                      border: '1px solid var(--danger)', background: 'transparent',
+                      color: 'var(--danger)', fontSize: 12, cursor: 'pointer',
+                    }}
+                  >
+                    Discard
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       ) : tab === 'posts' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {myPosts.length === 0 && (

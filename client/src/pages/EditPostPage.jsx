@@ -41,6 +41,7 @@ export default function EditPostPage() {
   const [loading, setLoading] = useState(true);
   const [showErd, setShowErd] = useState(false);
   const [erdData, setErdData] = useState(null);
+  const [erdFlash, setErdFlash] = useState('');
 
   const editor = useEditor({
     extensions: [
@@ -60,9 +61,8 @@ export default function EditPostPage() {
       categories.list(),
     ]).then(([postData, catData]) => {
       const p = postData.post;
-      // Only admin or post author can edit
       if (!isAdmin && user.id !== p.author_id) {
-        navigate(`/post/${slug}`);
+        navigate('/post/' + slug);
         return;
       }
       setPost(p);
@@ -71,20 +71,19 @@ export default function EditPostPage() {
       setCategoryId(p.category_id || '');
       setCategoryList(catData.categories || []);
       if (p.erd_data) { setErdData(p.erd_data); setShowErd(true); }
-      // Set editor content once editor is ready
-      if (editor) {
-        editor.commands.setContent(p.content);
-      }
+      if (editor) editor.commands.setContent(p.content);
     }).catch(() => navigate('/'))
       .finally(() => setLoading(false));
   }, [user, slug, editor]);
 
-  // Set content when editor becomes available
   useEffect(() => {
-    if (editor && post?.content) {
-      editor.commands.setContent(post.content);
-    }
+    if (editor && post?.content) editor.commands.setContent(post.content);
   }, [editor, post]);
+
+  function showErdFlash(msg) {
+    setErdFlash(msg);
+    setTimeout(() => setErdFlash(''), 2500);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -102,7 +101,7 @@ export default function EditPostPage() {
         category_id: categoryId || undefined,
         erd_data: erdData || null,
       });
-      navigate(`/post/${post.slug}`);
+      navigate('/post/' + post.slug);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -116,7 +115,7 @@ export default function EditPostPage() {
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
-      <Link to={`/post/${slug}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>
+      <Link to={'/post/' + slug} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Back to post
       </Link>
@@ -227,8 +226,20 @@ export default function EditPostPage() {
           </div>
           {showErd && (
             <Suspense fallback={<div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading diagram editor...</div>}>
-              <ErdEditor value={erdData} onChange={setErdData} />
+              <ErdEditor
+                value={erdData}
+                onChange={setErdData}
+                onSave={() => showErdFlash('Diagram state captured — click “Save changes” to persist to server.')}
+              />
             </Suspense>
+          )}
+          {erdFlash && (
+            <div style={{
+              marginTop: 8, padding: '8px 14px', borderRadius: 7, fontSize: 13,
+              background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)',
+            }}>
+              {erdFlash}
+            </div>
           )}
         </div>
 
@@ -242,7 +253,7 @@ export default function EditPostPage() {
           <button type="submit" disabled={submitting} className="btn btn-primary">
             {submitting ? 'Saving...' : 'Save changes'}
           </button>
-          <Link to={`/post/${slug}`} className="btn btn-ghost">Cancel</Link>
+          <Link to={'/post/' + slug} className="btn btn-ghost">Cancel</Link>
         </div>
       </form>
     </div>
