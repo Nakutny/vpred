@@ -68,7 +68,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await query(
-      'SELECT id, username, email, role, password_hash, is_banned FROM users WHERE email = $1',
+      'SELECT id, username, email, role, avatar_url, password_hash, is_banned FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 

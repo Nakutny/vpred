@@ -12,7 +12,7 @@ export async function requireAuth(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
 
     const result = await query(
-      'SELECT id, username, email, role, is_banned FROM users WHERE id = $1',
+      'SELECT id, username, email, role, avatar_url, is_banned FROM users WHERE id = $1',
       [decoded.userId]
     );
 

@@ -71,7 +71,7 @@ router.patch('/me/password', requireAuth, async (req, res) => {
 router.get('/:username', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, username, bio, created_at FROM users WHERE LOWER(username) = LOWER($1)`,
+      `SELECT id, username, bio, avatar_url, created_at FROM users WHERE LOWER(username) = LOWER($1)`,
       [req.params.username]
     );
 
