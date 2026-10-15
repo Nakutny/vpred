@@ -20,6 +20,9 @@ import ChatPage from './pages/ChatPage';
 import EssaysPage from './pages/EssaysPage';
 import NewEssayPage from './pages/NewEssayPage';
 import DashboardPage from './pages/DashboardPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 export default function App() {
   return (
@@ -47,6 +50,9 @@ export default function App() {
             <Route path="/chat/:userId" element={<ChatPage />} />
             <Route path="/essays" element={<EssaysPage />} />
             <Route path="/essays/new" element={<NewEssayPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
           </Routes>
         </Layout>
       </AuthProvider>

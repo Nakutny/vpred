@@ -253,7 +253,7 @@ export default function ProfilePage() {
     { id: 'posts', label: `Posts (${data.posts.length})` },
     ...(isOwn ? [
       { id: 'avatar', label: 'Avatar' },
-      { id: 'edit', label: 'Edit profile' },
+      { id: 'edit', label: 'Edit Bio' },
       { id: 'password', label: 'Change password' },
     ] : []),
   ];
@@ -275,7 +275,7 @@ export default function ProfilePage() {
             </p>
           ) : isOwn ? (
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 10, fontStyle: 'italic' }}>
-              No bio yet. Add one in "Edit profile".
+              No bio yet. Add one in "Edit Bio".
             </p>
           ) : null}
           <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -472,10 +472,10 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Edit profile */}
+      {/* Edit Bio */}
       {tab === 'edit' && isOwn && (
         <div style={{ maxWidth: 520 }}>
-          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 20 }}>Edit profile</h2>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 20 }}>Edit Bio</h2>
           <form onSubmit={handleBioSave}>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
