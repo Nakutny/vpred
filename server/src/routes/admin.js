@@ -316,4 +316,28 @@ router.delete('/messages/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
 });
 
+
+// ─── VISITOR-LOG ─────────────────────────────────────────────────────────────
+router.get('/visitor-log', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+    const offset = parseInt(req.query.offset) || 0;
+    const result = await query(
+      `SELECT vl.id, vl.ip, vl.country, vl.country_code, vl.city, vl.region, vl.isp,
+              vl.path, vl.method, vl.user_agent, vl.referrer, vl.created_at,
+              u.username as username
+       FROM visitor_log vl
+       LEFT JOIN users u ON vl.user_id = u.id
+       ORDER BY vl.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    const countRes = await query('SELECT COUNT(*) FROM visitor_log');
+    res.json({ entries: result.rows, total: parseInt(countRes.rows[0].count) });
+  } catch (err) {
+    console.error('Visitor log error:', err);
+    res.status(500).json({ error: 'Visitor log konnte nicht geladen werden.' });
+  }
+});
+
 export default router;

@@ -472,7 +472,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Edit Bio */}
+      {/* Edit profile */}
       {tab === 'edit' && isOwn && (
         <div style={{ maxWidth: 520 }}>
           <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 20 }}>Edit Bio</h2>
@@ -484,7 +484,7 @@ export default function ProfilePage() {
               <textarea
                 className="input"
                 style={{ minHeight: 100, resize: 'vertical' }}
-                placeholder="Tell the community about yourself and your research focus..."
+                placeholder="Tell the community about yourself and your research focus (Edit Bio)..."
                 value={bio}
                 onChange={e => setBio(e.target.value)}
                 maxLength={300}

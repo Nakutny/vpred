@@ -92,6 +92,8 @@ export const admin = {
   removeIpBan: (id) => request(`/api/admin/ip-bans/${id}`, { method: 'DELETE' }),
   // DMs
   deleteMessage: (id) => request(`/api/admin/messages/${id}`, { method: 'DELETE' }),
+  // Visitor-Log (Patch 21)
+  visitorLog: (limit = 200, offset = 0) => request(`/api/admin/visitor-log?limit=${limit}&offset=${offset}`),
 };
 
 // Profile

@@ -53,6 +53,7 @@ export default function AdminPage() {
     { key: 'reports', label: stats?.openReports ? `Reports (${stats.openReports})` : 'Reports' },
     { key: 'ip-bans', label: 'IP-Sperren' },
     { key: 'audit', label: 'Audit-Log' },
+    { key: 'traffic', label: '🌍 Traffic' },
   ];
 
   return (
@@ -91,6 +92,7 @@ export default function AdminPage() {
       {tab === 'reports' && <ReportsTab />}
       {tab === 'ip-bans' && <IpBansTab />}
       {tab === 'audit' && <AuditTab />}
+      {tab === 'traffic' && <TrafficTab />}
     </div>
   );
 }
@@ -674,3 +676,137 @@ function AuditTab() {
     </div>
   );
 }
+
+/* ─── TRAFFIC TAB ─── */
+function countryFlag(countryCode) {
+  if (!countryCode || countryCode === 'XX') return '🌐';
+  const code = countryCode.toUpperCase();
+  if (code.length !== 2) return '🌐';
+  return String.fromCodePoint(...[...code].map(c => 0x1F1E0 - 65 + c.charCodeAt(0)));
+}
+
+function TrafficTab() {
+  const [entries, setEntries] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [offset, setOffset] = useState(0);
+  const [filterPath, setFilterPath] = useState('');
+  const LIMIT = 100;
+
+  async function load(off = 0) {
+    setLoading(true);
+    try {
+      const res = await admin.visitorLog(LIMIT, off);
+      setEntries(res.entries || []);
+      setTotal(res.total || 0);
+      setOffset(off);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(0); }, []);
+
+  const filtered = filterPath
+    ? entries.filter(e => e.path?.toLowerCase().includes(filterPath.toLowerCase()))
+    : entries;
+
+  function formatDate(str) {
+    if (!str) return '';
+    const d = new Date(str);
+    return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function truncate(str, n) {
+    if (!str) return '—';
+    return str.length > n ? str.slice(0, n) + '…' : str;
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <span style={{ fontSize: 14, color: 'var(--muted)' }}>{total.toLocaleString()} Einträge gesamt</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input
+            className="input"
+            style={{ width: 200, height: 32, fontSize: 13 }}
+            placeholder="Pfad filtern…"
+            value={filterPath}
+            onChange={e => setFilterPath(e.target.value)}
+          />
+          <button onClick={() => load(0)} className="btn btn-ghost btn-sm" disabled={loading}>
+            {loading ? '…' : '↻ Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Lädt…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Keine Einträge.</div>
+      ) : (
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                {['Zeit', 'Land', 'IP', 'Pfad', 'Stadt', 'ISP', 'Nutzer', 'Referrer'].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((e, i) => (
+                <tr key={e.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--surface)' }}>
+                  <td style={{ padding: '7px 12px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{formatDate(e.created_at)}</td>
+                  <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
+                    <span title={e.country || ''} style={{ fontSize: 18, lineHeight: 1 }}>{countryFlag(e.country_code)}</span>
+                    {' '}
+                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{e.country_code || '?'}</span>
+                  </td>
+                  <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>{e.ip || '—'}</td>
+                  <td style={{ padding: '7px 12px', maxWidth: 200 }}>
+                    <span title={e.path || ''} style={{ color: 'var(--text)', fontFamily: 'monospace', fontSize: 11 }}>{truncate(e.path, 40)}</span>
+                  </td>
+                  <td style={{ padding: '7px 12px', color: 'var(--muted)' }}>{e.city || (e.region ? e.region : '—')}</td>
+                  <td style={{ padding: '7px 12px', color: 'var(--muted)', maxWidth: 140 }}>
+                    <span title={e.isp || ''}>{truncate(e.isp, 22)}</span>
+                  </td>
+                  <td style={{ padding: '7px 12px' }}>
+                    {e.username ? (
+                      <span style={{ color: 'var(--accent)', fontSize: 11 }}>{e.username}</span>
+                    ) : (
+                      <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '7px 12px', color: 'var(--muted)', maxWidth: 140 }}>
+                    <span title={e.referrer || ''}>{truncate(e.referrer, 22)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > LIMIT && (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
+          <button className="btn btn-ghost btn-sm" disabled={offset === 0} onClick={() => load(Math.max(0, offset - LIMIT))}>
+            ← Zurück
+          </button>
+          <span style={{ fontSize: 13, color: 'var(--muted)', alignSelf: 'center' }}>
+            {offset + 1}–{Math.min(offset + LIMIT, total)} von {total.toLocaleString()}
+          </span>
+          <button className="btn btn-ghost btn-sm" disabled={offset + LIMIT >= total} onClick={() => load(offset + LIMIT)}>
+            Weiter →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+

@@ -15,6 +15,7 @@ import messageRoutes from './routes/messages.js';
 import blockRoutes from './routes/blocks.js';
 import reportRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
+import { visitorLogMiddleware } from './middleware/visitorLog.js';
 
 dotenv.config();
 
@@ -27,7 +28,10 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '2mb' }));
 
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v5', timestamp: new Date().toISOString() }));
+// Visitor-Log-Middleware (loggt GET-Requests im Hintergrund)
+visitorLogMiddleware(app);
+
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch21', timestamp: new Date().toISOString() }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
@@ -51,5 +55,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v5]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch21]`);
 });

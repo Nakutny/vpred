@@ -12,21 +12,12 @@ export default function RegisterPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-
-    if (form.password !== form.confirmPassword) {
-      return setError('Passwords do not match.');
-    }
-    if (form.password.length < 8) {
-      return setError('Password must be at least 8 characters.');
-    }
+    if (form.password !== form.confirmPassword) return setError('Passwords do not match.');
+    if (form.password.length < 8) return setError('Password must be at least 8 characters.');
 
     setLoading(true);
     try {
-      await auth.register({
-        username: form.username,
-        email: form.email,
-        password: form.password,
-      });
+      await auth.register({ username: form.username, email: form.email, password: form.password });
       setRegisteredEmail(form.email);
       setRegistered(true);
     } catch (err) {
@@ -40,27 +31,23 @@ export default function RegisterPage() {
     return (
       <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ width: '100%', maxWidth: 420, textAlign: 'center' }}>
-          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32, justifyContent: 'center' }}>
+          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L3 20h18L12 2z" fill="var(--accent)"/>
             </svg>
             <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22 }}>vpred.org</span>
           </Link>
           <div className="card" style={{ padding: '36px 28px' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📬</div>
-            <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.5rem', fontWeight: 400, marginBottom: 10 }}>
-              Check your email
-            </h1>
-            <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-              We've sent a verification link to <strong style={{ color: 'var(--text)' }}>{registeredEmail}</strong>.
-              Click the link in that email to activate your account.
+            <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
+            <h2 style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400, marginBottom: 8 }}>Check your email</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
+              We sent a verification link to <strong>{registeredEmail}</strong>.
+              Click the link to activate your account.
             </p>
-            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>
-              Didn't receive it? Check your spam folder. The link expires after 24 hours.
-            </p>
-            <Link to="/login" className="btn btn-primary" style={{ display: 'inline-block' }}>
-              Go to login
-            </Link>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 12 }}>Also check your spam folder.</p>
+            <div style={{ marginTop: 28 }}>
+              <Link to="/login" style={{ color: 'var(--accent)', fontSize: 14 }}>Go to login →</Link>
+            </div>
           </div>
         </div>
       </div>
@@ -142,7 +129,7 @@ export default function RegisterPage() {
             )}
 
             <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', height: 40 }}>
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? 'Creating account…' : 'Create account'}
             </button>
 
             <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 14, textAlign: 'center', lineHeight: 1.5 }}>
