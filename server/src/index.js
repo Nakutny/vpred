@@ -22,8 +22,19 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const ALLOWED_ORIGINS = [
+  'https://vpred.org',
+  'https://www.vpred.org',
+  'http://localhost:5173',
+  'http://localhost:4173',
+];
+if (process.env.CLIENT_URL) ALLOWED_ORIGINS.push(process.env.CLIENT_URL);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '2mb' }));
@@ -55,5 +66,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch21]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch25]`);
 });
