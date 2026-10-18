@@ -17,6 +17,7 @@ import reportRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
 import userRoutes from './routes/users.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
+import { query } from './db/client.js';
 
 dotenv.config();
 
@@ -40,10 +41,10 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '2mb' }));
 
-// Visitor-Log-Middleware (loggt GET-Requests im Hintergrund)
+// Visitor-Log-Middleware
 visitorLogMiddleware(app);
 
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch27', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch28', timestamp: new Date().toISOString() }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
@@ -67,6 +68,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error.' });
 });
 
+// ─── 7-Day Message Auto-Deletion ─────────────────────────────────────────────
+// Deletes messages older than 7 days on startup, then every hour
+async function deleteOldMessages() {
+  try {
+    const result = await query(
+      `DELETE FROM messages WHERE created_at < NOW() - INTERVAL '7 days'`
+    );
+    const count = result.rowCount || 0;
+    if (count > 0) {
+      console.log(`[cleanup] Deleted ${count} messages older than 7 days.`);
+    }
+  } catch (err) {
+    console.error('[cleanup] Failed to delete old messages:', err.message);
+  }
+}
+
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch27]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch28]`);
+  // Run immediately on startup, then every hour
+  deleteOldMessages();
+  setInterval(deleteOldMessages, 60 * 60 * 1000);
 });

@@ -103,6 +103,8 @@ function UsersTab({ currentUserId }) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [banModal, setBanModal] = useState(false);
+  const [banTarget, setBanTarget] = useState(null);
 
   async function load(q) {
     setLoading(true);
@@ -112,10 +114,27 @@ function UsersTab({ currentUserId }) {
   useEffect(() => { load(''); }, []);
 
   async function toggleBan(u) {
+    if (u.is_banned) {
+      // Unban directly
+      try {
+        await admin.banUser(u.id, false, null);
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_banned: false, ban_expires_at: null } : x));
+      } catch (e) { alert(e.message); }
+    } else {
+      // Show ban duration modal
+      setBanTarget(u);
+      setBanModal(true);
+    }
+  }
+
+  async function confirmBan(duration_days) {
+    if (!banTarget) return;
     try {
-      await admin.banUser(u.id, !u.is_banned);
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_banned: !u.is_banned } : x));
+      await admin.banUser(banTarget.id, true, duration_days);
+      setUsers(prev => prev.map(x => x.id === banTarget.id ? { ...x, is_banned: true } : x));
     } catch (e) { alert(e.message); }
+    setBanModal(false);
+    setBanTarget(null);
   }
 
   async function setRole(u, role) {
@@ -178,7 +197,19 @@ function UsersTab({ currentUserId }) {
                   </td>
                   <td style={{ padding: '10px 14px', color: 'var(--muted)' }}>{u.post_count || 0}</td>
                   <td style={{ padding: '10px 14px' }}>
-                    {u.is_banned ? <Badge r={224} g={82} b={82} text="Gebannt" /> : <Badge r={76} g={175} b={125} text="Aktiv" />}
+                    {u.is_banned ? (
+                      <div>
+                        <Badge r={224} g={82} b={82} text="Gebannt" />
+                        {u.ban_expires_at && (
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                            bis {new Date(u.ban_expires_at).toLocaleDateString('de-DE')}
+                          </div>
+                        )}
+                        {!u.ban_expires_at && (
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>permanent</div>
+                        )}
+                      </div>
+                    ) : <Badge r={76} g={175} b={125} text="Aktiv" />}
                   </td>
                   <td style={{ padding: '10px 14px', color: 'var(--muted)', fontSize: 12 }}>
                     {new Date(u.created_at).toLocaleDateString('de-DE')}
@@ -204,6 +235,92 @@ function UsersTab({ currentUserId }) {
       {selectedUser && (
         <UserDetailModal user={selectedUser} onClose={() => setSelectedUser(null)} onDelete={deleteUser} onBanToggle={toggleBan} currentUserId={currentUserId} />
       )}
+
+      {banModal && banTarget && (
+        <BanDurationModal
+          username={banTarget.username}
+          onConfirm={confirmBan}
+          onCancel={() => { setBanModal(false); setBanTarget(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── BAN DURATION MODAL ─── */
+function BanDurationModal({ username, onConfirm, onCancel }) {
+  const [selected, setSelected] = useState('permanent');
+  const options = [
+    { value: '1', label: '1 day' },
+    { value: '3', label: '3 days' },
+    { value: '7', label: '7 days' },
+    { value: '14', label: '14 days' },
+    { value: '30', label: '30 days' },
+    { value: 'permanent', label: 'Permanent' },
+  ];
+
+  function handleConfirm() {
+    const days = selected === 'permanent' ? null : parseInt(selected);
+    onConfirm(days);
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    }}>
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 16, padding: 32, width: 360, maxWidth: '90vw',
+      }}>
+        <h3 style={{ fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Ban {username}</h3>
+        <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 20 }}>
+          How long should the ban last?
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+          {options.map(opt => (
+            <label key={opt.value} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+              border: `1px solid ${selected === opt.value ? 'var(--danger)' : 'var(--border)'}`,
+              background: selected === opt.value ? 'rgba(224,82,82,0.06)' : 'transparent',
+            }}>
+              <input
+                type="radio"
+                name="ban_duration"
+                value={opt.value}
+                checked={selected === opt.value}
+                onChange={() => setSelected(opt.value)}
+                style={{ accentColor: 'var(--danger)' }}
+              />
+              <span style={{ fontSize: 14, color: selected === opt.value ? 'var(--danger)' : 'var(--text)', fontWeight: selected === opt.value ? 600 : 400 }}>
+                {opt.label}
+              </span>
+            </label>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleConfirm}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
+              background: 'var(--danger)', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+            }}
+          >
+            Ban
+          </button>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: 8,
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text)', fontSize: 14, cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

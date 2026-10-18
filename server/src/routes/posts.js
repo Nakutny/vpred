@@ -28,7 +28,6 @@ router.get('/', optionalAuth, async (req, res) => {
     let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL";
     const params = [];
 
-    // type=all zeigt research + essay, sonst nur den angegebenen Typ
     if (type !== 'all') {
       params.push(type);
       whereClause += ` AND p.type = $${params.length}`;
@@ -114,7 +113,6 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 
     const post = result.rows[0];
 
-    // Unique view counting: once per IP per post (regardless of login status)
     const ip = getClientIp(req);
     try {
       await query(
@@ -123,7 +121,6 @@ router.get('/:slug', optionalAuth, async (req, res) => {
          ON CONFLICT (post_id, ip_address) DO NOTHING`,
         [post.id, ip, req.user?.id || null]
       );
-      // Only update view_count if this was a new unique view
       const inserted = await query(
         'SELECT COUNT(*) FROM post_views WHERE post_id = $1',
         [post.id]
@@ -133,11 +130,9 @@ router.get('/:slug', optionalAuth, async (req, res) => {
         post.id,
       ]);
     } catch (viewErr) {
-      // Non-fatal: if post_views table doesn't exist yet, fall back to naive increment
       await query('UPDATE posts SET view_count = view_count + 1 WHERE id = $1', [post.id]);
     }
 
-    // Get expand posts (follow-ups)
     const expandResult = await query(
       `SELECT p.id, p.title, p.slug, p.created_at, u.username as author_username
        FROM posts p
@@ -166,6 +161,22 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 // POST /api/posts
 router.post('/', requireAuth, async (req, res) => {
   try {
+    // Enforce ban: banned users cannot create posts
+    const authorCheck = await query(
+      'SELECT is_banned, ban_expires_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (authorCheck.rows[0]) {
+      const { is_banned, ban_expires_at } = authorCheck.rows[0];
+      if (is_banned) {
+        const expired = ban_expires_at && new Date(ban_expires_at) <= new Date();
+        if (!expired) {
+          return res.status(403).json({ error: 'Your account is suspended. You cannot create posts.' });
+        }
+        await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.user.id]);
+      }
+    }
+
     const { title, content, summary, category_id, status = 'published', parent_post_id, type = 'research', topic, images, erd_data } = req.body;
 
     if (!title?.trim() || !content?.trim()) {
@@ -223,7 +234,6 @@ router.patch('/:id', requireAuth, async (req, res) => {
     const hasErd = Object.prototype.hasOwnProperty.call(req.body, 'erd_data');
     const erdJson = hasErd ? (erd_data ? JSON.stringify(erd_data) : null) : undefined;
 
-    // Build dynamic SET clause
     const setClauses = [
       'title = COALESCE($1, title)',
       'content = COALESCE($2, content)',

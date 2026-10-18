@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db/client.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { testMailConnection } from '../lib/mailer.js';
+import { createNotification } from './notifications.js';
 
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
@@ -59,7 +60,7 @@ router.get('/users/export/csv', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const search = req.query.search;
-    let q = `SELECT id, username, email, role, is_banned, is_verified, created_at,
+    let q = `SELECT id, username, email, role, is_banned, ban_expires_at, is_verified, created_at,
                (SELECT COUNT(*) FROM posts WHERE author_id = users.id) as post_count,
                (SELECT COUNT(*) FROM user_warnings WHERE user_id = users.id) as warning_count
              FROM users`;
@@ -74,7 +75,7 @@ router.get('/users', async (req, res) => {
 router.get('/users/:id', async (req, res) => {
   try {
     const userResult = await query(
-      `SELECT id, username, email, role, is_banned, is_verified, bio, avatar_url, created_at,
+      `SELECT id, username, email, role, is_banned, ban_expires_at, is_verified, bio, avatar_url, created_at,
               (SELECT COUNT(*) FROM posts WHERE author_id = users.id) as post_count,
               (SELECT COUNT(*) FROM comments WHERE author_id = users.id) as comment_count
        FROM users WHERE id = $1`, [req.params.id]
@@ -94,14 +95,78 @@ router.get('/users/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Benutzerdetails konnten nicht geladen werden.' }); }
 });
 
+// PATCH /api/admin/users/:id/ban
+// Body: { banned: true, ban_duration_days: 7 }  (ban_duration_days = null → permanent)
+//       { banned: false }  → unban
 router.patch('/users/:id/ban', async (req, res) => {
   try {
-    const { banned } = req.body;
-    if (req.params.id === String(req.user.id)) return res.status(400).json({ error: 'Du kannst dich nicht selbst bannen.' });
-    await query('UPDATE users SET is_banned = $1 WHERE id = $2', [banned, req.params.id]);
-    await auditLog(req.user.id, banned ? 'user_banned' : 'user_unbanned', 'user', req.params.id);
-    res.json({ message: banned ? 'Gebannt.' : 'Ban aufgehoben.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    const { banned, ban_duration_days } = req.body;
+    if (req.params.id === String(req.user.id)) {
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst bannen.' });
+    }
+
+    // Fetch target user info for notification
+    const targetRes = await query('SELECT id, username FROM users WHERE id = $1', [req.params.id]);
+    if (!targetRes.rows[0]) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    const targetUser = targetRes.rows[0];
+
+    if (banned) {
+      let banExpiresAt = null;
+      let durationLabel = 'permanent';
+
+      if (ban_duration_days != null && ban_duration_days > 0) {
+        const expires = new Date();
+        expires.setDate(expires.getDate() + parseInt(ban_duration_days));
+        banExpiresAt = expires.toISOString();
+        durationLabel = `${ban_duration_days} day${ban_duration_days === 1 ? '' : 's'}`;
+      }
+
+      await query(
+        'UPDATE users SET is_banned = TRUE, ban_expires_at = $1 WHERE id = $2',
+        [banExpiresAt, req.params.id]
+      );
+
+      // Notify banned user
+      const notifBody = banExpiresAt
+        ? `Your account has been suspended for ${durationLabel} until ${new Date(banExpiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. During this time you cannot post or message other users.`
+        : `Your account has been permanently suspended. You cannot post or message other users.`;
+
+      await createNotification(
+        req.params.id,
+        'ban',
+        '🚫 Account Suspended',
+        notifBody,
+        null
+      );
+
+      await auditLog(req.user.id, 'user_banned', 'user', req.params.id, {
+        duration: durationLabel,
+        ban_expires_at: banExpiresAt,
+      });
+
+      res.json({ message: `${targetUser.username} gebannt (${durationLabel}).` });
+    } else {
+      // Unban
+      await query(
+        'UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1',
+        [req.params.id]
+      );
+
+      await createNotification(
+        req.params.id,
+        'unban',
+        '✅ Account Reactivated',
+        'Your account suspension has been lifted. You can now post and message other users again.',
+        null
+      );
+
+      await auditLog(req.user.id, 'user_unbanned', 'user', req.params.id);
+      res.json({ message: `${targetUser.username} entbannt.` });
+    }
+  } catch (err) {
+    console.error('Ban error:', err);
+    res.status(500).json({ error: 'Fehler beim Bannen.' });
+  }
 });
 
 router.patch('/users/:id/role', async (req, res) => {
@@ -317,9 +382,7 @@ router.delete('/messages/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
 });
 
-// ─── SMTP DEBUG (Admin only) ──────────────────────────────────────────────────
-// POST /api/admin/test-mail  body: { to: "test@example.com" }
-// Sends a test email so you can verify SMTP from Railway logs without registering.
+// ─── SMTP DEBUG ──────────────────────────────────────────────────────────────
 router.post('/test-mail', async (req, res) => {
   try {
     const to = req.body.to || req.user.email;

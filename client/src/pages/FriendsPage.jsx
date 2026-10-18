@@ -202,9 +202,10 @@ export default function FriendsPage() {
                     <div style={{ fontWeight: conv.unread_count > 0 ? 700 : 500, fontSize: 15, color: 'var(--text)', marginBottom: 3 }}>
                       {conv.other_username}
                     </div>
-                    {conv.last_message && (
-                      <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {conv.last_message}
+                    {/* FIX: use conv.content (the actual DB field returned) */}
+                    {conv.content && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'lowercase' }}>
+                        {conv.content}
                       </div>
                     )}
                   </div>
@@ -218,9 +219,9 @@ export default function FriendsPage() {
                       {conv.unread_count > 9 ? '9+' : conv.unread_count}
                     </span>
                   )}
-                  {conv.last_message_at && (
+                  {conv.created_at && (
                     <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>
-                      {formatTime(conv.last_message_at)}
+                      {formatTime(conv.created_at)}
                     </span>
                   )}
                 </Link>

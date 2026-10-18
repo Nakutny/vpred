@@ -79,7 +79,7 @@ router.get('/unread/count', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/messages/:userId — get messages + otherUser info
+// GET /api/messages/:userId — get messages with a user
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const me = req.user.id;
@@ -105,14 +105,13 @@ router.get('/:userId', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Cannot message this user.' });
     }
 
-    // Get other user info
-    const otherUserResult = await query(
-      `SELECT id, username, avatar_url FROM users WHERE id = $1`,
+    // Fetch other user info
+    const otherUserRes = await query(
+      'SELECT id, username, avatar_url FROM users WHERE id = $1',
       [other]
     );
-    const otherUser = otherUserResult.rows[0] || null;
 
-    // Get messages
+    // Get messages (only last 7 days are kept anyway)
     const result = await query(
       `SELECT m.id, m.sender_id, m.receiver_id, m.content, m.is_read, m.created_at,
               u.username as sender_username, u.avatar_url as sender_avatar
@@ -131,7 +130,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
       [me, other]
     );
 
-    res.json({ messages: result.rows, otherUser });
+    res.json({ messages: result.rows, otherUser: otherUserRes.rows[0] || null });
   } catch (err) {
     console.error('Get messages error:', err);
     res.status(500).json({ error: 'Failed to load messages.' });
@@ -146,6 +145,23 @@ router.post('/', requireAuth, async (req, res) => {
     if (!content?.trim()) return res.status(400).json({ error: 'Message cannot be empty.' });
     if (content.trim().length > 2000) return res.status(400).json({ error: 'Message too long (max 2000 chars).' });
     if (receiver_id === req.user.id) return res.status(400).json({ error: 'You cannot message yourself.' });
+
+    // Enforce ban: banned users cannot send messages
+    const senderCheck = await query(
+      'SELECT is_banned, ban_expires_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (senderCheck.rows[0]) {
+      const { is_banned, ban_expires_at } = senderCheck.rows[0];
+      if (is_banned) {
+        const expired = ban_expires_at && new Date(ban_expires_at) <= new Date();
+        if (!expired) {
+          return res.status(403).json({ error: 'Your account is suspended. You cannot send messages.' });
+        }
+        // Auto-lift if expired
+        await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.user.id]);
+      }
+    }
 
     // Must be friends
     const friendship = await query(

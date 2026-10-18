@@ -14,7 +14,6 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     const err = new Error(data.error || `HTTP ${res.status}`);
-    err.status = res.status;
     err.code = data.code || null;
     err.email = data.email || null;
     throw err;
@@ -27,6 +26,10 @@ export const auth = {
   register: (body) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   me: () => request('/api/auth/me'),
+  verifyEmail: (token) => request(`/api/auth/verify-email?token=${token}`),
+  resendVerification: (email) => request('/api/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
+  forgotPassword: (email) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token, newPassword) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
 };
 
 // Posts
@@ -59,29 +62,37 @@ export const categories = {
 // Admin
 export const admin = {
   stats: () => request('/api/admin/stats'),
+  // Users
   users: (search) => request(`/api/admin/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
   userDetail: (id) => request(`/api/admin/users/${id}`),
-  banUser: (id, banned) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned }) }),
+  banUser: (id, banned, ban_duration_days) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned, ban_duration_days }) }),
   setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   verifyUser: (id, verified) => request(`/api/admin/users/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ verified }) }),
   deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
   warnUser: (id, reason) => request(`/api/admin/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
   removeWarning: (warningId) => request(`/api/admin/warnings/${warningId}`, { method: 'DELETE' }),
   exportUsers: () => `${BASE}/api/admin/users/export/csv`,
+  // Posts
   posts: (search) => request(`/api/admin/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
   setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deletePost: (id) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
   bulkPosts: (ids, action) => request('/api/admin/posts/bulk', { method: 'POST', body: JSON.stringify({ ids, action }) }),
   exportPosts: () => `${BASE}/api/admin/posts/export/csv`,
+  // Kommentare
   comments: () => request('/api/admin/comments'),
   removeComment: (id, removed) => request(`/api/admin/comments/${id}/remove`, { method: 'PATCH', body: JSON.stringify({ removed }) }),
+  // Reports
   reports: (status = 'open') => request(`/api/admin/reports?status=${status}`),
   resolveReport: (id, status) => request(`/api/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  // Audit-Log
   auditLog: () => request('/api/admin/audit-log'),
+  // IP-Sperren
   ipBans: () => request('/api/admin/ip-bans'),
   addIpBan: (ip_address, reason) => request('/api/admin/ip-bans', { method: 'POST', body: JSON.stringify({ ip_address, reason }) }),
   removeIpBan: (id) => request(`/api/admin/ip-bans/${id}`, { method: 'DELETE' }),
+  // DMs
   deleteMessage: (id) => request(`/api/admin/messages/${id}`, { method: 'DELETE' }),
+  // Visitor-Log (Patch 21)
   visitorLog: (limit = 200, offset = 0) => request(`/api/admin/visitor-log?limit=${limit}&offset=${offset}`),
 };
 
@@ -111,7 +122,7 @@ export const friendships = {
 // Messages
 export const messages = {
   conversations: () => request('/api/messages/conversations'),
-  getThread: (userId) => request(`/api/messages/${userId}`),
+  get: (userId) => request(`/api/messages/${userId}`),
   send: (receiver_id, content) => request('/api/messages', { method: 'POST', body: JSON.stringify({ receiver_id, content }) }),
   unreadCount: () => request('/api/messages/unread/count'),
 };
@@ -123,7 +134,7 @@ export const blocks = {
   unblock: (userId) => request(`/api/blocks/${userId}`, { method: 'DELETE' }),
 };
 
-// Reports
+// Reports (Meldungen)
 export const reports = {
   submit: (target_type, target_id, reason) =>
     request('/api/reports', { method: 'POST', body: JSON.stringify({ target_type, target_id, reason }) }),
@@ -137,12 +148,7 @@ export const notifications = {
   delete: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
 };
 
-// Users (public listing)
-export const users = {
-  list: (search = '') => request(`/api/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
-};
-
-// Search
+// Globale Suche
 export const search = {
   all: (q) => request(`/api/posts?search=${encodeURIComponent(q)}&type=all`),
 };

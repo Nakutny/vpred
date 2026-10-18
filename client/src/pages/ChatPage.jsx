@@ -14,16 +14,26 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const bottomRef = useRef(null);
+  // FIX: ref on the scroll container, not a bottom element
+  const containerRef = useRef(null);
   const pollRef = useRef(null);
   const textareaRef = useRef(null);
+  const isFirstLoad = useRef(true);
 
-  async function load() {
+  async function load(scrollToBottom = false) {
     try {
       const res = await messagesApi.getThread(userId);
       setMsgs(res.messages || []);
       if (res.otherUser) setOtherUser(res.otherUser);
       setError('');
+      if (scrollToBottom) {
+        // Scroll after state update
+        setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          }
+        }, 0);
+      }
     } catch (e) {
       if (e.status === 403) {
         setError('You can only message your friends.');
@@ -37,14 +47,13 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
-    load();
-    pollRef.current = setInterval(load, 8000);
+    // Initial load: scroll to bottom
+    load(true);
+    isFirstLoad.current = false;
+    // Poll every 8 seconds — do NOT auto-scroll on polls (user may be scrolling up)
+    pollRef.current = setInterval(() => load(false), 8000);
     return () => clearInterval(pollRef.current);
   }, [userId, user]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [msgs]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -62,7 +71,8 @@ export default function ChatPage() {
     setSending(true);
     try {
       await messagesApi.send(userId, body);
-      await load();
+      // After sending OWN message, scroll to bottom
+      await load(true);
     } catch (e) {
       setError(e.message);
       setText(body);
@@ -108,7 +118,8 @@ export default function ChatPage() {
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 14,
-        paddingBottom: 16, borderBottom: '1px solid var(--border)', marginBottom: 16,
+        paddingBottom: 16, borderBottom: '1px solid var(--border)', marginBottom: 0,
+        flexShrink: 0,
       }}>
         <Link to="/friends" style={{ color: 'var(--muted)', textDecoration: 'none', fontSize: 20, lineHeight: 1 }}>
           ←
@@ -131,8 +142,24 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Message area */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 12 }}>
+      {/* 7-day auto-delete notice */}
+      <div style={{
+        padding: '8px 14px',
+        background: 'rgba(120,120,120,0.08)',
+        borderBottom: '1px solid var(--border)',
+        fontSize: 12,
+        color: 'var(--muted)',
+        textAlign: 'center',
+        flexShrink: 0,
+      }}>
+        Messages auto-delete after 7 days
+      </div>
+
+      {/* Message area — FIX: overflow on THIS div, not the page */}
+      <div
+        ref={containerRef}
+        style={{ flex: 1, overflowY: 'auto', padding: '16px 0 12px' }}
+      >
         {loading && (
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>Loading…</div>
         )}
@@ -156,7 +183,7 @@ export default function ChatPage() {
         {grouped.map((group, gi) => {
           const isMe = group.senderId === user?.id;
           return (
-            <div key={gi} style={{ marginBottom: 16 }}>
+            <div key={gi} style={{ marginBottom: 16, padding: '0 4px' }}>
               {group.msgs.map((msg, mi) => (
                 <div
                   key={msg.id}
@@ -210,7 +237,6 @@ export default function ChatPage() {
             </div>
           );
         })}
-        <div ref={bottomRef} />
       </div>
 
       {/* Input area */}
@@ -221,6 +247,7 @@ export default function ChatPage() {
             display: 'flex', gap: 10, alignItems: 'flex-end',
             padding: '16px 0 24px',
             borderTop: '1px solid var(--border)',
+            flexShrink: 0,
           }}
         >
           <textarea

@@ -40,7 +40,7 @@ export default function SupportPage() {
           className="btn btn-primary"
           style={{ fontSize: 16, padding: '12px 36px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
         >
-          💙 Donate
+          Donate
         </a>
         <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 12 }}>
           Processed securely via NOWPayments. Every contribution matters.

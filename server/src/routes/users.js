@@ -7,7 +7,7 @@ const router = express.Router();
 // GET /api/users — list all users (public, paginated, searchable)
 router.get('/', async (req, res) => {
   try {
-    const search = req.params.search || req.query.search || '';
+    const search = req.query.search || '';
     const limit = Math.min(parseInt(req.query.limit) || 40, 100);
     const offset = parseInt(req.query.offset) || 0;
 
@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
       result = await query(
         `SELECT id, username, avatar_url, bio, created_at
          FROM users
-         WHERE banned = FALSE AND LOWER(username) LIKE LOWER($1)
+         WHERE is_banned = FALSE AND LOWER(username) LIKE LOWER($1)
          ORDER BY username ASC
          LIMIT $2 OFFSET $3`,
         [`%${search}%`, limit, offset]
@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
       result = await query(
         `SELECT id, username, avatar_url, bio, created_at
          FROM users
-         WHERE banned = FALSE
+         WHERE is_banned = FALSE
          ORDER BY username ASC
          LIMIT $1 OFFSET $2`,
         [limit, offset]
