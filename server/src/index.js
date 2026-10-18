@@ -15,6 +15,7 @@ import messageRoutes from './routes/messages.js';
 import blockRoutes from './routes/blocks.js';
 import reportRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
+import userRoutes from './routes/users.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 
 dotenv.config();
@@ -42,7 +43,7 @@ app.use(express.json({ limit: '2mb' }));
 // Visitor-Log-Middleware (loggt GET-Requests im Hintergrund)
 visitorLogMiddleware(app);
 
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch21', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch27', timestamp: new Date().toISOString() }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
@@ -57,6 +58,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/blocks', blockRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/users', userRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 
@@ -66,5 +68,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch25]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch27]`);
 });

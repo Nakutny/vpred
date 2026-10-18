@@ -22,6 +22,7 @@ import NewEssayPage from './pages/NewEssayPage';
 import StoriesPage from './pages/StoriesPage';
 import NewStoryPage from './pages/NewStoryPage';
 import DashboardPage from './pages/DashboardPage';
+import UsersPage from './pages/UsersPage';
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="/essays/new" element={<NewEssayPage />} />
             <Route path="/stories" element={<StoriesPage />} />
             <Route path="/stories/new" element={<NewStoryPage />} />
+            <Route path="/users" element={<UsersPage />} />
           </Routes>
         </Layout>
       </AuthProvider>

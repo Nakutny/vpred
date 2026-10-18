@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
+import { createNotification } from './notifications.js';
 
 const router = express.Router();
 
@@ -99,7 +100,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (blockCheck.rows.length > 0) return res.status(403).json({ error: 'Cannot send friend request.' });
 
     // Check target user exists
-    const userCheck = await query('SELECT id FROM users WHERE id = $1', [addressee_id]);
+    const userCheck = await query('SELECT id, username FROM users WHERE id = $1', [addressee_id]);
     if (!userCheck.rows[0]) return res.status(404).json({ error: 'User not found.' });
 
     // Check existing
@@ -115,6 +116,17 @@ router.post('/', requireAuth, async (req, res) => {
     const result = await query(
       `INSERT INTO friendships (requester_id, addressee_id) VALUES ($1, $2) RETURNING id, status, created_at`,
       [req.user.id, addressee_id]
+    );
+
+    // Notify the recipient
+    const senderResult = await query('SELECT username FROM users WHERE id = $1', [req.user.id]);
+    const senderUsername = senderResult.rows[0]?.username || 'Someone';
+    await createNotification(
+      addressee_id,
+      'friend_request',
+      `${senderUsername} sent you a friend request`,
+      null,
+      '/friends'
     );
 
     res.status(201).json({ friendship: result.rows[0] });
@@ -141,6 +153,19 @@ router.patch('/:id', requireAuth, async (req, res) => {
       `UPDATE friendships SET status = $1, updated_at = NOW() WHERE id = $2`,
       [status, req.params.id]
     );
+
+    // If accepted: notify requester
+    if (status === 'accepted') {
+      const responderResult = await query('SELECT username FROM users WHERE id = $1', [req.user.id]);
+      const responderUsername = responderResult.rows[0]?.username || 'Someone';
+      await createNotification(
+        f.rows[0].requester_id,
+        'friend_accepted',
+        `${responderUsername} accepted your friend request`,
+        null,
+        `/profile/${responderUsername}`
+      );
+    }
 
     res.json({ message: `Friend request ${status}.` });
   } catch (err) {

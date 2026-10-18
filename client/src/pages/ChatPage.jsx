@@ -16,17 +16,19 @@ export default function ChatPage() {
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
   const pollRef = useRef(null);
+  const textareaRef = useRef(null);
 
   async function load() {
     try {
       const res = await messagesApi.getThread(userId);
       setMsgs(res.messages || []);
       if (res.otherUser) setOtherUser(res.otherUser);
+      setError('');
     } catch (e) {
       if (e.status === 403) {
         setError('You can only message your friends.');
       } else {
-        setError(e.message);
+        setError(e.message || 'Failed to load messages.');
       }
     } finally {
       setLoading(false);
@@ -36,14 +38,21 @@ export default function ChatPage() {
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     load();
-    // Poll for new messages every 10 seconds
-    pollRef.current = setInterval(load, 10000);
+    pollRef.current = setInterval(load, 8000);
     return () => clearInterval(pollRef.current);
   }, [userId, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [msgs]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px';
+    }
+  }, [text]);
 
   async function send(e) {
     e.preventDefault();
@@ -128,7 +137,14 @@ export default function ChatPage() {
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>Loading…</div>
         )}
         {error && !loading && (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--danger)' }}>{error}</div>
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <div style={{ color: 'var(--danger)', marginBottom: 16 }}>{error}</div>
+            {error.includes('friends') && (
+              <Link to="/users" style={{ color: 'var(--accent)', fontSize: 14 }}>
+                Browse Users →
+              </Link>
+            )}
+          </div>
         )}
         {!loading && !error && msgs.length === 0 && (
           <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>
@@ -152,7 +168,6 @@ export default function ChatPage() {
                     marginBottom: mi === group.msgs.length - 1 ? 0 : 4,
                   }}
                 >
-                  {/* Avatar only on first message in group for other user */}
                   {!isMe && mi === 0 ? (
                     <Link to={`/profile/${otherUser?.username || ''}`} style={{ flexShrink: 0 }}>
                       <Avatar avatarUrl={otherUser?.avatar_url} username={otherUser?.username} size={28} />
@@ -209,6 +224,7 @@ export default function ChatPage() {
           }}
         >
           <textarea
+            ref={textareaRef}
             className="input"
             style={{
               flex: 1, minHeight: 42, maxHeight: 160, resize: 'none',

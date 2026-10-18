@@ -4,12 +4,13 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// IMPORTANT: specific routes before /:userId
+
 // GET /api/messages/conversations — list my conversations
 router.get('/conversations', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get latest message per conversation
     const result = await query(
       `SELECT DISTINCT ON (other_id)
          other_id,
@@ -39,7 +40,6 @@ router.get('/conversations', requireAuth, async (req, res) => {
       [userId]
     );
 
-    // Also count unread per conversation
     const unreadResult = await query(
       `SELECT sender_id as other_id, COUNT(*) as unread_count
        FROM messages
@@ -65,7 +65,21 @@ router.get('/conversations', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/messages/:userId — get messages with a user
+// GET /api/messages/unread/count — total unread count
+router.get('/unread/count', requireAuth, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT COUNT(*) as count FROM messages WHERE receiver_id = $1 AND is_read = FALSE`,
+      [req.user.id]
+    );
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (err) {
+    console.error('Unread count error:', err);
+    res.status(500).json({ error: 'Failed to get unread count.' });
+  }
+});
+
+// GET /api/messages/:userId — get messages + otherUser info
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const me = req.user.id;
@@ -91,6 +105,13 @@ router.get('/:userId', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Cannot message this user.' });
     }
 
+    // Get other user info
+    const otherUserResult = await query(
+      `SELECT id, username, avatar_url FROM users WHERE id = $1`,
+      [other]
+    );
+    const otherUser = otherUserResult.rows[0] || null;
+
     // Get messages
     const result = await query(
       `SELECT m.id, m.sender_id, m.receiver_id, m.content, m.is_read, m.created_at,
@@ -110,7 +131,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
       [me, other]
     );
 
-    res.json({ messages: result.rows });
+    res.json({ messages: result.rows, otherUser });
   } catch (err) {
     console.error('Get messages error:', err);
     res.status(500).json({ error: 'Failed to load messages.' });
@@ -156,20 +177,6 @@ router.post('/', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Send message error:', err);
     res.status(500).json({ error: 'Failed to send message.' });
-  }
-});
-
-// GET /api/messages/unread/count — total unread count
-router.get('/unread/count', requireAuth, async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT COUNT(*) as count FROM messages WHERE receiver_id = $1 AND is_read = FALSE`,
-      [req.user.id]
-    );
-    res.json({ count: parseInt(result.rows[0].count) });
-  } catch (err) {
-    console.error('Unread count error:', err);
-    res.status(500).json({ error: 'Failed to get unread count.' });
   }
 });
 

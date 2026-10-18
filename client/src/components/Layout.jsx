@@ -106,6 +106,9 @@ export default function Layout({ children }) {
     return `${Math.floor(h / 24)}d`;
   }
 
+  // Combined unread badge: notifications + unread messages
+  const totalBell = unreadNotifCount + unreadMsgCount;
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header style={{
@@ -131,6 +134,7 @@ export default function Layout({ children }) {
             <NavLink to="/essays" label="Essays" active={location.pathname.startsWith('/essays')} />
             <NavLink to="/stories" label="Stories" active={location.pathname.startsWith('/stories')} />
             <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
+            <NavLink to="/users" label="Users" active={location.pathname === '/users'} />
             <NavLink to="/support" label="Support me" active={location.pathname === '/support'} />
             {user && (
               <NavLinkBadge
@@ -231,6 +235,18 @@ export default function Layout({ children }) {
                             background: n.is_read ? 'transparent' : 'rgba(79,142,247,0.06)',
                             borderBottom: '1px solid var(--border)',
                           }}>
+                            {/* Icon by type */}
+                            <div style={{ flexShrink: 0, marginTop: 1 }}>
+                              {n.type === 'friend_request' && (
+                                <span style={{ fontSize: 16 }}>👤</span>
+                              )}
+                              {n.type === 'friend_accepted' && (
+                                <span style={{ fontSize: 16 }}>🤝</span>
+                              )}
+                              {(n.type !== 'friend_request' && n.type !== 'friend_accepted') && (
+                                <span style={{ fontSize: 16 }}>🔔</span>
+                              )}
+                            </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               {n.link ? (
                                 <Link to={n.link} onClick={() => setNotifOpen(false)} style={{ display: 'block', color: 'var(--text)', textDecoration: 'none' }}>
@@ -287,6 +303,7 @@ export default function Layout({ children }) {
                         <MenuItem to="/dashboard" label="My Dashboard" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/essays" label="Essays" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/stories" label="Stories" onClose={() => setMenuOpen(false)} />
+                        <MenuItem to="/users" label="Users" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/friends" label={`Friends${pendingCount > 0 ? ` (${pendingCount})` : ''}`} onClose={() => setMenuOpen(false)} />
                         {isAdmin && <MenuItem to="/admin" label="Admin Panel" onClose={() => setMenuOpen(false)} />}
                         <button
