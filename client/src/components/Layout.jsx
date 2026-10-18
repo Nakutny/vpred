@@ -129,6 +129,7 @@ export default function Layout({ children }) {
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <NavLink to="/" label="Feed" active={location.pathname === '/'} />
             <NavLink to="/essays" label="Essays" active={location.pathname.startsWith('/essays')} />
+            <NavLink to="/stories" label="Stories" active={location.pathname.startsWith('/stories')} />
             <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
             <NavLink to="/support" label="Support me" active={location.pathname === '/support'} />
             {user && (
@@ -285,6 +286,7 @@ export default function Layout({ children }) {
                         <MenuItem to={`/profile/${user.username}`} label="My profile" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/dashboard" label="My Dashboard" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/essays" label="Essays" onClose={() => setMenuOpen(false)} />
+                        <MenuItem to="/stories" label="Stories" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/friends" label={`Friends${pendingCount > 0 ? ` (${pendingCount})` : ''}`} onClose={() => setMenuOpen(false)} />
                         {isAdmin && <MenuItem to="/admin" label="Admin Panel" onClose={() => setMenuOpen(false)} />}
                         <button

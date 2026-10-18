@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { auth } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function RegisterPage() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [registered, setRegistered] = useState(false);
-  const [registeredEmail, setRegisteredEmail] = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -17,41 +18,14 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await auth.register({ username: form.username, email: form.email, password: form.password });
-      setRegisteredEmail(form.email);
-      setRegistered(true);
+      const d = await auth.register({ username: form.username, email: form.email, password: form.password });
+      login(d.user, d.token);
+      navigate('/');
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }
-
-  if (registered) {
-    return (
-      <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ width: '100%', maxWidth: 420, textAlign: 'center' }}>
-          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L3 20h18L12 2z" fill="var(--accent)"/>
-            </svg>
-            <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22 }}>vpred.org</span>
-          </Link>
-          <div className="card" style={{ padding: '36px 28px' }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
-            <h2 style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400, marginBottom: 8 }}>Check your email</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
-              We sent a verification link to <strong>{registeredEmail}</strong>.
-              Click the link to activate your account.
-            </p>
-            <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 12 }}>Also check your spam folder.</p>
-            <div style={{ marginTop: 28 }}>
-              <Link to="/login" style={{ color: 'var(--accent)', fontSize: 14 }}>Go to login →</Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (

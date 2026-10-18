@@ -174,7 +174,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (title.length > 300) {
       return res.status(400).json({ error: 'Title is too long (max 300 characters).' });
     }
-    if (!['research', 'essay'].includes(type)) {
+    if (!['research', 'essay', 'story'].includes(type)) {
       return res.status(400).json({ error: 'Invalid post type.' });
     }
     if (images && (!Array.isArray(images) || images.length > 3)) {
