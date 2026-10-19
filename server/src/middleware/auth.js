@@ -20,7 +20,6 @@ export async function requireAuth(req, res, next) {
     // Check ban status — auto-lift expired bans
     if (user.is_banned) {
       if (user.ban_expires_at && new Date(user.ban_expires_at) <= new Date()) {
-        // Ban has expired — auto-unban
         await query(
           'UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1',
           [user.id]
@@ -28,7 +27,6 @@ export async function requireAuth(req, res, next) {
         user.is_banned = false;
         user.ban_expires_at = null;
       } else {
-        // Still banned
         const expiresMsg = user.ban_expires_at
           ? ` until ${new Date(user.ban_expires_at).toLocaleDateString()}`
           : ' permanently';
@@ -48,8 +46,11 @@ export function requireAdmin(req, res, next) {
   next();
 }
 
+// Admin or Moderator
 export function requireModerator(req, res, next) {
-  if (!['admin', 'moderator'].includes(req.user?.role)) return res.status(403).json({ error: 'Moderator access required.' });
+  if (!['admin', 'moderator'].includes(req.user?.role)) {
+    return res.status(403).json({ error: 'Moderator access required.' });
+  }
   next();
 }
 

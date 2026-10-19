@@ -6,7 +6,8 @@ import authRoutes from './routes/auth.js';
 import postRoutes from './routes/posts.js';
 import commentRoutes from './routes/comments.js';
 import categoryRoutes from './routes/categories.js';
-import adminRoutes from './routes/admin.js';
+import adminRoutes, { runCleanup } from './routes/admin.js';
+import moderatorRoutes from './routes/moderator.js';
 import profileRoutes from './routes/profile.js';
 import legalRoutes from './routes/legal.js';
 import sitemapRoutes from './routes/sitemap.js';
@@ -44,13 +45,14 @@ app.use(express.json({ limit: '2mb' }));
 // Visitor-Log-Middleware
 visitorLogMiddleware(app);
 
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch28', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch29', timestamp: new Date().toISOString() }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/mod', moderatorRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/legal', legalRoutes);
 app.use('/sitemap.xml', sitemapRoutes);
@@ -68,25 +70,30 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-// ─── 7-Day Message Auto-Deletion ─────────────────────────────────────────────
-// Deletes messages older than 7 days on startup, then every hour
-async function deleteOldMessages() {
+// ─── SMART CLEANUP SYSTEM ─────────────────────────────────────────────────────
+// Strategy:
+//  - visitor_log: keep ≤ 5 000 rows; detect + archive anomalies before deleting
+//  - audit_log:   keep ≤ 2 000 rows; detect bulk actions before deleting
+//  - messages:    enforce the 7-day auto-delete rule
+//
+// Runs on startup and then every 30 minutes.
+// The actual cleanup logic lives in admin.js (runCleanup) so the admin can
+// also trigger it manually via POST /api/admin/db-cleanup.
+
+async function scheduledCleanup() {
   try {
-    const result = await query(
-      `DELETE FROM messages WHERE created_at < NOW() - INTERVAL '7 days'`
-    );
-    const count = result.rowCount || 0;
-    if (count > 0) {
-      console.log(`[cleanup] Deleted ${count} messages older than 7 days.`);
-    }
+    await runCleanup();
   } catch (err) {
-    console.error('[cleanup] Failed to delete old messages:', err.message);
+    console.error('[scheduled cleanup] Error:', err.message);
   }
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch28]`);
-  // Run immediately on startup, then every hour
-  deleteOldMessages();
-  setInterval(deleteOldMessages, 60 * 60 * 1000);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch29]`);
+
+  // Run immediately on startup
+  scheduledCleanup();
+
+  // Then every 30 minutes
+  setInterval(scheduledCleanup, 30 * 60 * 1000);
 });

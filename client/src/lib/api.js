@@ -74,6 +74,9 @@ export const admin = {
   exportUsers: () => `${BASE}/api/admin/users/export/csv`,
   // Posts
   posts: (search) => request(`/api/admin/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  deletedPosts: () => request('/api/admin/posts/deleted'),
+  restorePost: (id) => request(`/api/admin/posts/${id}/restore`, { method: 'PATCH' }),
+  permanentDeletePost: (id) => request(`/api/admin/posts/${id}/permanent`, { method: 'DELETE' }),
   setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deletePost: (id) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
   bulkPosts: (ids, action) => request('/api/admin/posts/bulk', { method: 'POST', body: JSON.stringify({ ids, action }) }),
@@ -90,10 +93,40 @@ export const admin = {
   ipBans: () => request('/api/admin/ip-bans'),
   addIpBan: (ip_address, reason) => request('/api/admin/ip-bans', { method: 'POST', body: JSON.stringify({ ip_address, reason }) }),
   removeIpBan: (id) => request(`/api/admin/ip-bans/${id}`, { method: 'DELETE' }),
-  // DMs
+  // DMs (Admin can view all messages)
+  messages: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/api/admin/messages${q ? '?' + q : ''}`);
+  },
   deleteMessage: (id) => request(`/api/admin/messages/${id}`, { method: 'DELETE' }),
-  // Visitor-Log (Patch 21)
+  // DB Status & Cleanup
+  dbStatus: () => request('/api/admin/db-status'),
+  runCleanup: () => request('/api/admin/db-cleanup', { method: 'POST' }),
+  // Anomalies
+  anomalies: () => request('/api/admin/anomalies'),
+  deleteAnomaly: (id) => request(`/api/admin/anomalies/${id}`, { method: 'DELETE' }),
+  clearAnomalies: () => request('/api/admin/anomalies', { method: 'DELETE' }),
+  // Visitor-Log
   visitorLog: (limit = 200, offset = 0) => request(`/api/admin/visitor-log?limit=${limit}&offset=${offset}`),
+};
+
+// Moderator
+export const mod = {
+  stats: () => request('/api/mod/stats'),
+  // Users (only regular users)
+  users: (search) => request(`/api/mod/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  banUser: (id, banned, ban_duration_days) => request(`/api/mod/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned, ban_duration_days }) }),
+  warnUser: (id, reason) => request(`/api/mod/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  // Posts
+  posts: (search) => request(`/api/mod/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  editPost: (id, body) => request(`/api/mod/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deletePost: (id) => request(`/api/mod/posts/${id}`, { method: 'DELETE' }),
+  restorePost: (id) => request(`/api/mod/posts/${id}/restore`, { method: 'PATCH' }),
+  // Reports
+  reports: (status = 'open') => request(`/api/mod/reports?status=${status}`),
+  resolveReport: (id, status) => request(`/api/mod/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  // Self-demotion
+  demoteSelf: () => request('/api/mod/demote-self', { method: 'PATCH' }),
 };
 
 // Profile

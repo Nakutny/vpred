@@ -30,44 +30,29 @@ export default function FriendsPage() {
 
   async function respond(id, status) {
     setActionLoading(id);
-    try {
-      await friendshipsApi.respond(id, status);
-      await load();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setActionLoading('');
-    }
+    try { await friendshipsApi.respond(id, status); await load(); }
+    catch (e) { alert(e.message); }
+    finally { setActionLoading(''); }
   }
 
   async function remove(id) {
     if (!confirm('Remove this friend?')) return;
     setActionLoading(id);
-    try {
-      await friendshipsApi.remove(id);
-      await load();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setActionLoading('');
-    }
+    try { await friendshipsApi.remove(id); await load(); }
+    catch (e) { alert(e.message); }
+    finally { setActionLoading(''); }
   }
 
   async function cancel(id) {
     setActionLoading(id);
-    try {
-      await friendshipsApi.remove(id);
-      await load();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setActionLoading('');
-    }
+    try { await friendshipsApi.remove(id); await load(); }
+    catch (e) { alert(e.message); }
+    finally { setActionLoading(''); }
   }
 
   const pendingCount = data.incoming.length;
   const tabs = [
-    { key: 'friends', label: `Friends (${data.friends.length})` },
+    { key: 'friends',  label: `Friends (${data.friends.length})` },
     { key: 'messages', label: `Messages${conversations.length > 0 ? ` (${conversations.length})` : ''}` },
     { key: 'requests', label: `Requests${pendingCount > 0 ? ` · ${pendingCount}` : ''}`, accent: pendingCount > 0 },
   ];
@@ -98,8 +83,7 @@ export default function FriendsPage() {
               cursor: 'pointer', fontSize: 14,
               fontWeight: tab === t.key ? 600 : 400,
               color: t.accent ? 'var(--accent)' : tab === t.key ? 'var(--text)' : 'var(--muted)',
-              marginBottom: -1,
-              transition: 'all 0.15s',
+              marginBottom: -1, transition: 'all 0.15s',
             }}
           >
             {t.label}
@@ -144,23 +128,14 @@ export default function FriendsPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Link
                       to={`/chat/${f.friend_id}`}
-                      style={{
-                        padding: '6px 14px', borderRadius: 8,
-                        background: 'var(--accent)', color: '#fff',
-                        fontSize: 13, fontWeight: 500, textDecoration: 'none',
-                      }}
+                      style={{ padding: '6px 14px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}
                     >
                       Message
                     </Link>
                     <button
                       onClick={() => remove(f.id)}
                       disabled={actionLoading === f.id}
-                      style={{
-                        padding: '6px 14px', borderRadius: 8,
-                        border: '1px solid var(--border)', background: 'transparent',
-                        color: 'var(--muted)', fontSize: 13, cursor: 'pointer',
-                        opacity: actionLoading === f.id ? 0.5 : 1,
-                      }}
+                      style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', opacity: actionLoading === f.id ? 0.5 : 1 }}
                       onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'var(--danger)'; }}
                       onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                     >
@@ -177,6 +152,15 @@ export default function FriendsPage() {
       {/* MESSAGES TAB */}
       {tab === 'messages' && (
         <section>
+          {/* 7-day notice */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--muted)',
+          }}>
+            🕒 All messages are automatically deleted after 7 days.
+          </div>
+
           {conversations.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)' }}>
               <p style={{ marginBottom: 8 }}>No conversations yet.</p>
@@ -202,7 +186,6 @@ export default function FriendsPage() {
                     <div style={{ fontWeight: conv.unread_count > 0 ? 700 : 500, fontSize: 15, color: 'var(--text)', marginBottom: 3 }}>
                       {conv.other_username}
                     </div>
-                    {/* FIX: use conv.content (the actual DB field returned) */}
                     {conv.content && (
                       <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'lowercase' }}>
                         {conv.content}
@@ -210,19 +193,12 @@ export default function FriendsPage() {
                     )}
                   </div>
                   {conv.unread_count > 0 && (
-                    <span style={{
-                      background: 'var(--accent)', color: '#fff', borderRadius: 9999,
-                      fontSize: 11, fontWeight: 700, minWidth: 20, height: 20,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      padding: '0 5px',
-                    }}>
+                    <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 9999, fontSize: 11, fontWeight: 700, minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>
                       {conv.unread_count > 9 ? '9+' : conv.unread_count}
                     </span>
                   )}
                   {conv.created_at && (
-                    <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>
-                      {formatTime(conv.created_at)}
-                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatTime(conv.created_at)}</span>
                   )}
                 </Link>
               ))}
@@ -251,41 +227,20 @@ export default function FriendsPage() {
                       <Avatar avatarUrl={req.requester_avatar} username={req.requester_username} size={44} />
                     </Link>
                     <div style={{ flex: 1 }}>
-                      <Link
-                        to={`/profile/${req.requester_username}`}
-                        style={{ fontWeight: 500, fontSize: 15, color: 'var(--text)' }}
+                      <Link to={`/profile/${req.requester_username}`} style={{ fontWeight: 500, fontSize: 15, color: 'var(--text)' }}
                         onMouseEnter={e => e.target.style.color = 'var(--accent)'}
-                        onMouseLeave={e => e.target.style.color = 'var(--text)'}
-                      >
+                        onMouseLeave={e => e.target.style.color = 'var(--text)'}>
                         {req.requester_username}
                       </Link>
-                      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                        {new Date(req.created_at).toLocaleDateString()}
-                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{new Date(req.created_at).toLocaleDateString()}</p>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={() => respond(req.id, 'accepted')}
-                        disabled={actionLoading === req.id}
-                        style={{
-                          padding: '6px 14px', borderRadius: 8,
-                          background: 'var(--accent)', color: '#fff',
-                          fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer',
-                          opacity: actionLoading === req.id ? 0.5 : 1,
-                        }}
-                      >
+                      <button onClick={() => respond(req.id, 'accepted')} disabled={actionLoading === req.id}
+                        style={{ padding: '6px 14px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer', opacity: actionLoading === req.id ? 0.5 : 1 }}>
                         Accept
                       </button>
-                      <button
-                        onClick={() => respond(req.id, 'declined')}
-                        disabled={actionLoading === req.id}
-                        style={{
-                          padding: '6px 14px', borderRadius: 8,
-                          border: '1px solid var(--border)', background: 'transparent',
-                          color: 'var(--muted)', fontSize: 13, cursor: 'pointer',
-                          opacity: actionLoading === req.id ? 0.5 : 1,
-                        }}
-                      >
+                      <button onClick={() => respond(req.id, 'declined')} disabled={actionLoading === req.id}
+                        style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', opacity: actionLoading === req.id ? 0.5 : 1 }}>
                         Decline
                       </button>
                     </div>
@@ -312,28 +267,17 @@ export default function FriendsPage() {
                       <Avatar avatarUrl={req.addressee_avatar} username={req.addressee_username} size={44} />
                     </Link>
                     <div style={{ flex: 1 }}>
-                      <Link
-                        to={`/profile/${req.addressee_username}`}
-                        style={{ fontWeight: 500, fontSize: 15, color: 'var(--text)' }}
+                      <Link to={`/profile/${req.addressee_username}`} style={{ fontWeight: 500, fontSize: 15, color: 'var(--text)' }}
                         onMouseEnter={e => e.target.style.color = 'var(--accent)'}
-                        onMouseLeave={e => e.target.style.color = 'var(--text)'}
-                      >
+                        onMouseLeave={e => e.target.style.color = 'var(--text)'}>
                         {req.addressee_username}
                       </Link>
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Pending…</p>
                     </div>
-                    <button
-                      onClick={() => cancel(req.id)}
-                      disabled={actionLoading === req.id}
-                      style={{
-                        padding: '6px 14px', borderRadius: 8,
-                        border: '1px solid var(--border)', background: 'transparent',
-                        color: 'var(--muted)', fontSize: 13, cursor: 'pointer',
-                        opacity: actionLoading === req.id ? 0.5 : 1,
-                      }}
+                    <button onClick={() => cancel(req.id)} disabled={actionLoading === req.id}
+                      style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', opacity: actionLoading === req.id ? 0.5 : 1 }}
                       onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'var(--danger)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-                    >
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
                       Cancel
                     </button>
                   </div>
@@ -343,9 +287,7 @@ export default function FriendsPage() {
           )}
 
           {data.incoming.length === 0 && data.outgoing.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)' }}>
-              No pending requests.
-            </div>
+            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)' }}>No pending requests.</div>
           )}
         </section>
       )}

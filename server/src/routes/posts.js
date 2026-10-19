@@ -1,7 +1,7 @@
 import express from 'express';
 import slugify from 'slugify';
 import { query } from '../db/client.js';
-import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth.js';
+import { requireAuth, requireModerator, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -25,11 +25,15 @@ router.get('/', optionalAuth, async (req, res) => {
     const search = req.query.search;
     const type = req.query.type || 'research';
 
-    let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL";
+    // "story" type is now called "text" — accept both for backward compat
+    let resolvedType = type;
+    if (resolvedType === 'story') resolvedType = 'text';
+
+    let whereClause = "WHERE p.status = 'published' AND p.parent_post_id IS NULL AND p.deleted_at IS NULL";
     const params = [];
 
-    if (type !== 'all') {
-      params.push(type);
+    if (resolvedType !== 'all') {
+      params.push(resolvedType);
       whereClause += ` AND p.type = $${params.length}`;
     }
 
@@ -58,7 +62,7 @@ router.get('/', optionalAuth, async (req, res) => {
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN comments cm ON cm.post_id = p.id AND cm.is_removed = FALSE
        LEFT JOIN post_votes pv ON pv.post_id = p.id
-       LEFT JOIN posts ep ON ep.parent_post_id = p.id AND ep.status = 'published'
+       LEFT JOIN posts ep ON ep.parent_post_id = p.id AND ep.status = 'published' AND ep.deleted_at IS NULL
        ${whereClause}
        GROUP BY p.id, u.username, u.id, c.name, c.slug
        ORDER BY p.created_at DESC
@@ -102,7 +106,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN post_votes pv ON pv.post_id = p.id
        LEFT JOIN posts pp ON pp.id = p.parent_post_id
-       WHERE p.slug = $1 AND p.status = 'published'
+       WHERE p.slug = $1 AND p.status = 'published' AND p.deleted_at IS NULL
        GROUP BY p.id, u.username, u.id, u.bio, c.name, c.slug, c.id, pp.title, pp.slug`,
       [req.params.slug]
     );
@@ -137,7 +141,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
       `SELECT p.id, p.title, p.slug, p.created_at, u.username as author_username
        FROM posts p
        LEFT JOIN users u ON p.author_id = u.id
-       WHERE p.parent_post_id = $1 AND p.status = 'published'
+       WHERE p.parent_post_id = $1 AND p.status = 'published' AND p.deleted_at IS NULL
        ORDER BY p.created_at ASC`,
       [post.id]
     );
@@ -177,7 +181,11 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    const { title, content, summary, category_id, status = 'published', parent_post_id, type = 'research', topic, images, erd_data } = req.body;
+    const { title, content, summary, category_id, status = 'published', parent_post_id, topic, images, erd_data } = req.body;
+    let { type = 'research' } = req.body;
+
+    // Normalize "story" → "text"
+    if (type === 'story') type = 'text';
 
     if (!title?.trim() || !content?.trim()) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -185,7 +193,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (title.length > 300) {
       return res.status(400).json({ error: 'Title is too long (max 300 characters).' });
     }
-    if (!['research', 'essay', 'story'].includes(type)) {
+    if (!['research', 'essay', 'text'].includes(type)) {
       return res.status(400).json({ error: 'Invalid post type.' });
     }
     if (images && (!Array.isArray(images) || images.length > 3)) {
@@ -193,7 +201,7 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     if (parent_post_id) {
-      const parentCheck = await query('SELECT id FROM posts WHERE id = $1 AND status = $2', [parent_post_id, 'published']);
+      const parentCheck = await query('SELECT id FROM posts WHERE id = $1 AND status = $2 AND deleted_at IS NULL', [parent_post_id, 'published']);
       if (!parentCheck.rows[0]) {
         return res.status(400).json({ error: 'Parent post not found.' });
       }
@@ -217,15 +225,15 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/posts/:id
+// PATCH /api/posts/:id — owner, admin, or moderator can edit
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const post = await query('SELECT * FROM posts WHERE id = $1', [req.params.id]);
     if (!post.rows[0]) return res.status(404).json({ error: 'Post not found.' });
 
     const isOwner = post.rows[0].author_id === req.user.id;
-    const isAdmin = req.user.role === 'admin';
-    if (!isOwner && !isAdmin) {
+    const isMod = ['admin', 'moderator'].includes(req.user.role);
+    if (!isOwner && !isMod) {
       return res.status(403).json({ error: 'You do not have permission to edit this post.' });
     }
 
@@ -263,19 +271,23 @@ router.patch('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/posts/:id
+// DELETE /api/posts/:id — owner, admin, or moderator can soft-delete
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const post = await query('SELECT * FROM posts WHERE id = $1', [req.params.id]);
     if (!post.rows[0]) return res.status(404).json({ error: 'Post not found.' });
 
     const isOwner = post.rows[0].author_id === req.user.id;
-    const isAdmin = req.user.role === 'admin';
-    if (!isOwner && !isAdmin) {
+    const isMod = ['admin', 'moderator'].includes(req.user.role);
+    if (!isOwner && !isMod) {
       return res.status(403).json({ error: 'You do not have permission to remove this post.' });
     }
 
-    await query("UPDATE posts SET status = 'removed' WHERE id = $1", [req.params.id]);
+    // Soft-delete: mark as deleted instead of hard-delete
+    await query(
+      `UPDATE posts SET deleted_at = NOW(), deleted_by = $1, status = 'removed' WHERE id = $2`,
+      [req.user.id, req.params.id]
+    );
     res.json({ message: 'Post removed.' });
   } catch (err) {
     console.error('Delete post error:', err);

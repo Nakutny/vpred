@@ -14,7 +14,7 @@ async function auditLog(adminId, action, targetType, targetId, details = {}) {
        VALUES ($1, $2, $3, $4, $5)`,
       [adminId, action, targetType || null, targetId ? String(targetId) : null, JSON.stringify(details)]
     );
-  } catch (e) { console.error('Audit log Fehler:', e.message); }
+  } catch (e) { console.error('Audit log error:', e.message); }
 }
 
 // ─── STATS ───────────────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ router.get('/stats', async (req, res) => {
   try {
     const [users, posts, comments, warnings, reports] = await Promise.all([
       query('SELECT COUNT(*) FROM users'),
-      query("SELECT COUNT(*) FROM posts WHERE status = 'published'"),
+      query("SELECT COUNT(*) FROM posts WHERE status = 'published' AND deleted_at IS NULL"),
       query('SELECT COUNT(*) FROM comments WHERE is_removed = FALSE'),
       query('SELECT COUNT(*) FROM user_warnings'),
       query("SELECT COUNT(*) FROM reports WHERE status = 'open'"),
@@ -35,7 +35,100 @@ router.get('/stats', async (req, res) => {
       openReports: parseInt(reports.rows[0].count),
     });
   } catch (err) {
-    res.status(500).json({ error: 'Statistiken konnten nicht geladen werden.' });
+    res.status(500).json({ error: 'Stats could not be loaded.' });
+  }
+});
+
+// ─── DB STATUS & CLEANUP ─────────────────────────────────────────────────────
+// Returns row counts and estimated sizes for admin panel DB status widget
+router.get('/db-status', async (req, res) => {
+  try {
+    const [
+      visitorCount, auditCount, messagesCount, anomaliesCount, lastCleanup
+    ] = await Promise.all([
+      query('SELECT COUNT(*) FROM visitor_log'),
+      query('SELECT COUNT(*) FROM audit_log'),
+      query('SELECT COUNT(*) FROM messages'),
+      query('SELECT COUNT(*) FROM anomalies'),
+      query('SELECT * FROM db_cleanup_log ORDER BY ran_at DESC LIMIT 1'),
+    ]);
+
+    // pg_database_size gives total DB size in bytes
+    let dbSize = null;
+    try {
+      const sizeRes = await query(`SELECT pg_database_size(current_database()) as size`);
+      dbSize = parseInt(sizeRes.rows[0].size);
+    } catch (_) {}
+
+    // Table sizes
+    let tableSizes = [];
+    try {
+      const ts = await query(`
+        SELECT relname as table_name,
+               pg_total_relation_size(relid) as size_bytes
+        FROM pg_catalog.pg_statio_user_tables
+        ORDER BY size_bytes DESC
+        LIMIT 10
+      `);
+      tableSizes = ts.rows;
+    } catch (_) {}
+
+    res.json({
+      visitor_log_count: parseInt(visitorCount.rows[0].count),
+      audit_log_count: parseInt(auditCount.rows[0].count),
+      messages_count: parseInt(messagesCount.rows[0].count),
+      anomalies_count: parseInt(anomaliesCount.rows[0].count),
+      db_size_bytes: dbSize,
+      table_sizes: tableSizes,
+      last_cleanup: lastCleanup.rows[0] || null,
+    });
+  } catch (err) {
+    console.error('DB status error:', err);
+    res.status(500).json({ error: 'DB status could not be loaded.' });
+  }
+});
+
+// Manual trigger for cleanup (also runs automatically via index.js)
+router.post('/db-cleanup', async (req, res) => {
+  try {
+    const result = await runCleanup();
+    await auditLog(req.user.id, 'db_cleanup_manual', null, null, result);
+    res.json({ message: 'Cleanup completed.', ...result });
+  } catch (err) {
+    console.error('Cleanup error:', err);
+    res.status(500).json({ error: 'Cleanup failed.' });
+  }
+});
+
+// ─── ANOMALIES ───────────────────────────────────────────────────────────────
+router.get('/anomalies', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, source, data, reason, created_at FROM anomalies ORDER BY created_at DESC LIMIT 200`
+    );
+    res.json({ anomalies: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load anomalies.' });
+  }
+});
+
+router.delete('/anomalies/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM anomalies WHERE id = $1', [req.params.id]);
+    await auditLog(req.user.id, 'anomaly_deleted', 'anomaly', req.params.id);
+    res.json({ message: 'Anomaly deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not delete anomaly.' });
+  }
+});
+
+router.delete('/anomalies', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM anomalies');
+    await auditLog(req.user.id, 'anomalies_cleared', null, null, { count: result.rowCount });
+    res.json({ message: `${result.rowCount} anomalies deleted.` });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not clear anomalies.' });
   }
 });
 
@@ -54,7 +147,7 @@ router.get('/users/export/csv', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
     res.send(csv);
     await auditLog(req.user.id, 'users_exported_csv', null, null);
-  } catch (err) { res.status(500).json({ error: 'Export fehlgeschlagen.' }); }
+  } catch (err) { res.status(500).json({ error: 'Export failed.' }); }
 });
 
 router.get('/users', async (req, res) => {
@@ -69,7 +162,7 @@ router.get('/users', async (req, res) => {
     q += ' ORDER BY created_at DESC LIMIT 200';
     const result = await query(q, params);
     res.json({ users: result.rows });
-  } catch (err) { res.status(500).json({ error: 'Benutzer konnten nicht geladen werden.' }); }
+  } catch (err) { res.status(500).json({ error: 'Users could not be loaded.' }); }
 });
 
 router.get('/users/:id', async (req, res) => {
@@ -80,7 +173,7 @@ router.get('/users/:id', async (req, res) => {
               (SELECT COUNT(*) FROM comments WHERE author_id = users.id) as comment_count
        FROM users WHERE id = $1`, [req.params.id]
     );
-    if (!userResult.rows[0]) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    if (!userResult.rows[0]) return res.status(404).json({ error: 'User not found.' });
     const [warnings, posts, adminHistory] = await Promise.all([
       query(`SELECT uw.id, uw.reason, uw.created_at, u.username as warned_by_username
              FROM user_warnings uw LEFT JOIN users u ON uw.warned_by = u.id
@@ -92,22 +185,19 @@ router.get('/users/:id', async (req, res) => {
              WHERE al.target_id = $1 ORDER BY al.created_at DESC LIMIT 10`, [req.params.id]),
     ]);
     res.json({ user: userResult.rows[0], warnings: warnings.rows, recentPosts: posts.rows, adminHistory: adminHistory.rows });
-  } catch (err) { res.status(500).json({ error: 'Benutzerdetails konnten nicht geladen werden.' }); }
+  } catch (err) { res.status(500).json({ error: 'User details could not be loaded.' }); }
 });
 
 // PATCH /api/admin/users/:id/ban
-// Body: { banned: true, ban_duration_days: 7 }  (ban_duration_days = null → permanent)
-//       { banned: false }  → unban
 router.patch('/users/:id/ban', async (req, res) => {
   try {
     const { banned, ban_duration_days } = req.body;
     if (req.params.id === String(req.user.id)) {
-      return res.status(400).json({ error: 'Du kannst dich nicht selbst bannen.' });
+      return res.status(400).json({ error: 'You cannot ban yourself.' });
     }
 
-    // Fetch target user info for notification
     const targetRes = await query('SELECT id, username FROM users WHERE id = $1', [req.params.id]);
-    if (!targetRes.rows[0]) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    if (!targetRes.rows[0]) return res.status(404).json({ error: 'User not found.' });
     const targetUser = targetRes.rows[0];
 
     if (banned) {
@@ -126,58 +216,35 @@ router.patch('/users/:id/ban', async (req, res) => {
         [banExpiresAt, req.params.id]
       );
 
-      // Notify banned user
       const notifBody = banExpiresAt
         ? `Your account has been suspended for ${durationLabel} until ${new Date(banExpiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. During this time you cannot post or message other users.`
         : `Your account has been permanently suspended. You cannot post or message other users.`;
 
-      await createNotification(
-        req.params.id,
-        'ban',
-        '🚫 Account Suspended',
-        notifBody,
-        null
-      );
+      await createNotification(req.params.id, 'ban', '🚫 Account Suspended', notifBody, null);
+      await auditLog(req.user.id, 'user_banned', 'user', req.params.id, { duration: durationLabel, ban_expires_at: banExpiresAt });
 
-      await auditLog(req.user.id, 'user_banned', 'user', req.params.id, {
-        duration: durationLabel,
-        ban_expires_at: banExpiresAt,
-      });
-
-      res.json({ message: `${targetUser.username} gebannt (${durationLabel}).` });
+      res.json({ message: `${targetUser.username} banned (${durationLabel}).` });
     } else {
-      // Unban
-      await query(
-        'UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1',
-        [req.params.id]
-      );
-
-      await createNotification(
-        req.params.id,
-        'unban',
-        '✅ Account Reactivated',
-        'Your account suspension has been lifted. You can now post and message other users again.',
-        null
-      );
-
+      await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.params.id]);
+      await createNotification(req.params.id, 'unban', '✅ Account Reactivated', 'Your account suspension has been lifted. You can now post and message other users again.', null);
       await auditLog(req.user.id, 'user_unbanned', 'user', req.params.id);
-      res.json({ message: `${targetUser.username} entbannt.` });
+      res.json({ message: `${targetUser.username} unbanned.` });
     }
   } catch (err) {
     console.error('Ban error:', err);
-    res.status(500).json({ error: 'Fehler beim Bannen.' });
+    res.status(500).json({ error: 'Ban failed.' });
   }
 });
 
 router.patch('/users/:id/role', async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['user','moderator','admin'].includes(role)) return res.status(400).json({ error: 'Ungültige Rolle.' });
-    if (req.params.id === String(req.user.id) && role !== 'admin') return res.status(400).json({ error: 'Du kannst dich nicht selbst degradieren.' });
+    if (!['user','moderator','admin'].includes(role)) return res.status(400).json({ error: 'Invalid role.' });
+    if (req.params.id === String(req.user.id) && role !== 'admin') return res.status(400).json({ error: 'You cannot demote yourself.' });
     await query('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id]);
     await auditLog(req.user.id, 'role_changed', 'user', req.params.id, { role });
-    res.json({ message: 'Rolle geändert.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Role changed.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.patch('/users/:id/verify', async (req, res) => {
@@ -185,36 +252,36 @@ router.patch('/users/:id/verify', async (req, res) => {
     const { verified } = req.body;
     await query('UPDATE users SET is_verified = $1 WHERE id = $2', [verified, req.params.id]);
     await auditLog(req.user.id, verified ? 'user_verified' : 'user_unverified', 'user', req.params.id);
-    res.json({ message: verified ? 'Verifiziert.' : 'Verifikation entfernt.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: verified ? 'Verified.' : 'Verification removed.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.delete('/users/:id', async (req, res) => {
   try {
-    if (req.params.id === String(req.user.id)) return res.status(400).json({ error: 'Du kannst deinen eigenen Account nicht löschen.' });
+    if (req.params.id === String(req.user.id)) return res.status(400).json({ error: 'You cannot delete your own account.' });
     const userRes = await query('SELECT username FROM users WHERE id = $1', [req.params.id]);
     await query(`UPDATE posts SET author_id = NULL WHERE author_id = $1`, [req.params.id]);
     await query('DELETE FROM users WHERE id = $1', [req.params.id]);
     await auditLog(req.user.id, 'user_deleted', 'user', req.params.id, { username: userRes.rows[0]?.username });
-    res.json({ message: 'Account gelöscht.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Account deleted.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.post('/users/:id/warn', async (req, res) => {
   try {
     const { reason } = req.body;
-    if (!reason?.trim()) return res.status(400).json({ error: 'Grund erforderlich.' });
+    if (!reason?.trim()) return res.status(400).json({ error: 'Reason required.' });
     await query('INSERT INTO user_warnings (user_id, reason, warned_by) VALUES ($1, $2, $3)', [req.params.id, reason.trim(), req.user.id]);
     await auditLog(req.user.id, 'user_warned', 'user', req.params.id, { reason: reason.trim() });
-    res.json({ message: 'Verwarnung ausgesprochen.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Warning issued.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.delete('/warnings/:id', async (req, res) => {
   try {
     await query('DELETE FROM user_warnings WHERE id = $1', [req.params.id]);
-    res.json({ message: 'Verwarnung entfernt.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Warning removed.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 // ─── POSTS ───────────────────────────────────────────────────────────────────
@@ -229,56 +296,107 @@ router.get('/posts/export/csv', async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="posts.csv"');
     res.send([headers.join(','), ...rows].join('\n'));
-  } catch (err) { res.status(500).json({ error: 'Export fehlgeschlagen.' }); }
+  } catch (err) { res.status(500).json({ error: 'Export failed.' }); }
 });
 
+// GET /api/admin/posts — active posts
 router.get('/posts', async (req, res) => {
   try {
     const search = req.query.search;
-    let q = `SELECT p.id, p.title, p.slug, p.status, p.type, p.view_count, p.created_at, u.username as author_username
-             FROM posts p LEFT JOIN users u ON p.author_id = u.id`;
+    let q = `SELECT p.id, p.title, p.slug, p.status, p.type, p.view_count, p.created_at, p.deleted_at,
+               u.username as author_username
+             FROM posts p LEFT JOIN users u ON p.author_id = u.id
+             WHERE p.deleted_at IS NULL`;
     const params = [];
-    if (search) { params.push(`%${search}%`); q += ` WHERE p.title ILIKE $1 OR u.username ILIKE $1`; }
+    if (search) {
+      params.push(`%${search}%`);
+      q += ` AND (p.title ILIKE $1 OR u.username ILIKE $1)`;
+    }
     q += ' ORDER BY p.created_at DESC LIMIT 200';
     const result = await query(q, params);
     res.json({ posts: result.rows });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
+});
+
+// GET /api/admin/posts/deleted — soft-deleted posts (for restore)
+router.get('/posts/deleted', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT p.id, p.title, p.slug, p.status, p.type, p.view_count, p.created_at, p.deleted_at,
+              u.username as author_username, d.username as deleted_by_username
+       FROM posts p
+       LEFT JOIN users u ON p.author_id = u.id
+       LEFT JOIN users d ON p.deleted_by = d.id
+       WHERE p.deleted_at IS NOT NULL
+       ORDER BY p.deleted_at DESC LIMIT 200`
+    );
+    res.json({ posts: result.rows });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.patch('/posts/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['published','removed','draft'].includes(status)) return res.status(400).json({ error: 'Ungültiger Status.' });
+    if (!['published','removed','draft'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
     await query('UPDATE posts SET status = $1 WHERE id = $2', [status, req.params.id]);
     await auditLog(req.user.id, 'post_status_changed', 'post', req.params.id, { status });
-    res.json({ message: 'Status geändert.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Status changed.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
+// Soft delete a post (moves to deleted bin)
 router.delete('/posts/:id', async (req, res) => {
   try {
     const postRes = await query('SELECT title FROM posts WHERE id = $1', [req.params.id]);
-    await query('DELETE FROM posts WHERE id = $1', [req.params.id]);
+    await query(
+      `UPDATE posts SET deleted_at = NOW(), deleted_by = $1, status = 'removed' WHERE id = $2`,
+      [req.user.id, req.params.id]
+    );
     await auditLog(req.user.id, 'post_deleted', 'post', req.params.id, { title: postRes.rows[0]?.title });
-    res.json({ message: 'Post gelöscht.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Post deleted (recoverable).' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
+});
+
+// Restore a soft-deleted post
+router.patch('/posts/:id/restore', async (req, res) => {
+  try {
+    await query(
+      `UPDATE posts SET deleted_at = NULL, deleted_by = NULL, status = 'published' WHERE id = $1`,
+      [req.params.id]
+    );
+    await auditLog(req.user.id, 'post_restored', 'post', req.params.id);
+    res.json({ message: 'Post restored.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
+});
+
+// Permanently hard-delete a post from the trash
+router.delete('/posts/:id/permanent', async (req, res) => {
+  try {
+    const postRes = await query('SELECT title FROM posts WHERE id = $1', [req.params.id]);
+    await query('DELETE FROM posts WHERE id = $1', [req.params.id]);
+    await auditLog(req.user.id, 'post_permanently_deleted', 'post', req.params.id, { title: postRes.rows[0]?.title });
+    res.json({ message: 'Post permanently deleted.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.post('/posts/bulk', async (req, res) => {
   try {
     const { ids, action } = req.body;
-    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Keine IDs.' });
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No IDs.' });
     if (action === 'delete') {
-      await query(`DELETE FROM posts WHERE id = ANY($1::uuid[])`, [ids]);
+      await query(
+        `UPDATE posts SET deleted_at = NOW(), deleted_by = $1, status = 'removed' WHERE id = ANY($2::uuid[])`,
+        [req.user.id, ids]
+      );
       await auditLog(req.user.id, 'posts_bulk_deleted', null, null, { count: ids.length });
     } else if (action === 'remove') {
       await query(`UPDATE posts SET status = 'removed' WHERE id = ANY($1::uuid[])`, [ids]);
       await auditLog(req.user.id, 'posts_bulk_removed', null, null, { count: ids.length });
     } else if (action === 'publish') {
       await query(`UPDATE posts SET status = 'published' WHERE id = ANY($1::uuid[])`, [ids]);
-    } else { return res.status(400).json({ error: 'Unbekannte Aktion.' }); }
-    res.json({ message: `${ids.length} Posts verarbeitet.` });
-  } catch (err) { res.status(500).json({ error: 'Bulk-Aktion fehlgeschlagen.' }); }
+    } else { return res.status(400).json({ error: 'Unknown action.' }); }
+    res.json({ message: `${ids.length} posts processed.` });
+  } catch (err) { res.status(500).json({ error: 'Bulk action failed.' }); }
 });
 
 // ─── KOMMENTARE ──────────────────────────────────────────────────────────────
@@ -291,7 +409,7 @@ router.get('/comments', async (req, res) => {
        ORDER BY c.created_at DESC LIMIT 200`
     );
     res.json({ comments: result.rows });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.patch('/comments/:id/remove', async (req, res) => {
@@ -299,8 +417,8 @@ router.patch('/comments/:id/remove', async (req, res) => {
     const { removed } = req.body;
     await query('UPDATE comments SET is_removed = $1 WHERE id = $2', [removed, req.params.id]);
     await auditLog(req.user.id, removed ? 'comment_removed' : 'comment_restored', 'comment', req.params.id);
-    res.json({ message: removed ? 'Entfernt.' : 'Wiederhergestellt.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: removed ? 'Removed.' : 'Restored.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 // ─── REPORTS ─────────────────────────────────────────────────────────────────
@@ -315,17 +433,17 @@ router.get('/reports', async (req, res) => {
       [status]
     );
     res.json({ reports: result.rows });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.patch('/reports/:id', async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['resolved','dismissed'].includes(status)) return res.status(400).json({ error: 'Ungültiger Status.' });
+    if (!['resolved','dismissed'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
     await query(`UPDATE reports SET status = $1, resolved_by = $2, resolved_at = NOW() WHERE id = $3`, [status, req.user.id, req.params.id]);
     await auditLog(req.user.id, `report_${status}`, 'report', req.params.id);
-    res.json({ message: 'Report aktualisiert.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Report updated.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 // ─── AUDIT-LOG ───────────────────────────────────────────────────────────────
@@ -338,7 +456,7 @@ router.get('/audit-log', async (req, res) => {
        ORDER BY al.created_at DESC LIMIT 200`
     );
     res.json({ entries: result.rows });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 // ─── IP-SPERREN ──────────────────────────────────────────────────────────────
@@ -349,37 +467,78 @@ router.get('/ip-bans', async (req, res) => {
        FROM ip_bans ib LEFT JOIN users u ON ib.banned_by = u.id ORDER BY ib.created_at DESC`
     );
     res.json({ bans: result.rows });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.post('/ip-bans', async (req, res) => {
   try {
     const { ip_address, reason } = req.body;
-    if (!ip_address?.trim()) return res.status(400).json({ error: 'IP-Adresse erforderlich.' });
+    if (!ip_address?.trim()) return res.status(400).json({ error: 'IP address required.' });
     await query(
       `INSERT INTO ip_bans (ip_address, reason, banned_by) VALUES ($1, $2, $3)
        ON CONFLICT (ip_address) DO UPDATE SET reason = $2`,
       [ip_address.trim(), reason?.trim() || null, req.user.id]
     );
     await auditLog(req.user.id, 'ip_banned', 'ip', ip_address.trim(), { reason });
-    res.json({ message: 'IP gesperrt.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'IP banned.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 router.delete('/ip-bans/:id', async (req, res) => {
   try {
     await query('DELETE FROM ip_bans WHERE id = $1', [req.params.id]);
-    res.json({ message: 'IP-Sperre aufgehoben.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'IP ban removed.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
-// ─── DMs LÖSCHEN ─────────────────────────────────────────────────────────────
+// ─── PRIVATE MESSAGES (Admin view) ───────────────────────────────────────────
+router.get('/messages', async (req, res) => {
+  try {
+    const search = req.query.search || '';
+    const limit = Math.min(parseInt(req.query.limit) || 100, 200);
+    const offset = parseInt(req.query.offset) || 0;
+
+    let q = `SELECT m.id, m.content, m.created_at,
+               s.username as sender_username, s.id as sender_id,
+               r.username as receiver_username, r.id as receiver_id
+             FROM messages m
+             LEFT JOIN users s ON m.sender_id = s.id
+             LEFT JOIN users r ON m.receiver_id = r.id`;
+    const params = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      q += ` WHERE s.username ILIKE $1 OR r.username ILIKE $1 OR m.content ILIKE $1`;
+    }
+    q += ` ORDER BY m.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const [result, countRes] = await Promise.all([
+      query(q, params),
+      query(
+        search
+          ? `SELECT COUNT(*) FROM messages m LEFT JOIN users s ON m.sender_id = s.id LEFT JOIN users r ON m.receiver_id = r.id WHERE s.username ILIKE $1 OR r.username ILIKE $1 OR m.content ILIKE $1`
+          : `SELECT COUNT(*) FROM messages`,
+        search ? [`%${search}%`] : []
+      ),
+    ]);
+
+    res.json({
+      messages: result.rows,
+      total: parseInt(countRes.rows[0].count),
+    });
+  } catch (err) {
+    console.error('Admin messages error:', err);
+    res.status(500).json({ error: 'Could not load messages.' });
+  }
+});
+
 router.delete('/messages/:id', async (req, res) => {
   try {
     await query('DELETE FROM messages WHERE id = $1', [req.params.id]);
     await auditLog(req.user.id, 'message_deleted', 'message', req.params.id);
-    res.json({ message: 'Nachricht gelöscht.' });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+    res.json({ message: 'Message deleted.' });
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
 // ─── SMTP DEBUG ──────────────────────────────────────────────────────────────
@@ -387,7 +546,7 @@ router.post('/test-mail', async (req, res) => {
   try {
     const to = req.body.to || req.user.email;
     await testMailConnection(to);
-    res.json({ message: `Test email sent to ${to}. Check Railway logs and your inbox.` });
+    res.json({ message: `Test email sent to ${to}.` });
   } catch (err) {
     res.status(500).json({ error: err.message, code: err.code || null });
   }
@@ -406,7 +565,143 @@ router.get('/visitor-log', async (req, res) => {
     );
     const countRes = await query('SELECT COUNT(*) FROM visitor_log');
     res.json({ entries: result.rows, total: parseInt(countRes.rows[0].count) });
-  } catch (err) { res.status(500).json({ error: 'Fehler.' }); }
+  } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
+export { runCleanup };
 export default router;
+
+// ─── CLEANUP FUNCTION (exported for use in index.js) ─────────────────────────
+// Smart cleanup: keeps DB lean by removing old low-value rows,
+// but saves anomalies (unusual spikes, suspicious IPs, rapid-fire actions) first.
+async function runCleanup() {
+  const stats = {
+    visitor_log_deleted: 0,
+    audit_log_deleted: 0,
+    messages_deleted: 0,
+    anomalies_saved: 0,
+  };
+
+  try {
+    // ── Check current row counts ──────────────────────────────────────────
+    const [vlCount, alCount] = await Promise.all([
+      query('SELECT COUNT(*) FROM visitor_log'),
+      query('SELECT COUNT(*) FROM audit_log'),
+    ]);
+    const visitorTotal = parseInt(vlCount.rows[0].count);
+    const auditTotal = parseInt(alCount.rows[0].count);
+
+    // ── VISITOR LOG cleanup ───────────────────────────────────────────────
+    // Target: keep at most 5000 rows. Delete oldest beyond that threshold.
+    // Before deleting, detect and save anomalies:
+    //   - Same IP hitting more than 50 unique paths in 1 hour → suspicious scraping
+    //   - More than 200 requests from same IP in 1 hour → possible bot/DDoS
+    const VISITOR_MAX = 5000;
+    if (visitorTotal > VISITOR_MAX) {
+      // Find anomalous IPs in the rows we're about to delete
+      const cutoffRes = await query(
+        `SELECT created_at FROM visitor_log ORDER BY created_at ASC LIMIT 1 OFFSET $1`,
+        [VISITOR_MAX]
+      );
+      if (cutoffRes.rows[0]) {
+        const cutoff = cutoffRes.rows[0].created_at;
+
+        // Detect suspicious IPs in the rows to be deleted
+        const suspiciousIps = await query(
+          `SELECT ip, COUNT(*) as hits, COUNT(DISTINCT path) as unique_paths,
+                  MIN(created_at) as first_seen, MAX(created_at) as last_seen
+           FROM visitor_log
+           WHERE created_at < $1
+           GROUP BY ip
+           HAVING COUNT(*) > 200 OR COUNT(DISTINCT path) > 50`,
+          [cutoff]
+        );
+
+        for (const row of suspiciousIps.rows) {
+          const reason = row.hits > 200
+            ? `High request volume: ${row.hits} hits from IP ${row.ip}`
+            : `Scraping pattern: ${row.unique_paths} unique paths from IP ${row.ip}`;
+          await query(
+            `INSERT INTO anomalies (source, data, reason) VALUES ('visitor_log', $1, $2)`,
+            [JSON.stringify(row), reason]
+          );
+          stats.anomalies_saved++;
+        }
+
+        // Now delete old rows
+        const del = await query(
+          `DELETE FROM visitor_log WHERE id IN (
+             SELECT id FROM visitor_log ORDER BY created_at ASC LIMIT $1
+           )`,
+          [visitorTotal - VISITOR_MAX]
+        );
+        stats.visitor_log_deleted = del.rowCount || 0;
+      }
+    }
+
+    // ── AUDIT LOG cleanup ─────────────────────────────────────────────────
+    // Target: keep at most 2000 rows. Delete oldest beyond that threshold.
+    // Save anomalies: bulk deletions (>10 items at once) or repeated bans of same user
+    const AUDIT_MAX = 2000;
+    if (auditTotal > AUDIT_MAX) {
+      const auditCutoffRes = await query(
+        `SELECT created_at FROM audit_log ORDER BY created_at ASC LIMIT 1 OFFSET $1`,
+        [AUDIT_MAX]
+      );
+      if (auditCutoffRes.rows[0]) {
+        const cutoff = auditCutoffRes.rows[0].created_at;
+
+        // Detect bulk deletions in rows to be removed
+        const bulkActions = await query(
+          `SELECT action, admin_id, COUNT(*) as count, MIN(created_at) as first_at
+           FROM audit_log
+           WHERE created_at < $1
+             AND action IN ('posts_bulk_deleted','posts_bulk_removed','user_deleted')
+           GROUP BY action, admin_id
+           HAVING COUNT(*) > 5`,
+          [cutoff]
+        );
+
+        for (const row of bulkActions.rows) {
+          await query(
+            `INSERT INTO anomalies (source, data, reason) VALUES ('audit_log', $1, $2)`,
+            [JSON.stringify(row), `Bulk action: ${row.count}x ${row.action}`]
+          );
+          stats.anomalies_saved++;
+        }
+
+        const del = await query(
+          `DELETE FROM audit_log WHERE id IN (
+             SELECT id FROM audit_log ORDER BY created_at ASC LIMIT $1
+           )`,
+          [auditTotal - AUDIT_MAX]
+        );
+        stats.audit_log_deleted = del.rowCount || 0;
+      }
+    }
+
+    // ── MESSAGES cleanup ──────────────────────────────────────────────────
+    // Keep enforcing the 7-day auto-delete
+    const msgDel = await query(
+      `DELETE FROM messages WHERE created_at < NOW() - INTERVAL '7 days'`
+    );
+    stats.messages_deleted = msgDel.rowCount || 0;
+
+    // Log cleanup run
+    await query(
+      `INSERT INTO db_cleanup_log
+         (visitor_log_deleted, audit_log_deleted, messages_deleted, anomalies_saved, visitor_log_total, audit_log_total)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [stats.visitor_log_deleted, stats.audit_log_deleted, stats.messages_deleted, stats.anomalies_saved, visitorTotal, auditTotal]
+    );
+
+    if (stats.visitor_log_deleted > 0 || stats.audit_log_deleted > 0 || stats.messages_deleted > 0) {
+      console.log(`[cleanup] visitor_log: -${stats.visitor_log_deleted}, audit_log: -${stats.audit_log_deleted}, messages: -${stats.messages_deleted}, anomalies saved: ${stats.anomalies_saved}`);
+    }
+
+  } catch (err) {
+    console.error('[cleanup] Error:', err.message);
+  }
+
+  return stats;
+}
