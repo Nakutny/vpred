@@ -18,6 +18,7 @@ import reportRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
 import userRoutes from './routes/users.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
+import { checkMaintenance } from './middleware/auth.js';
 import { query } from './db/client.js';
 
 dotenv.config();
@@ -42,10 +43,25 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '2mb' }));
 
-// Visitor-Log-Middleware
+// Visitor-Log-Middleware (before maintenance check so traffic is always logged)
 visitorLogMiddleware(app);
 
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch29', timestamp: new Date().toISOString() }));
+// Health check — always responds, even in maintenance
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch30', timestamp: new Date().toISOString() }));
+
+// Maintenance mode check — intercepts all API calls for non-admins
+app.use('/api', checkMaintenance);
+
+// Public maintenance status endpoint (for frontend to check)
+app.get('/api/maintenance', async (req, res) => {
+  try {
+    const result = await query('SELECT enabled, message, started_at, estimated_end FROM maintenance_mode WHERE id = 1');
+    const mode = result.rows[0] || { enabled: false };
+    res.json({ maintenance: mode.enabled || false, message: mode.message, started_at: mode.started_at, estimated_end: mode.estimated_end });
+  } catch (_) {
+    res.json({ maintenance: false });
+  }
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
@@ -71,15 +87,6 @@ app.use((err, req, res, next) => {
 });
 
 // ─── SMART CLEANUP SYSTEM ─────────────────────────────────────────────────────
-// Strategy:
-//  - visitor_log: keep ≤ 5 000 rows; detect + archive anomalies before deleting
-//  - audit_log:   keep ≤ 2 000 rows; detect bulk actions before deleting
-//  - messages:    enforce the 7-day auto-delete rule
-//
-// Runs on startup and then every 30 minutes.
-// The actual cleanup logic lives in admin.js (runCleanup) so the admin can
-// also trigger it manually via POST /api/admin/db-cleanup.
-
 async function scheduledCleanup() {
   try {
     await runCleanup();
@@ -89,11 +96,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch29]`);
-
-  // Run immediately on startup
+  console.log(`vpred.org server running on port ${PORT} [v6-patch30]`);
   scheduledCleanup();
-
-  // Then every 30 minutes
   setInterval(scheduledCleanup, 30 * 60 * 1000);
 });

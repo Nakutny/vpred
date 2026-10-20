@@ -1,67 +1,111 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { admin } from '../lib/api';
+import { admin, categories } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import Avatar from '../components/Avatar';
 
-function timeAgo(dateStr) {
-  if (!dateStr) return '';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days > 30) return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  if (days > 0) return `${days}d ago`;
-  const hours = Math.floor(diff / 3600000);
-  if (hours > 0) return `${hours}h ago`;
-  return 'just now';
-}
-
-function formatBytes(bytes) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmt(bytes) {
   if (!bytes) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtDatetime(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-const TAB_STYLE = (active) => ({
-  padding: '8px 14px', background: 'none', border: 'none',
-  borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-  cursor: 'pointer', fontSize: 13,
-  fontWeight: active ? 600 : 400,
-  color: active ? 'var(--text)' : 'var(--muted)',
-  marginBottom: -1, transition: 'all 0.15s', whiteSpace: 'nowrap',
-});
+function Flash({ msg, type = 'success' }) {
+  if (!msg) return null;
+  const color = type === 'error' ? 'var(--danger)' : 'var(--success)';
+  return (
+    <div style={{ background: color + '18', border: `1px solid ${color}`, borderRadius: 7, padding: '10px 16px', marginBottom: 20, color, fontSize: 14 }}>
+      {msg}
+    </div>
+  );
+}
 
-// ─── BAN DURATION MODAL ───────────────────────────────────────────────────────
-function BanDurationModal({ user, onConfirm, onCancel }) {
-  const [duration, setDuration] = useState(1);
-  const options = [
+function RoleBadge({ role }) {
+  const colors = { admin: '#4f8ef7', moderator: '#4caf7d', user: '#7a8099' };
+  return (
+    <span style={{ padding: '2px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600, background: (colors[role] || '#7a8099') + '22', color: colors[role] || '#7a8099' }}>
+      {role}
+    </span>
+  );
+}
+
+function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = 'Confirm', danger = false }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ maxWidth: 420, width: '90%', padding: 28 }}>
+        <p style={{ fontSize: 15, marginBottom: 24, lineHeight: 1.6 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-primary" onClick={onConfirm} style={danger ? { background: 'var(--danger)', borderColor: 'var(--danger)' } : {}}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Ban Modal ────────────────────────────────────────────────────────────────
+function BanModal({ user: targetUser, onClose, onBanned }) {
+  const [duration, setDuration] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const durations = [
     { label: '1 day', value: 1 },
     { label: '3 days', value: 3 },
     { label: '7 days', value: 7 },
     { label: '14 days', value: 14 },
     { label: '30 days', value: 30 },
+    { label: '90 days', value: 90 },
     { label: 'Permanent', value: 0 },
   ];
+
+  async function handleBan() {
+    if (duration === '') { setErr('Please select a duration.'); return; }
+    setLoading(true);
+    setErr('');
+    try {
+      const days = Number(duration);
+      await admin.banUser(targetUser.id, true, days);
+      onBanned(targetUser.id, true, days);
+      onClose();
+    } catch (e) { setErr(e.message); setLoading(false); }
+  }
+
   return (
-    <div style={OVERLAY}>
-      <div style={MODAL}>
-        <h3 style={{ margin: '0 0 16px', fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-          Ban duration for {user.username}
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-          {options.map(opt => (
-            <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14 }}>
-              <input type="radio" name="ban_dur" value={opt.value} checked={duration === opt.value} onChange={() => setDuration(opt.value)} />
-              {opt.label}
-            </label>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ maxWidth: 380, width: '90%', padding: 28 }}>
+        <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.2rem', fontWeight: 400, marginBottom: 6 }}>Ban {targetUser.username}</h3>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Select ban duration:</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+          {durations.map(d => (
+            <button key={d.value} onClick={() => setDuration(String(d.value))}
+              style={{
+                padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', border: '1px solid',
+                borderColor: duration === String(d.value) ? 'var(--danger)' : 'var(--border)',
+                background: duration === String(d.value) ? 'rgba(220,53,69,0.12)' : 'transparent',
+                color: duration === String(d.value) ? 'var(--danger)' : 'var(--text)',
+                fontWeight: duration === String(d.value) ? 600 : 400,
+              }}>{d.label}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
-          <button className="btn btn-sm" onClick={() => onConfirm(duration === 0 ? null : duration)}
-            style={{ background: '#dc2626', color: '#fff', border: 'none' }}>
-            Confirm Ban
+        {err && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleBan} disabled={loading || duration === ''}
+            style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}>
+            {loading ? 'Banning...' : 'Ban User'}
           </button>
         </div>
       </div>
@@ -69,783 +113,767 @@ function BanDurationModal({ user, onConfirm, onCancel }) {
   );
 }
 
-// ─── MAIN ADMIN PAGE ──────────────────────────────────────────────────────────
+// ─── Maintenance Modal ────────────────────────────────────────────────────────
+function MaintenanceModal({ current, onClose, onToggle }) {
+  const isOn = current?.enabled;
+  const [step, setStep] = useState(0); // multi-confirm steps
+  const [message, setMessage] = useState(current?.message || 'The platform is temporarily under maintenance. Please check back soon.');
+  const [estimatedEnd, setEstimatedEnd] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const confirmSteps = [
+    'Are you sure you want to enable maintenance mode? All users (except you) will be locked out.',
+    'This will immediately block all non-admin users from accessing the site. Continue?',
+    'Final confirmation: Enable maintenance mode now?',
+  ];
+
+  async function handleEnable() {
+    if (step < 2) { setStep(s => s + 1); return; }
+    setLoading(true);
+    try {
+      await admin.setMaintenance(true, message, estimatedEnd || null);
+      onToggle(true);
+      onClose();
+    } catch (e) { setErr(e.message); setLoading(false); }
+  }
+
+  async function handleDisable() {
+    setLoading(true);
+    try {
+      await admin.setMaintenance(false);
+      onToggle(false);
+      onClose();
+    } catch (e) { setErr(e.message); setLoading(false); }
+  }
+
+  if (isOn) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="card" style={{ maxWidth: 440, width: '90%', padding: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <span style={{ fontSize: 24 }}>🔧</span>
+            <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.2rem', fontWeight: 400 }}>Maintenance Active</h3>
+          </div>
+          <div style={{ background: 'rgba(220,53,69,0.1)', borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 13, color: 'var(--danger)' }}>
+            ⚠️ The site is currently in maintenance mode. All users except admins are locked out.
+          </div>
+          {err && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{err}</p>}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleDisable} disabled={loading}
+              style={{ background: 'var(--success)', borderColor: 'var(--success)' }}>
+              {loading ? 'Disabling...' : '✅ Disable Maintenance'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ maxWidth: 500, width: '90%', padding: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <span style={{ fontSize: 24 }}>🔧</span>
+          <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.2rem', fontWeight: 400 }}>Enable Maintenance Mode</h3>
+        </div>
+
+        {step === 0 && (
+          <>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Configure the maintenance window. You will remain logged in and can access everything normally.</p>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Message for users</label>
+              <textarea className="input" style={{ minHeight: 70, resize: 'vertical', fontSize: 13 }}
+                value={message} onChange={e => setMessage(e.target.value)} />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Estimated end time (optional)</label>
+              <input type="datetime-local" className="input" value={estimatedEnd} onChange={e => setEstimatedEnd(e.target.value)} />
+            </div>
+          </>
+        )}
+
+        {step > 0 && (
+          <div style={{ background: 'rgba(220,53,69,0.1)', borderRadius: 8, padding: '14px 16px', marginBottom: 20, fontSize: 14, color: 'var(--danger)', lineHeight: 1.6 }}>
+            ⚠️ {confirmSteps[step]}
+          </div>
+        )}
+
+        {err && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleEnable} disabled={loading}
+            style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}>
+            {loading ? 'Enabling...' : step < 2 ? `Continue (${step + 1}/3)` : '⚠️ Enable Now'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('users');
-  const [stats, setStats] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [msgType, setMsgType] = useState('success');
+  const [loading, setLoading] = useState(false);
+
+  // Users
+  const [users, setUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [banModal, setBanModal] = useState(null);
+
+  // Categories
+  const [categoryList, setCategoryList] = useState([]);
+  const [newCategory, setNewCategory] = useState({ name: '', description: '' });
+
+  // Posts
+  const [postList, setPostList] = useState([]);
+  const [postSearch, setPostSearch] = useState('');
+
+  // DB Status
+  const [dbStatus, setDbStatus] = useState(null);
+  const [dbLoading, setDbLoading] = useState(false);
+
+  // Anomalies
+  const [anomalies, setAnomalies] = useState([]);
+
+  // Maintenance
+  const [maintenanceData, setMaintenanceData] = useState(null);
+  const [maintenanceModal, setMaintenanceModal] = useState(false);
+
+  // HTTP Requests (from db-status)
+  const [httpRequests, setHttpRequests] = useState([]);
+  const [topIps, setTopIps] = useState([]);
 
   useEffect(() => {
-    document.title = 'Admin Panel — vpred.org';
     if (!isAdmin) { navigate('/'); return; }
-    admin.stats().then(setStats).catch(() => {});
-  }, [isAdmin, navigate]);
+    loadUsers();
+    loadCategories();
+    loadMaintenanceStatus();
+  }, [isAdmin]);
 
-  if (!isAdmin) return null;
+  function flash(m, type = 'success') {
+    setMsg(m); setMsgType(type);
+    setTimeout(() => setMsg(''), 4000);
+  }
 
+  // ── Data loaders ────────────────────────────────────────────────────────────
+  async function loadUsers() {
+    try {
+      const d = await admin.users(userSearch);
+      setUsers(d.users || []);
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function loadCategories() {
+    try {
+      const d = await categories.list();
+      setCategoryList(d.categories || []);
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function loadPosts() {
+    setLoading(true);
+    try {
+      const d = await admin.posts(postSearch);
+      setPostList(d.posts || []);
+    } catch (e) { flash(e.message, 'error'); }
+    setLoading(false);
+  }
+
+  async function loadDbStatus() {
+    setDbLoading(true);
+    try {
+      const d = await admin.dbStatus();
+      setDbStatus(d);
+      setHttpRequests(d.recent_requests || []);
+      setTopIps(d.top_ips || []);
+    } catch (e) { flash(e.message, 'error'); }
+    setDbLoading(false);
+  }
+
+  async function loadAnomalies() {
+    try {
+      const d = await admin.anomalies();
+      setAnomalies(d.anomalies || []);
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function loadMaintenanceStatus() {
+    try {
+      const d = await admin.maintenanceStatus();
+      setMaintenanceData(d.maintenance);
+    } catch (e) { /* silent */ }
+  }
+
+  useEffect(() => {
+    if (tab === 'posts') loadPosts();
+    if (tab === 'db') loadDbStatus();
+    if (tab === 'anomalies') loadAnomalies();
+    if (tab === 'maintenance') loadMaintenanceStatus();
+  }, [tab]);
+
+  // ── Users ───────────────────────────────────────────────────────────────────
+  async function handleUnban(id) {
+    try {
+      await admin.banUser(id, false);
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, is_banned: false, ban_expires_at: null } : u));
+      flash('User unbanned.');
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  function handleBanned(id, banned, days) {
+    setUsers(prev => prev.map(u => {
+      if (u.id !== id) return u;
+      let ban_expires_at = null;
+      if (banned && days > 0) {
+        const d = new Date(); d.setDate(d.getDate() + days);
+        ban_expires_at = d.toISOString();
+      }
+      return { ...u, is_banned: banned, ban_expires_at };
+    }));
+    flash(banned ? 'User banned.' : 'User unbanned.');
+  }
+
+  async function handleRole(id, currentRole) {
+    const cycle = { user: 'moderator', moderator: 'admin', admin: 'user' };
+    const newRole = cycle[currentRole] || 'user';
+    try {
+      await admin.setRole(id, newRole);
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, role: newRole } : u));
+      flash(`Role updated to ${newRole}.`);
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function handleDeleteUser(id, username) {
+    if (!confirm(`Permanently delete account "${username}"? This cannot be undone.`)) return;
+    try {
+      await admin.deleteUser(id);
+      setUsers(prev => prev.filter(u => u.id !== id));
+      flash('Account deleted.');
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  // ── Categories ──────────────────────────────────────────────────────────────
+  async function handleAddCategory(e) {
+    e.preventDefault();
+    if (!newCategory.name.trim()) return;
+    try {
+      const d = await categories.create(newCategory);
+      setCategoryList(prev => [...prev, d.category]);
+      setNewCategory({ name: '', description: '' });
+      flash('Category created.');
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function handleDeleteCategory(id) {
+    if (!confirm('Delete this category?')) return;
+    try {
+      await categories.delete(id);
+      setCategoryList(prev => prev.filter(c => c.id !== id));
+      flash('Category deleted.');
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  // ── Posts ───────────────────────────────────────────────────────────────────
+  async function handleDeletePost(id) {
+    try {
+      await admin.deletePost(id);
+      setPostList(prev => prev.filter(p => p.id !== id));
+      flash('Post deleted.');
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  // ── DB Cleanup ──────────────────────────────────────────────────────────────
+  async function handleCleanup() {
+    if (!confirm('Run database cleanup now? This will delete old visitor logs, audit logs, and messages.')) return;
+    setDbLoading(true);
+    try {
+      const d = await admin.runCleanup();
+      flash(`Cleanup done. Visitor log: -${d.visitor_log_deleted}, Audit log: -${d.audit_log_deleted}, Messages: -${d.messages_deleted}`);
+      await loadDbStatus();
+    } catch (e) { flash(e.message, 'error'); }
+    setDbLoading(false);
+  }
+
+  // ── Anomalies ───────────────────────────────────────────────────────────────
+  async function handleDeleteAnomaly(id) {
+    try {
+      await admin.deleteAnomaly(id);
+      setAnomalies(prev => prev.filter(a => a.id !== id));
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  async function handleClearAnomalies() {
+    if (!confirm('Delete all anomaly records?')) return;
+    try {
+      const d = await admin.clearAnomalies();
+      setAnomalies([]);
+      flash(d.message);
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  // ── Tabs ─────────────────────────────────────────────────────────────────────
   const tabs = [
-    { key: 'users',    label: 'Users' },
-    { key: 'posts',    label: 'Posts' },
-    { key: 'deleted',  label: 'Deleted Posts' },
-    { key: 'comments', label: 'Comments' },
-    { key: 'reports',  label: stats?.openReports ? `Reports (${stats.openReports})` : 'Reports' },
-    { key: 'messages', label: 'Messages' },
-    { key: 'ip-bans',  label: 'IP Bans' },
-    { key: 'audit',    label: 'Audit Log' },
-    { key: 'traffic',  label: 'Traffic' },
-    { key: 'anomalies',label: 'Anomalies' },
-    { key: 'db',       label: 'DB Status' },
+    { id: 'users', label: 'Users' },
+    { id: 'posts', label: 'Posts' },
+    { id: 'categories', label: 'Categories' },
+    { id: 'db', label: 'DB Status' },
+    { id: 'http', label: 'HTTP Log' },
+    { id: 'anomalies', label: 'Anomalies' },
+    { id: 'maintenance', label: 'Maintenance' },
   ];
 
+  const maintenanceOn = maintenanceData?.enabled;
+
   return (
-    <div style={{ maxWidth: 1150, margin: '0 auto', padding: '40px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
-        <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, margin: 0 }}>Admin Panel</h1>
-        {stats && (
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Users', val: stats.users },
-              { label: 'Posts', val: stats.posts },
-              { label: 'Comments', val: stats.comments },
-              { label: 'Warnings', val: stats.warnings },
-              { label: 'Reports', val: stats.openReports, warn: stats.openReports > 0 },
-            ].map(s => (
-              <div key={s.label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: s.warn ? '#dc2626' : 'var(--text)' }}>{s.val}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
-              </div>
-            ))}
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400 }}>Admin Panel</h1>
+          <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Manage users, posts, categories and platform settings.</p>
+        </div>
+        {maintenanceOn && (
+          <div style={{ background: 'rgba(220,53,69,0.12)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>
+            🔧 Maintenance mode is ON
           </div>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+      <Flash msg={msg} type={msgType} />
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 28, flexWrap: 'wrap' }}>
         {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={TAB_STYLE(tab === t.key)}>
-            {t.label}
-          </button>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
+            fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: tab === t.id ? 600 : 400,
+            color: tab === t.id ? 'var(--text)' : 'var(--muted)',
+            borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom: -1, transition: 'all 0.15s',
+          }}>{t.label}</button>
         ))}
       </div>
 
-      {tab === 'users'     && <UsersTab currentUserId={user?.id} />}
-      {tab === 'posts'     && <PostsTab />}
-      {tab === 'deleted'   && <DeletedPostsTab />}
-      {tab === 'comments'  && <CommentsTab />}
-      {tab === 'reports'   && <ReportsTab />}
-      {tab === 'messages'  && <MessagesTab />}
-      {tab === 'ip-bans'   && <IpBansTab />}
-      {tab === 'audit'     && <AuditTab />}
-      {tab === 'traffic'   && <TrafficTab />}
-      {tab === 'anomalies' && <AnomaliesTab />}
-      {tab === 'db'        && <DbStatusTab />}
-    </div>
-  );
-}
-
-// ─── USERS TAB ────────────────────────────────────────────────────────────────
-function UsersTab({ currentUserId }) {
-  const [users, setUsers] = useState([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [banModal, setBanModal] = useState(null);
-
-  const load = useCallback(async (q) => {
-    setLoading(true);
-    try { const res = await admin.users(q); setUsers(res.users || []); }
-    catch (e) { console.error(e); } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(''); }, [load]);
-
-  async function toggleBan(u) {
-    if (u.is_banned) {
-      try { await admin.banUser(u.id, false, null); load(search); }
-      catch (e) { alert(e.message); }
-    } else {
-      setBanModal(u);
-    }
-  }
-
-  async function confirmBan(duration_days) {
-    const u = banModal; setBanModal(null);
-    try { await admin.banUser(u.id, true, duration_days); load(search); }
-    catch (e) { alert(e.message); }
-  }
-
-  async function setRole(u, role) {
-    try { await admin.setRole(u.id, role); setUsers(prev => prev.map(x => x.id === u.id ? { ...x, role } : x)); }
-    catch (e) { alert(e.message); }
-  }
-
-  async function deleteUser(u) {
-    if (!confirm(`Delete account "${u.username}"?`)) return;
-    try { await admin.deleteUser(u.id); setUsers(prev => prev.filter(x => x.id !== u.id)); }
-    catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      <form onSubmit={e => { e.preventDefault(); load(search); }} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <input className="input" style={{ flex: 1, minWidth: 200, height: 36, fontSize: 13 }} placeholder="Search by username or email…" value={search} onChange={e => setSearch(e.target.value)} />
-        <button className="btn btn-ghost btn-sm" type="submit">Search</button>
-        {search && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setSearch(''); load(''); }}>Reset</button>}
-        <a href={admin.exportUsers()} download="users.csv" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>CSV Export</a>
-      </form>
-
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={TABLE}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['User', 'Email', 'Role', 'Posts', 'Status', 'Joined', 'Actions'].map(h => (
-                  <th key={h} style={TH}>{h}</th>
+      {/* ── USERS TAB ─────────────────────────────────────────────────────── */}
+      {tab === 'users' && (
+        <>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <input className="input" placeholder="Search by username or email…" value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && loadUsers()}
+              style={{ maxWidth: 320 }} />
+            <button className="btn btn-ghost" onClick={loadUsers}>Search</button>
+          </div>
+          <div className="card" style={{ overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['Username', 'Email', 'Role', 'Status', 'Posts', 'Joined', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '11px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+                          {u.username[0].toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 500 }}>{u.username}</span>
+                        {u.id === user?.id && <span style={{ fontSize: 11, color: 'var(--muted)' }}>(you)</span>}
+                      </div>
+                    </td>
+                    <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{u.email}</td>
+                    <td style={{ padding: '11px 14px' }}><RoleBadge role={u.role} /></td>
+                    <td style={{ padding: '11px 14px' }}>
+                      {u.is_banned ? (
+                        <div>
+                          <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 500 }}>Banned</span>
+                          {u.ban_expires_at && <div style={{ fontSize: 11, color: 'var(--muted)' }}>until {fmtDate(u.ban_expires_at)}</div>}
+                          {!u.ban_expires_at && <div style={{ fontSize: 11, color: 'var(--muted)' }}>permanent</div>}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 500 }}>Active</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{u.post_count || 0}</td>
+                    <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{fmtDate(u.created_at)}</td>
+                    <td style={{ padding: '11px 14px' }}>
+                      {u.id !== user?.id && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {u.is_banned ? (
+                            <button onClick={() => handleUnban(u.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--success)', fontSize: 11 }}>Unban</button>
+                          ) : (
+                            <button onClick={() => setBanModal(u)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)', fontSize: 11 }}>Ban</button>
+                          )}
+                          <button onClick={() => handleRole(u.id, u.role)} className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}>
+                            → {u.role === 'admin' ? 'user' : u.role === 'moderator' ? 'admin' : 'mod'}
+                          </button>
+                          <button onClick={() => handleDeleteUser(u.id, u.username)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)', fontSize: 11 }}>✕</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={TD}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar avatarUrl={u.avatar_url} username={u.username} size={28} />
-                      <span style={{ fontWeight: 500 }}>{u.username}</span>
-                      {u.is_verified && <span style={{ fontSize: 11, color: '#3b82f6' }}>✓</span>}
-                    </div>
-                  </td>
-                  <td style={{ ...TD, color: 'var(--muted)', fontSize: 12 }}>{u.email}</td>
-                  <td style={TD}>
-                    <select value={u.role} onChange={e => setRole(u, e.target.value)} disabled={u.id === currentUserId}
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 6px', fontSize: 12, color: 'var(--text)', cursor: 'pointer' }}>
-                      <option value="user">user</option>
-                      <option value="moderator">moderator</option>
-                      <option value="admin">admin</option>
-                    </select>
-                  </td>
-                  <td style={TD}>{u.post_count || 0}</td>
-                  <td style={TD}>
-                    {u.is_banned
-                      ? <span style={BADGE_RED}>{u.ban_expires_at ? `Until ${new Date(u.ban_expires_at).toLocaleDateString()}` : 'Banned'}</span>
-                      : <span style={BADGE_GREEN}>Active</span>
-                    }
-                  </td>
-                  <td style={{ ...TD, color: 'var(--muted)', fontSize: 12 }}>{timeAgo(u.created_at)}</td>
-                  <td style={{ ...TD, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => toggleBan(u)}
-                      style={{ color: u.is_banned ? '#16a34a' : '#dc2626' }}>
-                      {u.is_banned ? 'Unban' : 'Ban'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626' }} onClick={() => deleteUser(u)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && <tr><td colSpan={7} style={MUTED_CENTER}>No users found.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
-      {banModal && <BanDurationModal user={banModal} onConfirm={confirmBan} onCancel={() => setBanModal(null)} />}
-    </div>
-  );
-}
-
-// ─── POSTS TAB ────────────────────────────────────────────────────────────────
-function PostsTab() {
-  const [posts, setPosts] = useState([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async (q) => {
-    setLoading(true);
-    try { const res = await admin.posts(q); setPosts(res.posts || []); }
-    catch (e) { console.error(e); } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(''); }, [load]);
-
-  async function softDelete(p) {
-    if (!confirm(`Delete "${p.title}"? (Can be restored)`)) return;
-    try { await admin.deletePost(p.id); load(search); }
-    catch (e) { alert(e.message); }
-  }
-
-  async function setStatus(id, status) {
-    try { await admin.setPostStatus(id, status); load(search); }
-    catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      <form onSubmit={e => { e.preventDefault(); load(search); }} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <input className="input" style={{ flex: 1, minWidth: 200, height: 36, fontSize: 13 }} placeholder="Search posts…" value={search} onChange={e => setSearch(e.target.value)} />
-        <button className="btn btn-ghost btn-sm" type="submit">Search</button>
-        {search && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setSearch(''); load(''); }}>Reset</button>}
-        <a href={admin.exportPosts()} download="posts.csv" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>CSV Export</a>
-      </form>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={TABLE}>
-            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Title', 'Author', 'Type', 'Status', 'Views', 'Date', 'Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {posts.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ ...TD, maxWidth: 240 }}>
-                    <a href={`/post/${p.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13 }}>{p.title}</a>
-                  </td>
-                  <td style={TD}>{p.author_username}</td>
-                  <td style={TD}><span style={{ textTransform: 'capitalize', fontSize: 12 }}>{p.type}</span></td>
-                  <td style={TD}>
-                    <select value={p.status} onChange={e => setStatus(p.id, e.target.value)}
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 6px', fontSize: 12, color: 'var(--text)', cursor: 'pointer' }}>
-                      <option value="published">published</option>
-                      <option value="removed">removed</option>
-                      <option value="draft">draft</option>
-                    </select>
-                  </td>
-                  <td style={TD}>{p.view_count}</td>
-                  <td style={{ ...TD, color: 'var(--muted)', fontSize: 12 }}>{timeAgo(p.created_at)}</td>
-                  <td style={TD}>
-                    <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626' }} onClick={() => softDelete(p)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-              {posts.length === 0 && <tr><td colSpan={7} style={MUTED_CENTER}>No posts.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── DELETED POSTS TAB (Restore / Permanent Delete) ───────────────────────────
-function DeletedPostsTab() {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try { const res = await admin.deletedPosts(); setPosts(res.posts || []); }
-    catch (e) { console.error(e); } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function restore(p) {
-    try { await admin.restorePost(p.id); load(); }
-    catch (e) { alert(e.message); }
-  }
-
-  async function permDelete(p) {
-    if (!confirm(`Permanently delete "${p.title}"? This cannot be undone.`)) return;
-    try { await admin.permanentDeletePost(p.id); load(); }
-    catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
-        Deleted posts are kept here indefinitely. You can restore them or permanently remove them.
-      </p>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={TABLE}>
-            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Title', 'Author', 'Type', 'Deleted by', 'Deleted at', 'Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {posts.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ ...TD, maxWidth: 240, color: 'var(--muted)' }}>{p.title}</td>
-                  <td style={TD}>{p.author_username || '—'}</td>
-                  <td style={TD}><span style={{ textTransform: 'capitalize', fontSize: 12 }}>{p.type}</span></td>
-                  <td style={TD}>{p.deleted_by_username || '—'}</td>
-                  <td style={{ ...TD, fontSize: 12, color: 'var(--muted)' }}>{timeAgo(p.deleted_at)}</td>
-                  <td style={{ ...TD, display: 'flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm" style={{ color: '#16a34a' }} onClick={() => restore(p)}>Restore</button>
-                    <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626' }} onClick={() => permDelete(p)}>Delete permanently</button>
-                  </td>
-                </tr>
-              ))}
-              {posts.length === 0 && <tr><td colSpan={6} style={MUTED_CENTER}>No deleted posts.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── COMMENTS TAB ─────────────────────────────────────────────────────────────
-function CommentsTab() {
-  const [comments, setComments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    admin.comments().then(r => setComments(r.comments || [])).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  async function toggleRemove(c) {
-    try {
-      await admin.removeComment(c.id, !c.is_removed);
-      setComments(prev => prev.map(x => x.id === c.id ? { ...x, is_removed: !x.is_removed } : x));
-    } catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={TABLE}>
-            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Author', 'Content', 'Post', 'Status', 'Date', 'Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {comments.map(c => (
-                <tr key={c.id} style={{ borderBottom: '1px solid var(--border)', opacity: c.is_removed ? 0.5 : 1 }}>
-                  <td style={TD}>{c.author_username}</td>
-                  <td style={{ ...TD, maxWidth: 280, color: 'var(--muted)', fontSize: 12 }}>{c.content?.slice(0, 100)}</td>
-                  <td style={{ ...TD, fontSize: 12 }}>
-                    <a href={`/post/${c.post_slug}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{c.post_title?.slice(0, 40)}</a>
-                  </td>
-                  <td style={TD}>{c.is_removed ? <span style={BADGE_RED}>Removed</span> : <span style={BADGE_GREEN}>Visible</span>}</td>
-                  <td style={{ ...TD, color: 'var(--muted)', fontSize: 12 }}>{timeAgo(c.created_at)}</td>
-                  <td style={TD}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => toggleRemove(c)}
-                      style={{ color: c.is_removed ? '#16a34a' : '#dc2626' }}>
-                      {c.is_removed ? 'Restore' : 'Remove'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {comments.length === 0 && <tr><td colSpan={6} style={MUTED_CENTER}>No comments.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── REPORTS TAB ──────────────────────────────────────────────────────────────
-function ReportsTab() {
-  const [reports, setReports] = useState([]);
-  const [status, setStatus] = useState('open');
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    admin.reports(status).then(r => setReports(r.reports || [])).catch(console.error).finally(() => setLoading(false));
-  }, [status]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function resolve(id, s) {
-    try { await admin.resolveReport(id, s); load(); }
-    catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {['open', 'resolved', 'dismissed'].map(s => (
-          <button key={s} className="btn btn-ghost btn-sm" onClick={() => setStatus(s)} style={{ fontWeight: status === s ? 700 : 400 }}>
-            {s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
-      </div>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {reports.map(r => (
-            <div key={r.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{r.target_type} · <span style={{ color: 'var(--muted)' }}>{r.target_id?.slice(0, 8)}…</span></div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Reported by <strong>{r.reporter_username}</strong> · {timeAgo(r.created_at)}</div>
-                  <div style={{ fontSize: 13, marginTop: 6, color: 'var(--muted)' }}>"{r.reason}"</div>
-                </div>
-                {r.status === 'open' && (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => resolve(r.id, 'resolved')}>Resolve</button>
-                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--muted)' }} onClick={() => resolve(r.id, 'dismissed')}>Dismiss</button>
-                  </div>
-                )}
-              </div>
+      {/* ── POSTS TAB ─────────────────────────────────────────────────────── */}
+      {tab === 'posts' && (
+        <>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <input className="input" placeholder="Search by title or author…" value={postSearch}
+              onChange={e => setPostSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && loadPosts()}
+              style={{ maxWidth: 320 }} />
+            <button className="btn btn-ghost" onClick={loadPosts}>Search</button>
+          </div>
+          {loading ? <div style={{ color: 'var(--muted)' }}>Loading…</div> : (
+            <div className="card" style={{ overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Title', 'Author', 'Type', 'Status', 'Views', 'Date', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {postList.map(p => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '11px 14px', fontSize: 13, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <a href={`/post/${p.slug}`} target="_blank" rel="noopener" style={{ color: 'var(--text)', textDecoration: 'none' }}>{p.title}</a>
+                      </td>
+                      <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{p.author_username || '—'}</td>
+                      <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{p.type}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>
+                        <span style={{ color: p.status === 'published' ? 'var(--success)' : 'var(--danger)' }}>{p.status}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{p.view_count || 0}</td>
+                      <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{fmtDate(p.created_at)}</td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <button onClick={() => handleDeletePost(p.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)', fontSize: 11 }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-          {reports.length === 0 && <div style={MUTED_CENTER}>No {status} reports.</div>}
+          )}
+        </>
+      )}
+
+      {/* ── CATEGORIES TAB ────────────────────────────────────────────────── */}
+      {tab === 'categories' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 28 }}>
+          <div className="card" style={{ overflow: 'hidden', alignSelf: 'start' }}>
+            {categoryList.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>No categories yet.</div>
+            ) : categoryList.map((c, i) => (
+              <div key={c.id} style={{ padding: '14px 20px', borderBottom: i < categoryList.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>{c.name}</div>
+                  {c.description && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>{c.description}</div>}
+                  <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>{c.post_count || 0} posts</div>
+                </div>
+                <button onClick={() => handleDeleteCategory(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>Delete</button>
+              </div>
+            ))}
+          </div>
+          <div className="card" style={{ padding: '20px 22px', alignSelf: 'start' }}>
+            <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.1rem', fontWeight: 400, marginBottom: 16 }}>Add Category</h3>
+            <form onSubmit={handleAddCategory}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Name *</label>
+                <input className="input" placeholder="e.g. Politics" value={newCategory.name}
+                  onChange={e => setNewCategory(p => ({ ...p, name: e.target.value }))} required />
+              </div>
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Description</label>
+                <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="Short description…"
+                  value={newCategory.description} onChange={e => setNewCategory(p => ({ ...p, description: e.target.value }))} />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Create category</button>
+            </form>
+          </div>
         </div>
       )}
-    </div>
-  );
-}
 
-// ─── MESSAGES TAB (Admin DM viewer) ──────────────────────────────────────────
-function MessagesTab() {
-  const [messages, setMessages] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [offset, setOffset] = useState(0);
-  const LIMIT = 50;
-
-  const load = useCallback(async (s = search, o = 0) => {
-    setLoading(true);
-    try {
-      const params = { limit: LIMIT, offset: o };
-      if (s) params.search = s;
-      const res = await admin.messages(params);
-      if (o === 0) setMessages(res.messages || []);
-      else setMessages(prev => [...prev, ...(res.messages || [])]);
-      setTotal(res.total || 0);
-      setOffset(o);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [search]);
-
-  useEffect(() => { load('', 0); }, []);
-
-  async function deleteMsg(id) {
-    if (!confirm('Delete this message?')) return;
-    try { await admin.deleteMessage(id); setMessages(prev => prev.filter(m => m.id !== id)); setTotal(t => t - 1); }
-    catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      <div style={{ marginBottom: 12, padding: '10px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: 12, color: '#92400e' }}>
-        🔒 Private messages are visible to admins for moderation purposes only.
-        All messages are automatically deleted after 7 days.
-      </div>
-      <form onSubmit={e => { e.preventDefault(); load(search, 0); }} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <input className="input" style={{ flex: 1, height: 36, fontSize: 13 }} placeholder="Search by user or content…" value={search} onChange={e => setSearch(e.target.value)} />
-        <button className="btn btn-ghost btn-sm" type="submit">Search</button>
-        {search && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setSearch(''); load('', 0); }}>Reset</button>}
-      </form>
-      <div style={{ marginBottom: 8, color: 'var(--muted)', fontSize: 12 }}>{total} message{total !== 1 ? 's' : ''} total</div>
-      {loading && messages.length === 0 ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {messages.map(m => (
-            <div key={m.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <div>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{m.sender_username}</span>
-                  <span style={{ color: 'var(--muted)', fontSize: 12, margin: '0 6px' }}>→</span>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{m.receiver_username}</span>
-                  <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 10 }}>{timeAgo(m.created_at)}</span>
-                </div>
-                <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626' }} onClick={() => deleteMsg(m.id)}>Delete</button>
-              </div>
-              <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text)', lineHeight: 1.5, wordBreak: 'break-word' }}>{m.content}</div>
-            </div>
-          ))}
-          {messages.length === 0 && <div style={MUTED_CENTER}>No messages found.</div>}
-          {messages.length < total && (
-            <button className="btn btn-ghost btn-sm" onClick={() => load(search, offset + LIMIT)} style={{ alignSelf: 'center', marginTop: 8 }}>
-              Load more
+      {/* ── DB STATUS TAB ─────────────────────────────────────────────────── */}
+      {tab === 'db' && (
+        <div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <button className="btn btn-primary" onClick={loadDbStatus} disabled={dbLoading}>
+              {dbLoading ? 'Loading…' : '↺ Refresh'}
             </button>
+            <button className="btn btn-ghost" onClick={handleCleanup} disabled={dbLoading}
+              style={{ color: 'var(--danger)' }}>
+              🧹 Run Cleanup Now
+            </button>
+          </div>
+
+          {dbStatus && (
+            <>
+              {/* Summary cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+                {[
+                  { label: 'Visitor Log', value: dbStatus.visitor_log_count?.toLocaleString(), warn: dbStatus.visitor_log_count > 4000 },
+                  { label: 'Audit Log', value: dbStatus.audit_log_count?.toLocaleString(), warn: dbStatus.audit_log_count > 1800 },
+                  { label: 'Messages', value: dbStatus.messages_count?.toLocaleString() },
+                  { label: 'Anomalies', value: dbStatus.anomalies_count?.toLocaleString() },
+                  { label: 'DB Size', value: fmt(dbStatus.db_size_bytes) },
+                ].map(s => (
+                  <div key={s.label} className="card" style={{ padding: '14px 18px', borderColor: s.warn ? 'var(--danger)' : undefined }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{s.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: s.warn ? 'var(--danger)' : 'var(--text)' }}>{s.value ?? '—'}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Last cleanup */}
+              {dbStatus.last_cleanup && (
+                <div className="card" style={{ padding: '14px 18px', marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>LAST CLEANUP</div>
+                  <div style={{ fontSize: 13, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                    <span>🕐 {fmtDatetime(dbStatus.last_cleanup.ran_at)}</span>
+                    <span>Visitor: -{dbStatus.last_cleanup.visitor_log_deleted}</span>
+                    <span>Audit: -{dbStatus.last_cleanup.audit_log_deleted}</span>
+                    <span>Messages: -{dbStatus.last_cleanup.messages_deleted}</span>
+                    <span>Anomalies saved: {dbStatus.last_cleanup.anomalies_saved}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Table sizes */}
+              {dbStatus.table_sizes?.length > 0 && (
+                <div className="card" style={{ overflow: 'auto', marginBottom: 20 }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>Table Sizes</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {['Table', 'Size', 'Est. Rows'].map(h => (
+                          <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dbStatus.table_sizes.map(t => (
+                        <tr key={t.table_name} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '9px 14px', fontSize: 13 }}>{t.table_name}</td>
+                          <td style={{ padding: '9px 14px', fontSize: 13, color: 'var(--muted)' }}>{fmt(Number(t.size_bytes))}</td>
+                          <td style={{ padding: '9px 14px', fontSize: 13, color: 'var(--muted)' }}>{Number(t.row_estimate).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+          {!dbStatus && !dbLoading && (
+            <div style={{ color: 'var(--muted)', fontSize: 14 }}>Click "Refresh" to load database status.</div>
           )}
         </div>
       )}
-    </div>
-  );
-}
 
-// ─── IP BANS TAB ──────────────────────────────────────────────────────────────
-function IpBansTab() {
-  const [bans, setBans] = useState([]);
-  const [ip, setIp] = useState('');
-  const [reason, setReason] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    admin.ipBans().then(r => setBans(r.bans || [])).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  async function add(e) {
-    e.preventDefault();
-    if (!ip.trim()) return;
-    try {
-      await admin.addIpBan(ip.trim(), reason.trim());
-      setIp(''); setReason('');
-      const res = await admin.ipBans(); setBans(res.bans || []);
-    } catch (e) { alert(e.message); }
-  }
-
-  async function remove(id) {
-    try { await admin.removeIpBan(id); setBans(prev => prev.filter(b => b.id !== id)); }
-    catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      <form onSubmit={add} style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        <input className="input" style={{ flex: 2, minWidth: 160, height: 36, fontSize: 13 }} placeholder="IP address…" value={ip} onChange={e => setIp(e.target.value)} />
-        <input className="input" style={{ flex: 3, minWidth: 160, height: 36, fontSize: 13 }} placeholder="Reason (optional)" value={reason} onChange={e => setReason(e.target.value)} />
-        <button className="btn btn-primary btn-sm" type="submit">Add ban</button>
-      </form>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {bans.map(b => (
-            <div key={b.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 13 }}>{b.ip_address}</span>
-                {b.reason && <span style={{ color: 'var(--muted)', fontSize: 12, marginLeft: 10 }}>{b.reason}</span>}
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Banned by {b.banned_by_username} · {timeAgo(b.created_at)}</div>
-              </div>
-              <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626' }} onClick={() => remove(b.id)}>Remove</button>
-            </div>
-          ))}
-          {bans.length === 0 && <div style={MUTED_CENTER}>No IP bans.</div>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── AUDIT LOG TAB ────────────────────────────────────────────────────────────
-function AuditTab() {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    admin.auditLog().then(r => setEntries(r.entries || [])).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  return (
-    <div>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={TABLE}>
-            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Admin', 'Action', 'Target', 'Details', 'When'].map(h => <th key={h} style={TH}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {entries.map(e => (
-                <tr key={e.id} style={{ borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                  <td style={TD}>{e.admin_username}</td>
-                  <td style={TD}><code style={{ fontSize: 11 }}>{e.action}</code></td>
-                  <td style={TD}>{e.target_type && <span style={{ color: 'var(--muted)' }}>{e.target_type} · {String(e.target_id || '').slice(0, 8)}</span>}</td>
-                  <td style={{ ...TD, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {e.details && typeof e.details === 'object' ? JSON.stringify(e.details).slice(0, 80) : ''}
-                  </td>
-                  <td style={{ ...TD, color: 'var(--muted)' }}>{timeAgo(e.created_at)}</td>
-                </tr>
-              ))}
-              {entries.length === 0 && <tr><td colSpan={5} style={MUTED_CENTER}>No entries.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── TRAFFIC / VISITOR LOG TAB ────────────────────────────────────────────────
-function TrafficTab() {
-  const [entries, setEntries] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    admin.visitorLog(200, 0).then(r => { setEntries(r.entries || []); setTotal(r.total || 0); }).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  return (
-    <div>
-      <div style={{ marginBottom: 10, color: 'var(--muted)', fontSize: 13 }}>Showing last 200 of {total} entries. Logs are auto-pruned to keep DB lean.</div>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={TABLE}>
-            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['IP', 'Method', 'Path', 'Status', 'User', 'When'].map(h => <th key={h} style={TH}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {entries.map((e, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                  <td style={{ ...TD, fontFamily: 'monospace', fontSize: 11 }}>{e.ip}</td>
-                  <td style={TD}>{e.method}</td>
-                  <td style={{ ...TD, color: 'var(--muted)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.path}</td>
-                  <td style={TD}>
-                    <span style={{ color: e.status >= 400 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{e.status}</span>
-                  </td>
-                  <td style={TD}>{e.username || '—'}</td>
-                  <td style={{ ...TD, color: 'var(--muted)' }}>{timeAgo(e.created_at)}</td>
-                </tr>
-              ))}
-              {entries.length === 0 && <tr><td colSpan={6} style={MUTED_CENTER}>No traffic entries.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── ANOMALIES TAB ────────────────────────────────────────────────────────────
-function AnomaliesTab() {
-  const [anomalies, setAnomalies] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    admin.anomalies().then(r => setAnomalies(r.anomalies || [])).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function deleteOne(id) {
-    try { await admin.deleteAnomaly(id); setAnomalies(prev => prev.filter(a => a.id !== id)); }
-    catch (e) { alert(e.message); }
-  }
-
-  async function clearAll() {
-    if (!confirm(`Delete all ${anomalies.length} anomalies?`)) return;
-    try { await admin.clearAnomalies(); setAnomalies([]); }
-    catch (e) { alert(e.message); }
-  }
-
-  return (
-    <div>
-      <div style={{ marginBottom: 14 }}>
-        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>
-          Anomalies are suspicious entries (high-traffic IPs, scraping patterns, bulk actions) automatically extracted before log cleanup.
-        </p>
-        {anomalies.length > 0 && (
-          <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626' }} onClick={clearAll}>
-            Delete all anomalies ({anomalies.length})
-          </button>
-        )}
-      </div>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {anomalies.map(a => (
-            <div key={a.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#dc2626' }}>{a.reason}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Source: {a.source} · {timeAgo(a.created_at)}</div>
-                  <pre style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 80, overflow: 'auto' }}>
-                    {JSON.stringify(a.data, null, 2)}
-                  </pre>
-                </div>
-                <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626', flexShrink: 0 }} onClick={() => deleteOne(a.id)}>Delete</button>
-              </div>
-            </div>
-          ))}
-          {anomalies.length === 0 && <div style={MUTED_CENTER}>No anomalies saved. The system is clean.</div>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── DB STATUS TAB ────────────────────────────────────────────────────────────
-function DbStatusTab() {
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [cleaning, setCleaning] = useState(false);
-  const [cleanMsg, setCleanMsg] = useState('');
-
-  const load = useCallback(() => {
-    setLoading(true);
-    admin.dbStatus().then(setStatus).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function runCleanup() {
-    setCleaning(true); setCleanMsg('');
-    try {
-      const r = await admin.runCleanup();
-      setCleanMsg(`Done. Deleted: ${r.visitor_log_deleted} traffic rows, ${r.audit_log_deleted} audit rows, ${r.messages_deleted} messages. Anomalies saved: ${r.anomalies_saved}.`);
-      load();
-    } catch (e) { setCleanMsg('Cleanup failed: ' + e.message); }
-    finally { setCleaning(false); }
-  }
-
-  return (
-    <div>
-      {loading ? <div style={MUTED_CENTER}>Loading…</div> : status && (
+      {/* ── HTTP LOG TAB ─────────────────────────────────────────────────── */}
+      {tab === 'http' && (
         <div>
-          {/* DB Size */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
-            {[
-              { label: 'Total DB Size', value: formatBytes(status.db_size_bytes) },
-              { label: 'Visitor Log Rows', value: status.visitor_log_count?.toLocaleString() },
-              { label: 'Audit Log Rows', value: status.audit_log_count?.toLocaleString() },
-              { label: 'Messages', value: status.messages_count?.toLocaleString() },
-              { label: 'Anomalies', value: status.anomalies_count?.toLocaleString() },
-            ].map(s => (
-              <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>{s.value ?? '—'}</div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{s.label}</div>
-              </div>
-            ))}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <button className="btn btn-primary" onClick={loadDbStatus} disabled={dbLoading}>
+              {dbLoading ? 'Loading…' : '↺ Refresh'}
+            </button>
           </div>
+          {!dbStatus ? (
+            <div style={{ color: 'var(--muted)', fontSize: 14 }}>Click "Refresh" to load HTTP request data.</div>
+          ) : (
+            <>
+              {/* Top IPs */}
+              {topIps.length > 0 && (
+                <div className="card" style={{ overflow: 'auto', marginBottom: 20 }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>Top IP Addresses</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {['IP', 'Total Requests', 'Unique Paths', 'First Seen', 'Last Seen'].map(h => (
+                          <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topIps.map((ip, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '9px 14px', fontSize: 13, fontFamily: 'monospace' }}>{ip.ip}</td>
+                          <td style={{ padding: '9px 14px', fontSize: 13, fontWeight: ip.total_requests > 500 ? 700 : 400, color: ip.total_requests > 500 ? 'var(--danger)' : 'var(--text)' }}>
+                            {Number(ip.total_requests).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '9px 14px', fontSize: 13, color: 'var(--muted)' }}>{ip.unique_paths}</td>
+                          <td style={{ padding: '9px 14px', fontSize: 12, color: 'var(--muted)' }}>{fmtDatetime(ip.first_seen)}</td>
+                          <td style={{ padding: '9px 14px', fontSize: 12, color: 'var(--muted)' }}>{fmtDatetime(ip.last_seen)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
-          {/* Table sizes */}
-          {status.table_sizes?.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Table sizes</h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={TABLE}>
-                  <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <th style={TH}>Table</th><th style={TH}>Size</th>
-                  </tr></thead>
+              {/* Recent requests */}
+              <div className="card" style={{ overflow: 'auto' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>Recent HTTP Requests (last 100)</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      {['Time', 'IP', 'Method', 'Path', 'Status', 'User'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
                   <tbody>
-                    {status.table_sizes.map(t => (
-                      <tr key={t.table_name} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ ...TD, fontFamily: 'monospace', fontSize: 12 }}>{t.table_name}</td>
-                        <td style={TD}>{formatBytes(parseInt(t.size_bytes))}</td>
+                    {httpRequests.map((r, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '8px 14px', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDatetime(r.created_at)}</td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, fontFamily: 'monospace' }}>{r.ip}</td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, color: r.method === 'POST' ? '#4f8ef7' : r.method === 'DELETE' ? 'var(--danger)' : 'var(--text)' }}>
+                          {r.method || 'GET'}
+                        </td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, fontFamily: 'monospace', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.path}</td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, color: r.status_code >= 400 ? 'var(--danger)' : r.status_code >= 300 ? '#f7a94f' : 'var(--success)' }}>
+                          {r.status_code || '—'}
+                        </td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--muted)' }}>{r.username || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </>
           )}
+        </div>
+      )}
 
-          {/* Last cleanup info */}
-          {status.last_cleanup && (
-            <div style={{ marginBottom: 18, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px', fontSize: 13 }}>
-              <strong>Last cleanup:</strong> {timeAgo(status.last_cleanup.ran_at)}
-              <span style={{ color: 'var(--muted)', marginLeft: 12 }}>
-                Traffic: −{status.last_cleanup.visitor_log_deleted} · Audit: −{status.last_cleanup.audit_log_deleted} · Messages: −{status.last_cleanup.messages_deleted} · Anomalies saved: {status.last_cleanup.anomalies_saved}
-              </span>
-            </div>
-          )}
-
-          {/* Cleanup strategy explanation */}
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '14px 18px', marginBottom: 18, fontSize: 13 }}>
-            <strong>Cleanup strategy:</strong> The system auto-runs every 30 min.
-            It keeps traffic logs to ≤ 5,000 rows and audit logs to ≤ 2,000 rows.
-            Suspicious entries (high-traffic IPs, bulk actions) are saved to the <em>Anomalies</em> tab before deletion.
-            Messages are deleted after 7 days.
+      {/* ── ANOMALIES TAB ─────────────────────────────────────────────────── */}
+      {tab === 'anomalies' && (
+        <div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <button className="btn btn-primary" onClick={loadAnomalies}>↺ Refresh</button>
+            {anomalies.length > 0 && (
+              <button className="btn btn-ghost" onClick={handleClearAnomalies} style={{ color: 'var(--danger)' }}>
+                🗑 Clear all ({anomalies.length})
+              </button>
+            )}
           </div>
 
-          {cleanMsg && (
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>{cleanMsg}</div>
+          {anomalies.length === 0 ? (
+            <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
+              No anomalies recorded.
+            </div>
+          ) : (
+            <div className="card" style={{ overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Time', 'Source', 'Reason', 'Data', ''].map(h => (
+                      <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {anomalies.map(a => (
+                    <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDatetime(a.created_at)}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12 }}>
+                        <span style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--surface2)', fontSize: 11 }}>{a.source}</span>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 13, maxWidth: 300 }}>{a.reason}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, fontFamily: 'monospace', color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {typeof a.data === 'object' ? JSON.stringify(a.data) : a.data}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <button onClick={() => handleDeleteAnomaly(a.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)', fontSize: 11 }}>✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-
-          <button className="btn btn-primary" onClick={runCleanup} disabled={cleaning}>
-            {cleaning ? 'Running cleanup…' : 'Run cleanup now'}
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={load} style={{ marginLeft: 8 }}>Refresh</button>
         </div>
+      )}
+
+      {/* ── MAINTENANCE TAB ───────────────────────────────────────────────── */}
+      {tab === 'maintenance' && (
+        <div style={{ maxWidth: 600 }}>
+          <div className="card" style={{ padding: 28 }}>
+            <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 8 }}>🔧 Maintenance Mode</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24, lineHeight: 1.7 }}>
+              When enabled, all users (except you, as admin) will see a maintenance page and cannot access the platform. You can access everything normally. No data is deleted.
+            </p>
+
+            {maintenanceOn ? (
+              <div>
+                <div style={{ background: 'rgba(220,53,69,0.1)', border: '1px solid var(--danger)', borderRadius: 10, padding: '18px 20px', marginBottom: 20 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--danger)', marginBottom: 6 }}>⚠️ Site is currently in maintenance mode</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
+                    {maintenanceData?.message}<br />
+                    {maintenanceData?.estimated_end && <span>Estimated end: {fmtDatetime(maintenanceData.estimated_end)}</span>}
+                  </div>
+                </div>
+                <button className="btn btn-primary" onClick={() => setMaintenanceModal(true)}
+                  style={{ background: 'var(--success)', borderColor: 'var(--success)', width: '100%', justifyContent: 'center', padding: '14px' }}>
+                  ✅ Disable Maintenance Mode
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ background: 'rgba(76,175,125,0.1)', border: '1px solid var(--success)', borderRadius: 10, padding: '14px 20px', marginBottom: 20, fontSize: 13, color: 'var(--success)' }}>
+                  ✅ Site is running normally — all users have access.
+                </div>
+                <button className="btn btn-primary" onClick={() => setMaintenanceModal(true)}
+                  style={{ background: 'var(--danger)', borderColor: 'var(--danger)', width: '100%', justifyContent: 'center', padding: '14px' }}>
+                  🔧 Enable Maintenance Mode
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modals ────────────────────────────────────────────────────────── */}
+      {banModal && (
+        <BanModal
+          user={banModal}
+          onClose={() => setBanModal(null)}
+          onBanned={handleBanned}
+        />
+      )}
+
+      {maintenanceModal && (
+        <MaintenanceModal
+          current={maintenanceData}
+          onClose={() => setMaintenanceModal(false)}
+          onToggle={(enabled) => {
+            setMaintenanceData(prev => ({ ...prev, enabled }));
+            flash(enabled ? '🔧 Maintenance mode enabled.' : '✅ Maintenance mode disabled.');
+            loadMaintenanceStatus();
+          }}
+        />
       )}
     </div>
   );
 }
-
-// ─── SHARED STYLES ────────────────────────────────────────────────────────────
-const OVERLAY = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 };
-const MODAL = { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '28px 32px', minWidth: 320, maxWidth: '90vw' };
-const TABLE = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const TH = { padding: '10px 12px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' };
-const TD = { padding: '10px 12px', verticalAlign: 'middle' };
-const MUTED_CENTER = { textAlign: 'center', padding: '32px', color: 'var(--muted)', fontSize: 13 };
-const BADGE_RED = { display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: 'rgba(220,38,38,0.1)', color: '#dc2626' };
-const BADGE_GREEN = { display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: 'rgba(22,163,74,0.1)', color: '#16a34a' };

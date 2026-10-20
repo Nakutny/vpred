@@ -39,38 +39,123 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// ─── MAINTENANCE MODE ─────────────────────────────────────────────────────────
+router.get('/maintenance', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT m.*, u.username as started_by_username
+       FROM maintenance_mode m
+       LEFT JOIN users u ON m.started_by = u.id
+       WHERE m.id = 1`
+    );
+    res.json({ maintenance: result.rows[0] || { enabled: false } });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load maintenance status.' });
+  }
+});
+
+router.patch('/maintenance', async (req, res) => {
+  try {
+    const { enabled, message, estimated_end } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled (boolean) is required.' });
+    }
+
+    if (enabled) {
+      await query(
+        `UPDATE maintenance_mode SET
+           enabled = TRUE,
+           message = COALESCE($1, message),
+           started_at = NOW(),
+           estimated_end = $2,
+           started_by = $3
+         WHERE id = 1`,
+        [message || null, estimated_end || null, req.user.id]
+      );
+      await auditLog(req.user.id, 'maintenance_enabled', null, null, { message, estimated_end });
+      res.json({ message: 'Maintenance mode enabled. The site is now inaccessible to regular users.' });
+    } else {
+      await query(
+        `UPDATE maintenance_mode SET
+           enabled = FALSE,
+           started_at = NULL,
+           estimated_end = NULL,
+           started_by = NULL
+         WHERE id = 1`,
+        []
+      );
+      await auditLog(req.user.id, 'maintenance_disabled', null, null);
+      res.json({ message: 'Maintenance mode disabled. The site is now accessible.' });
+    }
+  } catch (err) {
+    console.error('Maintenance error:', err);
+    res.status(500).json({ error: 'Could not update maintenance mode.' });
+  }
+});
+
 // ─── DB STATUS & CLEANUP ─────────────────────────────────────────────────────
-// Returns row counts and estimated sizes for admin panel DB status widget
 router.get('/db-status', async (req, res) => {
   try {
     const [
-      visitorCount, auditCount, messagesCount, anomaliesCount, lastCleanup
+      visitorCount, auditCount, messagesCount, anomaliesCount, lastCleanup, cleanupHistory
     ] = await Promise.all([
       query('SELECT COUNT(*) FROM visitor_log'),
       query('SELECT COUNT(*) FROM audit_log'),
       query('SELECT COUNT(*) FROM messages'),
       query('SELECT COUNT(*) FROM anomalies'),
       query('SELECT * FROM db_cleanup_log ORDER BY ran_at DESC LIMIT 1'),
+      query('SELECT * FROM db_cleanup_log ORDER BY ran_at DESC LIMIT 10'),
     ]);
 
-    // pg_database_size gives total DB size in bytes
     let dbSize = null;
     try {
       const sizeRes = await query(`SELECT pg_database_size(current_database()) as size`);
       dbSize = parseInt(sizeRes.rows[0].size);
     } catch (_) {}
 
-    // Table sizes
     let tableSizes = [];
     try {
       const ts = await query(`
         SELECT relname as table_name,
-               pg_total_relation_size(relid) as size_bytes
+               pg_total_relation_size(relid) as size_bytes,
+               n_live_tup as row_estimate
         FROM pg_catalog.pg_statio_user_tables
         ORDER BY size_bytes DESC
-        LIMIT 10
+        LIMIT 15
       `);
       tableSizes = ts.rows;
+    } catch (_) {}
+
+    // Top IPs in visitor log (for HTTP request overview)
+    let topIps = [];
+    try {
+      const ipRes = await query(`
+        SELECT ip,
+               COUNT(*) as total_requests,
+               COUNT(DISTINCT path) as unique_paths,
+               MAX(created_at) as last_seen,
+               MIN(created_at) as first_seen
+        FROM visitor_log
+        GROUP BY ip
+        ORDER BY total_requests DESC
+        LIMIT 20
+      `);
+      topIps = ipRes.rows;
+    } catch (_) {}
+
+    // Recent HTTP requests sample
+    let recentRequests = [];
+    try {
+      const rr = await query(`
+        SELECT vl.ip, vl.path, vl.method, vl.status_code, vl.created_at,
+               u.username
+        FROM visitor_log vl
+        LEFT JOIN users u ON vl.user_id = u.id
+        ORDER BY vl.created_at DESC
+        LIMIT 100
+      `);
+      recentRequests = rr.rows;
     } catch (_) {}
 
     res.json({
@@ -81,6 +166,9 @@ router.get('/db-status', async (req, res) => {
       db_size_bytes: dbSize,
       table_sizes: tableSizes,
       last_cleanup: lastCleanup.rows[0] || null,
+      cleanup_history: cleanupHistory.rows,
+      top_ips: topIps,
+      recent_requests: recentRequests,
     });
   } catch (err) {
     console.error('DB status error:', err);
@@ -88,7 +176,7 @@ router.get('/db-status', async (req, res) => {
   }
 });
 
-// Manual trigger for cleanup (also runs automatically via index.js)
+// Manual cleanup trigger
 router.post('/db-cleanup', async (req, res) => {
   try {
     const result = await runCleanup();
@@ -104,7 +192,7 @@ router.post('/db-cleanup', async (req, res) => {
 router.get('/anomalies', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, source, data, reason, created_at FROM anomalies ORDER BY created_at DESC LIMIT 200`
+      `SELECT id, source, data, reason, created_at FROM anomalies ORDER BY created_at DESC LIMIT 500`
     );
     res.json({ anomalies: result.rows });
   } catch (err) {
@@ -189,6 +277,7 @@ router.get('/users/:id', async (req, res) => {
 });
 
 // PATCH /api/admin/users/:id/ban
+// ban_duration_days: number of days, or 0/null for permanent
 router.patch('/users/:id/ban', async (req, res) => {
   try {
     const { banned, ban_duration_days } = req.body;
@@ -204,11 +293,12 @@ router.patch('/users/:id/ban', async (req, res) => {
       let banExpiresAt = null;
       let durationLabel = 'permanent';
 
-      if (ban_duration_days != null && ban_duration_days > 0) {
+      const days = parseInt(ban_duration_days);
+      if (!isNaN(days) && days > 0) {
         const expires = new Date();
-        expires.setDate(expires.getDate() + parseInt(ban_duration_days));
+        expires.setDate(expires.getDate() + days);
         banExpiresAt = expires.toISOString();
-        durationLabel = `${ban_duration_days} day${ban_duration_days === 1 ? '' : 's'}`;
+        durationLabel = `${days} day${days === 1 ? '' : 's'}`;
       }
 
       await query(
@@ -299,7 +389,6 @@ router.get('/posts/export/csv', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Export failed.' }); }
 });
 
-// GET /api/admin/posts — active posts
 router.get('/posts', async (req, res) => {
   try {
     const search = req.query.search;
@@ -318,7 +407,6 @@ router.get('/posts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
-// GET /api/admin/posts/deleted — soft-deleted posts (for restore)
 router.get('/posts/deleted', async (req, res) => {
   try {
     const result = await query(
@@ -344,7 +432,6 @@ router.patch('/posts/:id/status', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
-// Soft delete a post (moves to deleted bin)
 router.delete('/posts/:id', async (req, res) => {
   try {
     const postRes = await query('SELECT title FROM posts WHERE id = $1', [req.params.id]);
@@ -357,7 +444,6 @@ router.delete('/posts/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
-// Restore a soft-deleted post
 router.patch('/posts/:id/restore', async (req, res) => {
   try {
     await query(
@@ -369,7 +455,6 @@ router.patch('/posts/:id/restore', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
-// Permanently hard-delete a post from the trash
 router.delete('/posts/:id/permanent', async (req, res) => {
   try {
     const postRes = await query('SELECT title FROM posts WHERE id = $1', [req.params.id]);
@@ -523,10 +608,7 @@ router.get('/messages', async (req, res) => {
       ),
     ]);
 
-    res.json({
-      messages: result.rows,
-      total: parseInt(countRes.rows[0].count),
-    });
+    res.json({ messages: result.rows, total: parseInt(countRes.rows[0].count) });
   } catch (err) {
     console.error('Admin messages error:', err);
     res.status(500).json({ error: 'Could not load messages.' });
@@ -571,9 +653,7 @@ router.get('/visitor-log', async (req, res) => {
 export { runCleanup };
 export default router;
 
-// ─── CLEANUP FUNCTION (exported for use in index.js) ─────────────────────────
-// Smart cleanup: keeps DB lean by removing old low-value rows,
-// but saves anomalies (unusual spikes, suspicious IPs, rapid-fire actions) first.
+// ─── CLEANUP FUNCTION ────────────────────────────────────────────────────────
 async function runCleanup() {
   const stats = {
     visitor_log_deleted: 0,
@@ -583,7 +663,6 @@ async function runCleanup() {
   };
 
   try {
-    // ── Check current row counts ──────────────────────────────────────────
     const [vlCount, alCount] = await Promise.all([
       query('SELECT COUNT(*) FROM visitor_log'),
       query('SELECT COUNT(*) FROM audit_log'),
@@ -592,13 +671,8 @@ async function runCleanup() {
     const auditTotal = parseInt(alCount.rows[0].count);
 
     // ── VISITOR LOG cleanup ───────────────────────────────────────────────
-    // Target: keep at most 5000 rows. Delete oldest beyond that threshold.
-    // Before deleting, detect and save anomalies:
-    //   - Same IP hitting more than 50 unique paths in 1 hour → suspicious scraping
-    //   - More than 200 requests from same IP in 1 hour → possible bot/DDoS
     const VISITOR_MAX = 5000;
     if (visitorTotal > VISITOR_MAX) {
-      // Find anomalous IPs in the rows we're about to delete
       const cutoffRes = await query(
         `SELECT created_at FROM visitor_log ORDER BY created_at ASC LIMIT 1 OFFSET $1`,
         [VISITOR_MAX]
@@ -606,10 +680,12 @@ async function runCleanup() {
       if (cutoffRes.rows[0]) {
         const cutoff = cutoffRes.rows[0].created_at;
 
-        // Detect suspicious IPs in the rows to be deleted
         const suspiciousIps = await query(
-          `SELECT ip, COUNT(*) as hits, COUNT(DISTINCT path) as unique_paths,
-                  MIN(created_at) as first_seen, MAX(created_at) as last_seen
+          `SELECT ip,
+                  COUNT(*) as hits,
+                  COUNT(DISTINCT path) as unique_paths,
+                  MIN(created_at) as first_seen,
+                  MAX(created_at) as last_seen
            FROM visitor_log
            WHERE created_at < $1
            GROUP BY ip
@@ -628,7 +704,6 @@ async function runCleanup() {
           stats.anomalies_saved++;
         }
 
-        // Now delete old rows
         const del = await query(
           `DELETE FROM visitor_log WHERE id IN (
              SELECT id FROM visitor_log ORDER BY created_at ASC LIMIT $1
@@ -640,8 +715,6 @@ async function runCleanup() {
     }
 
     // ── AUDIT LOG cleanup ─────────────────────────────────────────────────
-    // Target: keep at most 2000 rows. Delete oldest beyond that threshold.
-    // Save anomalies: bulk deletions (>10 items at once) or repeated bans of same user
     const AUDIT_MAX = 2000;
     if (auditTotal > AUDIT_MAX) {
       const auditCutoffRes = await query(
@@ -651,7 +724,6 @@ async function runCleanup() {
       if (auditCutoffRes.rows[0]) {
         const cutoff = auditCutoffRes.rows[0].created_at;
 
-        // Detect bulk deletions in rows to be removed
         const bulkActions = await query(
           `SELECT action, admin_id, COUNT(*) as count, MIN(created_at) as first_at
            FROM audit_log
@@ -680,14 +752,13 @@ async function runCleanup() {
       }
     }
 
-    // ── MESSAGES cleanup ──────────────────────────────────────────────────
-    // Keep enforcing the 7-day auto-delete
+    // ── MESSAGES cleanup: 7-day rule ──────────────────────────────────────
     const msgDel = await query(
       `DELETE FROM messages WHERE created_at < NOW() - INTERVAL '7 days'`
     );
     stats.messages_deleted = msgDel.rowCount || 0;
 
-    // Log cleanup run
+    // Log run
     await query(
       `INSERT INTO db_cleanup_log
          (visitor_log_deleted, audit_log_deleted, messages_deleted, anomalies_saved, visitor_log_total, audit_log_total)

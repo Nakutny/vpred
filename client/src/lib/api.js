@@ -12,27 +12,18 @@ async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   const data = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
-    const err = new Error(data.error || `HTTP ${res.status}`);
-    err.code = data.code || null;
-    err.email = data.email || null;
-    throw err;
-  }
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { code: data.code, status: res.status });
   return data;
 }
 
-// Auth
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
 export const auth = {
   register: (body) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   me: () => request('/api/auth/me'),
-  verifyEmail: (token) => request(`/api/auth/verify-email?token=${token}`),
-  resendVerification: (email) => request('/api/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
-  forgotPassword: (email) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
-  resetPassword: (token, newPassword) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
 };
 
-// Posts
+// ─── POSTS ────────────────────────────────────────────────────────────────────
 export const posts = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -45,143 +36,98 @@ export const posts = {
   vote: (id) => request(`/api/posts/${id}/vote`, { method: 'POST' }),
 };
 
-// Comments
+// ─── COMMENTS ────────────────────────────────────────────────────────────────
 export const comments = {
   list: (postId) => request(`/api/comments?post_id=${postId}`),
   create: (body) => request('/api/comments', { method: 'POST', body: JSON.stringify(body) }),
   delete: (id) => request(`/api/comments/${id}`, { method: 'DELETE' }),
 };
 
-// Categories
+// ─── CATEGORIES ───────────────────────────────────────────────────────────────
 export const categories = {
   list: () => request('/api/categories'),
   create: (body) => request('/api/categories', { method: 'POST', body: JSON.stringify(body) }),
   delete: (id) => request(`/api/categories/${id}`, { method: 'DELETE' }),
 };
 
-// Admin
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
 export const admin = {
+  // Stats
   stats: () => request('/api/admin/stats'),
+
   // Users
-  users: (search) => request(`/api/admin/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  users: (search = '') => request(`/api/admin/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
   userDetail: (id) => request(`/api/admin/users/${id}`),
-  banUser: (id, banned, ban_duration_days) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned, ban_duration_days }) }),
+  banUser: (id, banned, ban_duration_days) => request(`/api/admin/users/${id}/ban`, {
+    method: 'PATCH',
+    body: JSON.stringify({ banned, ban_duration_days: ban_duration_days !== undefined ? Number(ban_duration_days) : undefined }),
+  }),
   setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   verifyUser: (id, verified) => request(`/api/admin/users/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ verified }) }),
-  deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
   warnUser: (id, reason) => request(`/api/admin/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  removeWarning: (warningId) => request(`/api/admin/warnings/${warningId}`, { method: 'DELETE' }),
-  exportUsers: () => `${BASE}/api/admin/users/export/csv`,
+  deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
+  deleteWarning: (id) => request(`/api/admin/warnings/${id}`, { method: 'DELETE' }),
+  exportUsersCSV: () => `${BASE}/api/admin/users/export/csv`,
+
   // Posts
-  posts: (search) => request(`/api/admin/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  posts: (search = '') => request(`/api/admin/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
   deletedPosts: () => request('/api/admin/posts/deleted'),
-  restorePost: (id) => request(`/api/admin/posts/${id}/restore`, { method: 'PATCH' }),
-  permanentDeletePost: (id) => request(`/api/admin/posts/${id}/permanent`, { method: 'DELETE' }),
   setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deletePost: (id) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
+  restorePost: (id) => request(`/api/admin/posts/${id}/restore`, { method: 'PATCH' }),
+  permanentDeletePost: (id) => request(`/api/admin/posts/${id}/permanent`, { method: 'DELETE' }),
   bulkPosts: (ids, action) => request('/api/admin/posts/bulk', { method: 'POST', body: JSON.stringify({ ids, action }) }),
-  exportPosts: () => `${BASE}/api/admin/posts/export/csv`,
-  // Kommentare
+
+  // Comments
   comments: () => request('/api/admin/comments'),
   removeComment: (id, removed) => request(`/api/admin/comments/${id}/remove`, { method: 'PATCH', body: JSON.stringify({ removed }) }),
+
   // Reports
   reports: (status = 'open') => request(`/api/admin/reports?status=${status}`),
   resolveReport: (id, status) => request(`/api/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-  // Audit-Log
+
+  // Audit log
   auditLog: () => request('/api/admin/audit-log'),
-  // IP-Sperren
+
+  // DB Status & Cleanup
+  dbStatus: () => request('/api/admin/db-status'),
+  runCleanup: () => request('/api/admin/db-cleanup', { method: 'POST' }),
+
+  // Anomalies
+  anomalies: () => request('/api/admin/anomalies'),
+  deleteAnomaly: (id) => request(`/api/admin/anomalies/${id}`, { method: 'DELETE' }),
+  clearAnomalies: () => request('/api/admin/anomalies', { method: 'DELETE' }),
+
+  // IP bans
   ipBans: () => request('/api/admin/ip-bans'),
   addIpBan: (ip_address, reason) => request('/api/admin/ip-bans', { method: 'POST', body: JSON.stringify({ ip_address, reason }) }),
   removeIpBan: (id) => request(`/api/admin/ip-bans/${id}`, { method: 'DELETE' }),
-  // DMs (Admin can view all messages)
+
+  // Messages
   messages: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request(`/api/admin/messages${q ? '?' + q : ''}`);
   },
   deleteMessage: (id) => request(`/api/admin/messages/${id}`, { method: 'DELETE' }),
-  // DB Status & Cleanup
-  dbStatus: () => request('/api/admin/db-status'),
-  runCleanup: () => request('/api/admin/db-cleanup', { method: 'POST' }),
-  // Anomalies
-  anomalies: () => request('/api/admin/anomalies'),
-  deleteAnomaly: (id) => request(`/api/admin/anomalies/${id}`, { method: 'DELETE' }),
-  clearAnomalies: () => request('/api/admin/anomalies', { method: 'DELETE' }),
-  // Visitor-Log
-  visitorLog: (limit = 200, offset = 0) => request(`/api/admin/visitor-log?limit=${limit}&offset=${offset}`),
+
+  // Visitor log
+  visitorLog: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/api/admin/visitor-log${q ? '?' + q : ''}`);
+  },
+
+  // Maintenance mode
+  maintenanceStatus: () => request('/api/admin/maintenance'),
+  setMaintenance: (enabled, message, estimated_end) => request('/api/admin/maintenance', {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled, message, estimated_end }),
+  }),
+
+  // Test mail
+  testMail: (to) => request('/api/admin/test-mail', { method: 'POST', body: JSON.stringify({ to }) }),
 };
 
-// Moderator
-export const mod = {
-  stats: () => request('/api/mod/stats'),
-  // Users (only regular users)
-  users: (search) => request(`/api/mod/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
-  banUser: (id, banned, ban_duration_days) => request(`/api/mod/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned, ban_duration_days }) }),
-  warnUser: (id, reason) => request(`/api/mod/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  // Posts
-  posts: (search) => request(`/api/mod/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
-  editPost: (id, body) => request(`/api/mod/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  deletePost: (id) => request(`/api/mod/posts/${id}`, { method: 'DELETE' }),
-  restorePost: (id) => request(`/api/mod/posts/${id}/restore`, { method: 'PATCH' }),
-  // Reports
-  reports: (status = 'open') => request(`/api/mod/reports?status=${status}`),
-  resolveReport: (id, status) => request(`/api/mod/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-  // Self-demotion
-  demoteSelf: () => request('/api/mod/demote-self', { method: 'PATCH' }),
-};
-
-// Profile
-export const profile = {
-  get: (username) => request(`/api/profile/${username}`),
-  updateBio: (bio) => request('/api/profile/me/bio', { method: 'PATCH', body: JSON.stringify({ bio }) }),
-  changePassword: (body) => request('/api/profile/me/password', { method: 'PATCH', body: JSON.stringify(body) }),
-  updateAvatar: (avatar_url) => request('/api/profile/me/avatar', { method: 'PATCH', body: JSON.stringify({ avatar_url }) }),
-};
-
-// Legal pages
-export const legal = {
-  get: (key) => request(`/api/legal/${key}`),
-  update: (key, content) => request(`/api/legal/${key}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
-};
-
-// Friendships
-export const friendships = {
-  list: () => request('/api/friendships'),
-  status: (userId) => request(`/api/friendships/status/${userId}`),
-  send: (addressee_id) => request('/api/friendships', { method: 'POST', body: JSON.stringify({ addressee_id }) }),
-  respond: (id, status) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-  remove: (id) => request(`/api/friendships/${id}`, { method: 'DELETE' }),
-};
-
-// Messages
-export const messages = {
-  conversations: () => request('/api/messages/conversations'),
-  get: (userId) => request(`/api/messages/${userId}`),
-  send: (receiver_id, content) => request('/api/messages', { method: 'POST', body: JSON.stringify({ receiver_id, content }) }),
-  unreadCount: () => request('/api/messages/unread/count'),
-};
-
-// Blocks
-export const blocks = {
-  list: () => request('/api/blocks'),
-  block: (blocked_id) => request('/api/blocks', { method: 'POST', body: JSON.stringify({ blocked_id }) }),
-  unblock: (userId) => request(`/api/blocks/${userId}`, { method: 'DELETE' }),
-};
-
-// Reports (Meldungen)
-export const reports = {
-  submit: (target_type, target_id, reason) =>
-    request('/api/reports', { method: 'POST', body: JSON.stringify({ target_type, target_id, reason }) }),
-};
-
-// Notifications
-export const notifications = {
-  list: () => request('/api/notifications'),
-  readAll: () => request('/api/notifications/read-all', { method: 'PATCH' }),
-  read: (id) => request(`/api/notifications/${id}/read`, { method: 'PATCH' }),
-  delete: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
-};
-
-// Globale Suche
-export const search = {
-  all: (q) => request(`/api/posts?search=${encodeURIComponent(q)}&type=all`),
+// ─── PUBLIC MAINTENANCE CHECK ─────────────────────────────────────────────────
+export const maintenance = {
+  check: () => request('/api/maintenance'),
 };
