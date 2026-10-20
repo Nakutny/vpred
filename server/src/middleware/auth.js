@@ -2,20 +2,18 @@ import jwt from 'jsonwebtoken';
 import { query } from '../db/client.js';
 
 // ─── MAINTENANCE MODE CHECK ───────────────────────────────────────────────────
-// Called before every non-admin request.
-// If maintenance is ON, all non-admin users get 503.
+// Mounted as: app.use('/api', checkMaintenance)
+// → req.path is WITHOUT /api prefix: '/auth/login', '/admin/stats', etc.
 export async function checkMaintenance(req, res, next) {
   try {
-    // Skip maintenance check for:
-    // - Admin API routes
-    // - Auth login (so admin can log in)
-    // - Health check
     const path = req.path;
+
+    // Always allow these through (paths are relative to /api)
     if (
-      path.startsWith('/api/admin') ||
-      path.startsWith('/api/auth/login') ||
-      path.startsWith('/api/auth/me') ||
-      path === '/health' ||
+      path.startsWith('/admin') ||
+      path.startsWith('/auth/login') ||
+      path.startsWith('/auth/me') ||
+      path === '/maintenance' ||
       path.startsWith('/sitemap')
     ) {
       return next();
@@ -24,33 +22,29 @@ export async function checkMaintenance(req, res, next) {
     const result = await query('SELECT enabled, message FROM maintenance_mode WHERE id = 1');
     const mode = result.rows[0];
 
-    if (mode?.enabled) {
-      // Check if the requester is an admin (has valid JWT + admin role)
-      try {
-        const authHeader = req.headers.authorization;
-        if (authHeader?.startsWith('Bearer ')) {
-          const token = authHeader.slice(7);
-          const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-          const userRes = await query('SELECT role FROM users WHERE id = $1', [decoded.userId]);
-          if (['admin', 'moderator'].includes(userRes.rows[0]?.role)) {
-            return next(); // Admin passes through
-          }
+    if (!mode?.enabled) return next();
+
+    // Maintenance ON — check if user is admin or mod
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+        const userRes = await query('SELECT role FROM users WHERE id = $1', [decoded.userId]);
+        if (['admin', 'moderator'].includes(userRes.rows[0]?.role)) {
+          return next();
         }
-      } catch (_) {
-        // Invalid token — treat as non-admin
       }
+    } catch (_) {}
 
-      return res.status(503).json({
-        error: 'maintenance',
-        message: mode.message || 'The platform is temporarily under maintenance.',
-        code: 'MAINTENANCE',
-      });
-    }
+    return res.status(503).json({
+      error: 'maintenance',
+      message: mode.message || 'The platform is temporarily under maintenance.',
+      code: 'MAINTENANCE',
+    });
 
-    next();
   } catch (err) {
-    // If maintenance table query fails, don't block — just continue
-    next();
+    next(); // If table missing, don't block
   }
 }
 
@@ -71,13 +65,9 @@ export async function requireAuth(req, res, next) {
 
     const user = result.rows[0];
 
-    // Auto-lift expired bans
     if (user.is_banned) {
       if (user.ban_expires_at && new Date(user.ban_expires_at) <= new Date()) {
-        await query(
-          'UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1',
-          [user.id]
-        );
+        await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [user.id]);
         user.is_banned = false;
         user.ban_expires_at = null;
       } else {

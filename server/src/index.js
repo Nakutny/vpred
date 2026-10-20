@@ -45,39 +45,40 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '2mb' }));
 
-// Visitor-Log-Middleware (before maintenance check so traffic is always logged)
+// Visitor log (before everything)
 visitorLogMiddleware(app);
 
-// Health check — always responds, even in maintenance
+// ─── Always-available endpoints (before maintenance gate) ─────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch33', timestamp: new Date().toISOString() }));
 
-// Maintenance mode check — intercepts all API calls for non-admins
-app.use('/api', checkMaintenance);
-
-// Public maintenance status endpoint (for frontend to check)
+// Public maintenance status — MUST be before checkMaintenance middleware
 app.get('/api/maintenance', async (req, res) => {
   try {
     const result = await query('SELECT enabled, message, started_at, estimated_end FROM maintenance_mode WHERE id = 1');
     const mode = result.rows[0] || { enabled: false };
-    res.json({ maintenance: mode.enabled || false, message: mode.message, started_at: mode.started_at, estimated_end: mode.estimated_end });
+    res.json({
+      maintenance: mode.enabled || false,
+      message: mode.message || null,
+      started_at: mode.started_at || null,
+      estimated_end: mode.estimated_end || null,
+    });
   } catch (_) {
     res.json({ maintenance: false });
   }
 });
 
-// ─── Rate Limiting ────────────────────────────────────────────────────────────
-// General API limit (light protection)
-app.use('/api', apiLimiter);
+// ─── Maintenance gate (blocks all /api routes for non-staff) ──────────────────
+app.use('/api', checkMaintenance);
 
-// Strict limit on auth endpoints (brute-force protection)
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+app.use('/api', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
-
-// Donate payment creation limit
 app.use('/api/donate/create-payment', donateLimiter);
 
+// ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/comments', commentRoutes);
@@ -96,19 +97,14 @@ app.use('/api/users', userRoutes);
 app.use('/api/donate', donateRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
-
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-// ─── SMART CLEANUP SYSTEM ─────────────────────────────────────────────────────
+// ─── Scheduled cleanup ────────────────────────────────────────────────────────
 async function scheduledCleanup() {
-  try {
-    await runCleanup();
-  } catch (err) {
-    console.error('[scheduled cleanup] Error:', err.message);
-  }
+  try { await runCleanup(); } catch (err) { console.error('[cleanup]', err.message); }
 }
 
 app.listen(PORT, () => {
