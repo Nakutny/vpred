@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi } from '../lib/api';
+import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi, donate as donateApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
 import PostCard from '../components/PostCard';
@@ -48,6 +48,12 @@ export default function ProfilePage() {
   const [friendship, setFriendship] = useState({ status: 'none', friendshipId: null, iRequested: false });
   const [blocked, setBlocked] = useState(false); // I blocked them
   const [socialLoading, setSocialLoading] = useState(false);
+
+  // Donator settings
+  const [donatorColor, setDonatorColor] = useState('#7B2FBE');
+  const [badgeVisible, setBadgeVisible] = useState(true);
+  const [donatorMsg, setDonatorMsg] = useState('');
+  const [donatorSaving, setDonatorSaving] = useState(false);
   const [profileUserId, setProfileUserId] = useState(null);
 
   const isOwn = user?.username?.toLowerCase() === username?.toLowerCase();
@@ -65,6 +71,8 @@ export default function ProfilePage() {
         setSavedAvatar(d.user.avatar_url || null);
         setSelectedAvatar(d.user.avatar_url || null);
         setProfileUserId(d.user.id);
+        if (d.user.donator_color) setDonatorColor(d.user.donator_color);
+        setBadgeVisible(d.user.donator_badge_visible !== false);
       })
       .catch(err => setError(err.message || 'Failed to load profile.'))
       .finally(() => setLoading(false));
@@ -255,8 +263,24 @@ export default function ProfilePage() {
       { id: 'avatar', label: 'Avatar' },
       { id: 'edit', label: 'Edit Bio' },
       { id: 'password', label: 'Change password' },
+      ...(data.user.is_donator ? [{ id: 'donator', label: '🎖️ Donator' }] : []),
     ] : []),
   ];
+
+  async function handleDonatorSave() {
+    setDonatorSaving(true);
+    setDonatorMsg('');
+    try {
+      await donateApi.setColor(donatorColor);
+      await profileApi.update({ donator_badge_visible: badgeVisible });
+      setDonatorMsg('Saved!');
+      setTimeout(() => setDonatorMsg(''), 3000);
+    } catch (err) {
+      setDonatorMsg('Error: ' + (err.message || 'Could not save'));
+    } finally {
+      setDonatorSaving(false);
+    }
+  }
 
   const hasUnsavedAvatar = selectedAvatar !== savedAvatar;
 
@@ -504,6 +528,94 @@ export default function ProfilePage() {
               {bioSaving ? 'Saving...' : 'Save bio'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Donator settings */}
+      {tab === 'donator' && isOwn && data.user.is_donator && (
+        <div style={{ maxWidth: 480 }}>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 6 }}>
+            Donator Settings
+          </h2>
+          <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>
+            Thank you for supporting Vpred! Customize how your donation is displayed.
+          </p>
+
+          {/* Color picker */}
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              Username color
+            </label>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <input
+                type="color"
+                value={donatorColor}
+                onChange={e => setDonatorColor(e.target.value)}
+                style={{
+                  width: 48, height: 48, border: '2px solid var(--border)',
+                  borderRadius: 8, cursor: 'pointer', background: 'none', padding: 2,
+                }}
+              />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: donatorColor }}>
+                  {data.user.username}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  Preview of your username color
+                </div>
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+              Click the color swatch to open the color picker. Choose any color you like.
+            </p>
+          </div>
+
+          {/* Badge toggle */}
+          <div style={{ marginBottom: 28 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
+              Donator badge visibility
+            </label>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: 10, padding: '12px 16px',
+            }}>
+              <input
+                type="checkbox"
+                checked={badgeVisible}
+                onChange={e => setBadgeVisible(e.target.checked)}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>Show Donator badge</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  {badgeVisible
+                    ? 'Your badge is visible on posts and your profile'
+                    : 'Your badge is hidden — only you can see this setting'}
+                </div>
+              </div>
+              <span style={{
+                marginLeft: 'auto', fontSize: 11, fontWeight: 600, padding: '2px 6px',
+                borderRadius: 4, background: '#7B2FBE22', color: '#7B2FBE',
+                border: '1px solid #7B2FBE44',
+              }}>Donator</span>
+            </label>
+          </div>
+
+          {donatorMsg && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 7, marginBottom: 14, fontSize: 13,
+              background: donatorMsg.startsWith('Error') ? 'rgba(224,82,82,0.1)' : 'rgba(76,175,125,0.1)',
+              border: `1px solid ${donatorMsg.startsWith('Error') ? 'var(--danger)' : 'var(--success)'}`,
+              color: donatorMsg.startsWith('Error') ? 'var(--danger)' : 'var(--success)',
+            }}>
+              {donatorMsg}
+            </div>
+          )}
+
+          <button onClick={handleDonatorSave} disabled={donatorSaving} className="btn btn-primary">
+            {donatorSaving ? 'Saving…' : 'Save settings'}
+          </button>
         </div>
       )}
 

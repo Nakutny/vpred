@@ -212,18 +212,26 @@ export const admin = {
 
   // Test mail
   testMail: (to) => request('/api/admin/test-mail', { method: 'POST', body: JSON.stringify({ to }) }),
-};
 
-// ─── PUBLIC MAINTENANCE CHECK ─────────────────────────────────────────────────
-export const maintenance = {
-  check: () => request('/api/maintenance'),
+  // Admin color
+  setAdminColor: (color) => request('/api/admin/set-color', { method: 'POST', body: JSON.stringify({ color }) }),
+
+  // HTTP log
+  clearHttpLog: () => request('/api/admin/http-log', { method: 'DELETE' }),
+
+  // Donations
+  donations: () => request('/api/admin/donations'),
 };
 
 // ─── DONATE ───────────────────────────────────────────────────────────────────
 export const donate = {
   currencies: () => request('/api/donate/currencies'),
-  colors: () => request('/api/donate/colors'),
   createPayment: (body) => request('/api/donate/create-payment', { method: 'POST', body: JSON.stringify(body) }),
   status: (paymentId) => request(`/api/donate/status/${paymentId}`),
   setColor: (color) => request('/api/donate/set-color', { method: 'POST', body: JSON.stringify({ color }) }),
+};
+
+// ─── PUBLIC MAINTENANCE CHECK ─────────────────────────────────────────────────
+export const maintenance = {
+  check: () => request('/api/maintenance'),
 };

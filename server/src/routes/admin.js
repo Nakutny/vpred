@@ -650,6 +650,61 @@ router.get('/visitor-log', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Error.' }); }
 });
 
+// ─── CLEAR HTTP LOG (visitor_log) ─────────────────────────────────────────────
+router.delete('/http-log', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM visitor_log');
+    await auditLog(req.user.id, 'http_log_cleared', null, null, { count: result.rowCount });
+    res.json({ message: `HTTP log cleared. ${result.rowCount} entries deleted.`, deleted: result.rowCount });
+  } catch (err) {
+    console.error('Clear HTTP log error:', err);
+    res.status(500).json({ error: 'Could not clear HTTP log.' });
+  }
+});
+
+// ─── ADMIN SETTINGS: Set own username color ───────────────────────────────────
+router.post('/set-color', async (req, res) => {
+  try {
+    const { color } = req.body;
+    if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+      return res.status(400).json({ error: 'Invalid color. Must be a valid hex color like #E63946' });
+    }
+    await query('UPDATE users SET donator_color = $1 WHERE id = $2', [color, req.user.id]);
+    await auditLog(req.user.id, 'admin_color_changed', 'user', req.user.id, { color });
+    res.json({ ok: true, donator_color: color });
+  } catch (err) {
+    console.error('Admin set-color error:', err);
+    res.status(500).json({ error: 'Could not update color.' });
+  }
+});
+
+// ─── DONATIONS OVERVIEW ───────────────────────────────────────────────────────
+router.get('/donations', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT d.*, u.username
+      FROM donations d
+      LEFT JOIN users u ON d.user_id = u.id
+      ORDER BY d.created_at DESC
+      LIMIT 200
+    `);
+    const stats = await query(`
+      SELECT
+        COUNT(*) as total_count,
+        COUNT(*) FILTER (WHERE payment_status IN ('finished','confirmed')) as confirmed_count,
+        COALESCE(SUM(price_amount) FILTER (WHERE payment_status IN ('finished','confirmed')), 0) as total_eur
+      FROM donations
+    `);
+    res.json({
+      donations: result.rows,
+      stats: stats.rows[0],
+    });
+  } catch (err) {
+    console.error('Donations overview error:', err);
+    res.status(500).json({ error: 'Could not load donations.' });
+  }
+});
+
 export { runCleanup };
 export default router;
 

@@ -20,6 +20,7 @@ import userRoutes from './routes/users.js';
 import donateRoutes from './routes/donate.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
+import { authLimiter, apiLimiter, donateLimiter } from './middleware/rateLimiter.js';
 import { query } from './db/client.js';
 
 dotenv.config();
@@ -48,7 +49,7 @@ app.use(express.json({ limit: '2mb' }));
 visitorLogMiddleware(app);
 
 // Health check — always responds, even in maintenance
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch30', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch32', timestamp: new Date().toISOString() }));
 
 // Maintenance mode check — intercepts all API calls for non-admins
 app.use('/api', checkMaintenance);
@@ -63,6 +64,19 @@ app.get('/api/maintenance', async (req, res) => {
     res.json({ maintenance: false });
   }
 });
+
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+// General API limit (light protection)
+app.use('/api', apiLimiter);
+
+// Strict limit on auth endpoints (brute-force protection)
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+
+// Donate payment creation limit
+app.use('/api/donate/create-payment', donateLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
@@ -98,7 +112,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch31]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch32]`);
   scheduledCleanup();
   setInterval(scheduledCleanup, 30 * 60 * 1000);
 });

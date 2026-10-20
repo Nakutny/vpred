@@ -2,17 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { donate } from '../lib/api';
 
-const DONATOR_COLORS = [
-  { id: 'crimson',  label: 'Crimson',  hex: '#E63946' },
-  { id: 'violet',   label: 'Violet',   hex: '#7B2FBE' },
-  { id: 'cobalt',   label: 'Cobalt',   hex: '#1D6FA4' },
-  { id: 'emerald',  label: 'Emerald',  hex: '#2D9E6B' },
-  { id: 'amber',    label: 'Amber',    hex: '#E07B00' },
-  { id: 'rose',     label: 'Rose',     hex: '#D63384' },
-  { id: 'teal',     label: 'Teal',     hex: '#0F9A9A' },
-  { id: 'gold',     label: 'Gold',     hex: '#C9A227' },
-];
-
 const POPULAR_CRYPTOS = [
   'BTC', 'ETH', 'USDT', 'USDC', 'LTC', 'XMR', 'BNB', 'SOL', 'DOGE', 'TRX'
 ];
@@ -21,7 +10,6 @@ export default function DonatePage() {
   const { user } = useAuth();
   const [amount, setAmount] = useState('10');
   const [currency, setCurrency] = useState('BTC');
-  const [chosenColor, setChosenColor] = useState(DONATOR_COLORS[0].id);
   const [currencies, setCurrencies] = useState(POPULAR_CRYPTOS);
   const [step, setStep] = useState('form'); // form | payment | success
   const [paymentData, setPaymentData] = useState(null);
@@ -30,17 +18,14 @@ export default function DonatePage() {
   const [pollInterval, setPollInterval] = useState(null);
 
   useEffect(() => {
-    // Load full currency list
     donate.currencies().then(data => {
       if (data?.currencies?.length) {
-        const upper = data.currencies.map(c => c.toUpperCase ? c.toUpperCase() : c);
-        setCurrencies(upper);
+        setCurrencies(data.currencies.map(c => c.toUpperCase ? c.toUpperCase() : c));
       }
     }).catch(() => {});
     return () => { if (pollInterval) clearInterval(pollInterval); };
   }, []);
 
-  // Poll payment status
   useEffect(() => {
     if (step !== 'payment' || !paymentData?.payment_id) return;
     const id = setInterval(async () => {
@@ -73,7 +58,6 @@ export default function DonatePage() {
       const data = await donate.createPayment({
         amount_eur: eur,
         pay_currency: currency,
-        chosen_color: chosenColor,
       });
       setPaymentData(data);
       setStep('payment');
@@ -95,19 +79,21 @@ export default function DonatePage() {
 
   // ─── SUCCESS ───────────────────────────────────────────────────────────────
   if (step === 'success') {
-    const colorHex = DONATOR_COLORS.find(c => c.id === chosenColor)?.hex;
     return (
       <div style={{ padding: '48px 16px' }}>
         <div style={{ ...cardStyle, textAlign: 'center' }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>💎</div>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 12 }}>
             Thank you!
           </h1>
           <p style={{ color: 'var(--muted)', marginBottom: 24, lineHeight: 1.6 }}>
-            Your donation has been confirmed. You now have the <strong>Donator</strong> badge
-            {colorHex && <> and your username will appear in <span style={{ color: colorHex, fontWeight: 700 }}>this color</span></>}.
+            Your donation has been confirmed. You now have the <strong>Donator</strong> badge.
+            Head to your profile to choose your username color and manage your badge.
           </p>
-          <a href="/" className="btn btn-primary" style={{ display: 'inline-block' }}>Back to Home</a>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <a href="/profile" className="btn btn-primary" style={{ display: 'inline-block' }}>Go to Profile</a>
+            <a href="/" className="btn btn-ghost" style={{ display: 'inline-block' }}>Back to Home</a>
+          </div>
         </div>
       </div>
     );
@@ -125,7 +111,6 @@ export default function DonatePage() {
             Send exactly the amount below to the address. The page updates automatically.
           </p>
 
-          {/* Amount */}
           <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Amount to send</div>
             <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.02em' }}>
@@ -133,7 +118,6 @@ export default function DonatePage() {
             </div>
           </div>
 
-          {/* Address */}
           <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '16px 20px', marginBottom: 24 }}>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 6 }}>Send to address</div>
             <div style={{
@@ -153,7 +137,6 @@ export default function DonatePage() {
             </button>
           </div>
 
-          {/* Invoice link if available */}
           {paymentData.invoice_url && (
             <a href={paymentData.invoice_url} target="_blank" rel="noopener noreferrer"
               className="btn btn-primary"
@@ -162,7 +145,6 @@ export default function DonatePage() {
             </a>
           )}
 
-          {/* Status indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--muted)', fontSize: 13 }}>
             <span style={{
               display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
@@ -170,7 +152,6 @@ export default function DonatePage() {
             }} />
             Waiting for payment confirmation…
           </div>
-
           <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
         </div>
       </div>
@@ -181,9 +162,8 @@ export default function DonatePage() {
   return (
     <div style={{ padding: '48px 16px' }}>
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
-        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>💜</div>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🤝</div>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '2rem', fontWeight: 400, marginBottom: 10 }}>
             Support Vpred
           </h1>
@@ -202,12 +182,12 @@ export default function DonatePage() {
           </div>
           <ul style={{ margin: 0, padding: '0 0 0 18px', color: 'var(--muted)', fontSize: 14, lineHeight: 2 }}>
             <li><strong style={{ color: 'var(--text)' }}>Donator badge</strong> — visible on your profile and posts</li>
-            <li><strong style={{ color: 'var(--text)' }}>Custom username color</strong> — choose from 8 vibrant colors</li>
+            <li><strong style={{ color: 'var(--text)' }}>Custom username color</strong> — choose any color freely in your profile</li>
+            <li><strong style={{ color: 'var(--text)' }}>Toggle your badge</strong> — show or hide it anytime from your profile</li>
             <li>Permanent — no expiry</li>
           </ul>
         </div>
 
-        {/* Form */}
         <div style={cardStyle}>
           <form onSubmit={handleSubmit}>
             {/* Amount */}
@@ -242,7 +222,7 @@ export default function DonatePage() {
             </div>
 
             {/* Currency */}
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
                 Pay with
               </label>
@@ -256,55 +236,6 @@ export default function DonatePage() {
                 ))}
               </select>
             </div>
-
-            {/* Color picker */}
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-                Choose your username color
-              </label>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {DONATOR_COLORS.map(c => (
-                  <button key={c.id} type="button" title={c.label}
-                    onClick={() => setChosenColor(c.id)}
-                    style={{
-                      width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                      background: c.hex,
-                      outline: chosenColor === c.id ? `3px solid ${c.hex}` : 'none',
-                      outlineOffset: 2,
-                      boxShadow: chosenColor === c.id ? `0 0 0 2px var(--surface), 0 0 0 4px ${c.hex}` : 'none',
-                      transform: chosenColor === c.id ? 'scale(1.15)' : 'scale(1)',
-                      transition: 'transform 0.15s, box-shadow 0.15s',
-                    }}
-                  />
-                ))}
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-                Your username will appear in{' '}
-                <strong style={{ color: DONATOR_COLORS.find(c => c.id === chosenColor)?.hex }}>
-                  {DONATOR_COLORS.find(c => c.id === chosenColor)?.label}
-                </strong>
-                {' '}everywhere on the platform.
-              </p>
-            </div>
-
-            {/* Preview */}
-            {user && (
-              <div style={{
-                background: 'var(--bg)', borderRadius: 8, padding: '10px 14px',
-                fontSize: 14, marginBottom: 20,
-                border: '1px solid var(--border)',
-              }}>
-                Preview:{' '}
-                <strong style={{ color: DONATOR_COLORS.find(c => c.id === chosenColor)?.hex }}>
-                  {user.username}
-                </strong>
-                {' '}<span style={{
-                  fontSize: 11, fontWeight: 600, padding: '2px 6px',
-                  borderRadius: 4, background: '#7B2FBE22', color: '#7B2FBE',
-                  border: '1px solid #7B2FBE44',
-                }}>Donator</span>
-              </div>
-            )}
 
             {error && (
               <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 14 }}>{error}</p>

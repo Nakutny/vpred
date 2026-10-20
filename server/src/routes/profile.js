@@ -82,4 +82,34 @@ router.get('/:username', async (req, res) => {
   }
 });
 
+// ─── PATCH /api/profile — general profile update (donator settings etc.) ─────
+router.patch('/', requireAuth, async (req, res) => {
+  try {
+    const { donator_badge_visible } = req.body;
+    const updates = [];
+    const vals = [];
+    let idx = 1;
+
+    if (typeof donator_badge_visible === 'boolean') {
+      updates.push(`donator_badge_visible = $${idx++}`);
+      vals.push(donator_badge_visible);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update.' });
+    }
+
+    vals.push(req.user.id);
+    await query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}`,
+      vals
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ error: 'Failed to update profile.' });
+  }
+});
+
 export default router;

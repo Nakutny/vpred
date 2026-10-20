@@ -11,25 +11,7 @@ const NOWPAYMENTS_API = 'https://api.nowpayments.io/v1';
 
 const MIN_EUR = 5.0;
 
-// Donator badge colors (vibrant)
-export const DONATOR_COLORS = [
-  { id: 'crimson',  label: 'Crimson',    hex: '#E63946' },
-  { id: 'violet',   label: 'Violet',     hex: '#7B2FBE' },
-  { id: 'cobalt',   label: 'Cobalt',     hex: '#1D6FA4' },
-  { id: 'emerald',  label: 'Emerald',    hex: '#2D9E6B' },
-  { id: 'amber',    label: 'Amber',      hex: '#E07B00' },
-  { id: 'rose',     label: 'Rose',       hex: '#D63384' },
-  { id: 'teal',     label: 'Teal',       hex: '#0F9A9A' },
-  { id: 'gold',     label: 'Gold',       hex: '#C9A227' },
-];
-
-// ─── GET /api/donate/colors ───────────────────────────────────────────────────
-router.get('/colors', (req, res) => {
-  res.json({ colors: DONATOR_COLORS });
-});
-
 // ─── GET /api/donate/currencies ──────────────────────────────────────────────
-// Proxy NowPayments currency list
 router.get('/currencies', async (req, res) => {
   try {
     const r = await fetch(`${NOWPAYMENTS_API}/currencies`, {
@@ -45,19 +27,13 @@ router.get('/currencies', async (req, res) => {
 // ─── POST /api/donate/create-payment ─────────────────────────────────────────
 router.post('/create-payment', optionalAuth, async (req, res) => {
   try {
-    const { amount_eur, pay_currency, chosen_color } = req.body;
+    const { amount_eur, pay_currency } = req.body;
     const userId = req.user?.id || null;
 
     // Validate amount
     const eur = parseFloat(amount_eur);
     if (isNaN(eur) || eur < MIN_EUR) {
       return res.status(400).json({ error: `Minimum donation is €${MIN_EUR}` });
-    }
-
-    // Validate color
-    const colorValid = !chosen_color || DONATOR_COLORS.some(c => c.id === chosen_color);
-    if (!colorValid) {
-      return res.status(400).json({ error: 'Invalid color selection' });
     }
 
     // Validate currency
@@ -93,9 +69,9 @@ router.post('/create-payment', optionalAuth, async (req, res) => {
 
     // Store in donations table
     await pool(
-      `INSERT INTO donations (user_id, payment_id, payment_status, pay_currency, price_amount, price_currency, order_description, chosen_color)
-       VALUES ($1, $2, $3, $4, $5, 'EUR', $6, $7)`,
-      [userId, npData.payment_id, npData.payment_status, pay_currency, eur, orderDesc, chosen_color || null]
+      `INSERT INTO donations (user_id, payment_id, payment_status, pay_currency, price_amount, price_currency, order_description)
+       VALUES ($1, $2, $3, $4, $5, 'EUR', $6)`,
+      [userId, npData.payment_id, npData.payment_status, pay_currency, eur, orderDesc]
     );
 
     res.json({
@@ -117,7 +93,6 @@ router.get('/status/:paymentId', optionalAuth, async (req, res) => {
   try {
     const { paymentId } = req.params;
 
-    // Check our DB first
     const { rows } = await pool(
       'SELECT * FROM donations WHERE payment_id = $1',
       [paymentId]
@@ -140,7 +115,6 @@ router.get('/status/:paymentId', optionalAuth, async (req, res) => {
       status: npData.payment_status || donation.payment_status,
       pay_currency: donation.pay_currency,
       price_amount: donation.price_amount,
-      chosen_color: donation.chosen_color,
       created_at: donation.created_at,
     });
   } catch (err) {
@@ -150,17 +124,14 @@ router.get('/status/:paymentId', optionalAuth, async (req, res) => {
 });
 
 // ─── POST /api/donate/webhook (IPN) ──────────────────────────────────────────
-// NowPayments calls this when payment status changes
 router.post('/webhook', express.json(), async (req, res) => {
   try {
-    // Verify IPN signature
     const sig = req.headers['x-nowpayments-sig'];
     if (!sig) {
       console.warn('IPN: missing signature');
       return res.status(400).json({ error: 'Missing signature' });
     }
 
-    // NowPayments signs: HMAC-SHA512 of sorted JSON body
     const body = req.body;
     const sortedBody = JSON.stringify(sortObject(body));
     const hmac = crypto
@@ -173,20 +144,12 @@ router.post('/webhook', express.json(), async (req, res) => {
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    const {
-      payment_id,
-      payment_status,
-      pay_currency,
-      pay_amount,
-      actually_paid,
-      price_amount,
-    } = body;
+    const { payment_id, payment_status, pay_amount, actually_paid } = body;
 
     if (!payment_id) {
       return res.status(400).json({ error: 'Missing payment_id' });
     }
 
-    // Update donation record
     const { rows } = await pool(
       `UPDATE donations
        SET payment_status = $1,
@@ -206,20 +169,16 @@ router.post('/webhook', express.json(), async (req, res) => {
 
     const donation = rows[0];
 
-    // If payment finished/confirmed AND user is known → grant donator badge
+    // If finished/confirmed AND user is known → grant donator badge
     if (['finished', 'confirmed'].includes(payment_status) && donation.user_id) {
-      const colorHex = DONATOR_COLORS.find(c => c.id === donation.chosen_color)?.hex || null;
-
       await pool(
         `UPDATE users
          SET is_donator = TRUE,
-             donator_color = $1,
              donated_at = NOW()
-         WHERE id = $2`,
-        [colorHex, donation.user_id]
+         WHERE id = $1`,
+        [donation.user_id]
       );
-
-      console.log(`IPN: Donator badge granted to user ${donation.user_id} (color: ${donation.chosen_color})`);
+      console.log(`IPN: Donator badge granted to user ${donation.user_id}`);
     }
 
     res.json({ received: true });
@@ -230,13 +189,14 @@ router.post('/webhook', express.json(), async (req, res) => {
 });
 
 // ─── POST /api/donate/set-color ───────────────────────────────────────────────
-// Allows an existing donator to change their color
+// Allows donators to set any hex color for their username
 router.post('/set-color', requireAuth, async (req, res) => {
   try {
     const { color } = req.body;
-    const colorObj = DONATOR_COLORS.find(c => c.id === color);
-    if (!colorObj) {
-      return res.status(400).json({ error: 'Invalid color' });
+
+    // Accept any valid 6-digit hex color
+    if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+      return res.status(400).json({ error: 'Invalid color. Must be a valid hex color like #7B2FBE' });
     }
 
     // Only donators can change color
@@ -247,10 +207,10 @@ router.post('/set-color', requireAuth, async (req, res) => {
 
     await pool(
       'UPDATE users SET donator_color = $1 WHERE id = $2',
-      [colorObj.hex, req.user.id]
+      [color, req.user.id]
     );
 
-    res.json({ ok: true, donator_color: colorObj.hex });
+    res.json({ ok: true, donator_color: color });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

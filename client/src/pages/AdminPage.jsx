@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { admin, categories } from '../lib/api';
+import { useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -246,6 +247,14 @@ export default function AdminPage() {
   const [maintenanceData, setMaintenanceData] = useState(null);
   const [maintenanceModal, setMaintenanceModal] = useState(false);
 
+  // Settings (admin color)
+  const [adminColor, setAdminColor] = useState(user?.donator_color || '#E63946');
+  const [colorSaving, setColorSaving] = useState(false);
+
+  // Donations
+  const [donations, setDonations] = useState([]);
+  const [donationStats, setDonationStats] = useState(null);
+
   // HTTP Requests (from db-status)
   const [httpRequests, setHttpRequests] = useState([]);
   const [topIps, setTopIps] = useState([]);
@@ -316,6 +325,7 @@ export default function AdminPage() {
     if (tab === 'db') loadDbStatus();
     if (tab === 'anomalies') loadAnomalies();
     if (tab === 'maintenance') loadMaintenanceStatus();
+    if (tab === 'donations') loadDonations();
   }, [tab]);
 
   // ── Users ───────────────────────────────────────────────────────────────────
@@ -418,15 +428,47 @@ export default function AdminPage() {
     } catch (e) { flash(e.message, 'error'); }
   }
 
+  // ── HTTP Log ────────────────────────────────────────────────────────────────
+  async function handleClearHttpLog() {
+    if (!confirm('Clear all HTTP request log entries? This cannot be undone.')) return;
+    try {
+      const d = await admin.clearHttpLog();
+      setHttpRequests([]);
+      setTopIps([]);
+      flash(d.message);
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
+  // ── Admin Color ─────────────────────────────────────────────────────────────
+  async function handleSaveAdminColor() {
+    setColorSaving(true);
+    try {
+      await admin.setAdminColor(adminColor);
+      flash('Username color updated! Reload to see the change everywhere.');
+    } catch (e) { flash(e.message, 'error'); }
+    setColorSaving(false);
+  }
+
+  // ── Donations ───────────────────────────────────────────────────────────────
+  async function loadDonations() {
+    try {
+      const d = await admin.donations();
+      setDonations(d.donations || []);
+      setDonationStats(d.stats || null);
+    } catch (e) { flash(e.message, 'error'); }
+  }
+
   // ── Tabs ─────────────────────────────────────────────────────────────────────
   const tabs = [
     { id: 'users', label: 'Users' },
     { id: 'posts', label: 'Posts' },
     { id: 'categories', label: 'Categories' },
+    { id: 'donations', label: 'Donations' },
     { id: 'db', label: 'DB Status' },
     { id: 'http', label: 'HTTP Log' },
     { id: 'anomalies', label: 'Anomalies' },
     { id: 'maintenance', label: 'Maintenance' },
+    { id: 'settings', label: '⚙️ Settings' },
   ];
 
   const maintenanceOn = maintenanceData?.enabled;
@@ -699,6 +741,9 @@ export default function AdminPage() {
             <button className="btn btn-primary" onClick={loadDbStatus} disabled={dbLoading}>
               {dbLoading ? 'Loading…' : '↺ Refresh'}
             </button>
+            <button className="btn btn-ghost" onClick={handleClearHttpLog} style={{ color: 'var(--danger)' }}>
+              🗑 Clear HTTP Log
+            </button>
           </div>
           {!dbStatus ? (
             <div style={{ color: 'var(--muted)', fontSize: 14 }}>Click "Refresh" to load HTTP request data.</div>
@@ -850,6 +895,130 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── DONATIONS TAB ─────────────────────────────────────────────────── */}
+      {tab === 'donations' && (
+        <div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <button className="btn btn-primary" onClick={loadDonations}>↺ Refresh</button>
+          </div>
+
+          {/* Stats */}
+          {donationStats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+              {[
+                { label: 'Total Donations', value: donationStats.total_count },
+                { label: 'Confirmed', value: donationStats.confirmed_count },
+                { label: 'Total EUR', value: `€${parseFloat(donationStats.total_eur || 0).toFixed(2)}` },
+              ].map(s => (
+                <div key={s.label} className="card" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {donations.length === 0 ? (
+            <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>No donations yet.</div>
+          ) : (
+            <div className="card" style={{ overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Date', 'User', 'Amount (EUR)', 'Currency', 'Status', 'Payment ID'].map(h => (
+                      <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {donations.map(d => (
+                    <tr key={d.id} style={{ borderBottom: '1px solid var(--border)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDatetime(d.created_at)}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 13 }}>{d.username || <span style={{ color: 'var(--muted)' }}>Anonymous</span>}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600 }}>€{parseFloat(d.price_amount || 0).toFixed(2)}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>{d.pay_currency?.toUpperCase() || '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12 }}>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                          background: ['finished','confirmed'].includes(d.payment_status) ? 'rgba(76,175,125,0.15)' : 'rgba(100,100,100,0.15)',
+                          color: ['finished','confirmed'].includes(d.payment_status) ? 'var(--success)' : 'var(--muted)',
+                        }}>
+                          {d.payment_status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, fontFamily: 'monospace', color: 'var(--muted)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.payment_id}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SETTINGS TAB ──────────────────────────────────────────────────── */}
+      {tab === 'settings' && (
+        <div style={{ maxWidth: 480 }}>
+          <div className="card" style={{ padding: '28px 32px' }}>
+            <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 6 }}>
+              Username Color
+            </h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+              Your username will appear in this color everywhere on the platform.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+              <input
+                type="color"
+                value={adminColor}
+                onChange={e => setAdminColor(e.target.value)}
+                style={{
+                  width: 52, height: 52, border: '2px solid var(--border)',
+                  borderRadius: 10, cursor: 'pointer', padding: 3,
+                  background: 'var(--surface)',
+                }}
+              />
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: adminColor }}>
+                  {user?.username}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, fontFamily: 'monospace' }}>
+                  {adminColor}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+              {['#E63946','#7B2FBE','#1D6FA4','#2D9E6B','#E07B00','#D63384','#0F9A9A','#C9A227','#FF6B6B','#4ECDC4'].map(c => (
+                <button key={c} type="button"
+                  onClick={() => setAdminColor(c)}
+                  title={c}
+                  style={{
+                    width: 28, height: 28, borderRadius: 6, background: c, border: adminColor === c ? '3px solid var(--text)' : '2px solid transparent',
+                    cursor: 'pointer', transition: 'transform 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.15)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                />
+              ))}
+            </div>
+
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveAdminColor}
+              disabled={colorSaving}
+              style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
+            >
+              {colorSaving ? 'Saving…' : 'Save Color'}
+            </button>
           </div>
         </div>
       )}
