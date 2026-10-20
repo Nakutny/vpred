@@ -64,7 +64,7 @@ export async function requireAuth(req, res, next) {
     const token = authHeader.slice(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const result = await query(
-      'SELECT id, username, email, role, avatar_url, is_banned, ban_expires_at FROM users WHERE id = $1',
+      'SELECT id, username, email, role, avatar_url, is_banned, ban_expires_at, is_donator, donator_color FROM users WHERE id = $1',
       [decoded.userId]
     );
     if (!result.rows[0]) return res.status(401).json({ error: 'User not found.' });

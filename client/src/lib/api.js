@@ -218,3 +218,12 @@ export const admin = {
 export const maintenance = {
   check: () => request('/api/maintenance'),
 };
+
+// ─── DONATE ───────────────────────────────────────────────────────────────────
+export const donate = {
+  currencies: () => request('/api/donate/currencies'),
+  colors: () => request('/api/donate/colors'),
+  createPayment: (body) => request('/api/donate/create-payment', { method: 'POST', body: JSON.stringify(body) }),
+  status: (paymentId) => request(`/api/donate/status/${paymentId}`),
+  setColor: (color) => request('/api/donate/set-color', { method: 'POST', body: JSON.stringify({ color }) }),
+};

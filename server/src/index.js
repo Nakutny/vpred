@@ -17,6 +17,7 @@ import blockRoutes from './routes/blocks.js';
 import reportRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
 import userRoutes from './routes/users.js';
+import donateRoutes from './routes/donate.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
 import { query } from './db/client.js';
@@ -78,6 +79,7 @@ app.use('/api/blocks', blockRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/donate', donateRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 
@@ -96,7 +98,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch30]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch31]`);
   scheduledCleanup();
   setInterval(scheduledCleanup, 30 * 60 * 1000);
 });
