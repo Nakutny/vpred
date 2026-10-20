@@ -49,7 +49,7 @@ app.use(express.json({ limit: '2mb' }));
 visitorLogMiddleware(app);
 
 // Health check — always responds, even in maintenance
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch32', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch33', timestamp: new Date().toISOString() }));
 
 // Maintenance mode check — intercepts all API calls for non-admins
 app.use('/api', checkMaintenance);
@@ -112,7 +112,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch32]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch33]`);
   scheduledCleanup();
   setInterval(scheduledCleanup, 30 * 60 * 1000);
 });

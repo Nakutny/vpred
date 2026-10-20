@@ -32,7 +32,7 @@ export async function checkMaintenance(req, res, next) {
           const token = authHeader.slice(7);
           const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
           const userRes = await query('SELECT role FROM users WHERE id = $1', [decoded.userId]);
-          if (userRes.rows[0]?.role === 'admin') {
+          if (['admin', 'moderator'].includes(userRes.rows[0]?.role)) {
             return next(); // Admin passes through
           }
         }
