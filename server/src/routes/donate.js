@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import { pool } from '../db.js';
+import { query as pool } from '../db/client.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -92,7 +92,7 @@ router.post('/create-payment', optionalAuth, async (req, res) => {
     }
 
     // Store in donations table
-    await pool.query(
+    await pool(
       `INSERT INTO donations (user_id, payment_id, payment_status, pay_currency, price_amount, price_currency, order_description, chosen_color)
        VALUES ($1, $2, $3, $4, $5, 'EUR', $6, $7)`,
       [userId, npData.payment_id, npData.payment_status, pay_currency, eur, orderDesc, chosen_color || null]
@@ -118,7 +118,7 @@ router.get('/status/:paymentId', optionalAuth, async (req, res) => {
     const { paymentId } = req.params;
 
     // Check our DB first
-    const { rows } = await pool.query(
+    const { rows } = await pool(
       'SELECT * FROM donations WHERE payment_id = $1',
       [paymentId]
     );
@@ -187,7 +187,7 @@ router.post('/webhook', express.json(), async (req, res) => {
     }
 
     // Update donation record
-    const { rows } = await pool.query(
+    const { rows } = await pool(
       `UPDATE donations
        SET payment_status = $1,
            pay_amount = $2,
@@ -210,7 +210,7 @@ router.post('/webhook', express.json(), async (req, res) => {
     if (['finished', 'confirmed'].includes(payment_status) && donation.user_id) {
       const colorHex = DONATOR_COLORS.find(c => c.id === donation.chosen_color)?.hex || null;
 
-      await pool.query(
+      await pool(
         `UPDATE users
          SET is_donator = TRUE,
              donator_color = $1,
@@ -240,12 +240,12 @@ router.post('/set-color', requireAuth, async (req, res) => {
     }
 
     // Only donators can change color
-    const { rows } = await pool.query('SELECT is_donator FROM users WHERE id = $1', [req.user.id]);
+    const { rows } = await pool('SELECT is_donator FROM users WHERE id = $1', [req.user.id]);
     if (!rows[0]?.is_donator) {
       return res.status(403).json({ error: 'You are not a donator' });
     }
 
-    await pool.query(
+    await pool(
       'UPDATE users SET donator_color = $1 WHERE id = $2',
       [colorObj.hex, req.user.id]
     );
