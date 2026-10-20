@@ -3,7 +3,7 @@ import { useState } from 'react';
 const API_BASE = import.meta.env.VITE_API_URL || 'https://vpred-oxfv.onrender.com';
 
 export default function MaintenancePage({ message, onLogin }) {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export default function MaintenancePage({ message, onLogin }) {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
 
@@ -105,10 +105,10 @@ export default function MaintenancePage({ message, onLogin }) {
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
           <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
             required
             autoFocus
             style={{
