@@ -119,6 +119,12 @@ export const donate = {
   create: (body) => request('/api/donate', { method: 'POST', body: JSON.stringify(body) }),
 };
 
+// Mod
+export const mod = {
+  reports: () => request('/api/mod/reports'),
+  resolveReport: (id, body) => request(`/api/mod/reports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+};
+
 // Nav Counts
 export const navCounts = {
   get: () => request('/api/nav-counts'),
