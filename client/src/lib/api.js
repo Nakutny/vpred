@@ -151,6 +151,12 @@ export const donate = {
   list: () => request('/api/donate'),
 };
 
+// Legal
+export const legal = {
+  get: () => request('/api/legal'),
+  update: (body) => request('/api/legal', { method: 'PUT', body: JSON.stringify(body) }),
+};
+
 // Mod
 export const mod = {
   reports: () => request('/api/mod/reports'),

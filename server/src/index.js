@@ -13,10 +13,14 @@ import friendshipRoutes from './routes/friendships.js';
 import messageRoutes from './routes/messages.js';
 import notificationRoutes from './routes/notifications.js';
 import usersRoutes from './routes/users.js';
-import essaysRoutes from './routes/essays.js';
 import donateRoutes from './routes/donate.js';
 import navCountsRoutes from './routes/navCounts.js';
 import musicRoutes from './routes/music.js';
+import blocksRoutes from './routes/blocks.js';
+import legalRoutes from './routes/legal.js';
+import moderatorRoutes from './routes/moderator.js';
+import reportsRoutes from './routes/reports.js';
+import sitemapRoutes from './routes/sitemap.js';
 
 dotenv.config();
 
@@ -44,10 +48,14 @@ app.use('/api/friendships',   apiLimiter,  friendshipRoutes);
 app.use('/api/messages',      apiLimiter,  messageRoutes);
 app.use('/api/notifications', apiLimiter,  notificationRoutes);
 app.use('/api/users',         apiLimiter,  usersRoutes);
-app.use('/api/essays',        apiLimiter,  essaysRoutes);
 app.use('/api/donate',        apiLimiter,  donateRoutes);
 app.use('/api/nav-counts',    apiLimiter,  navCountsRoutes);
 app.use('/api/music',         apiLimiter,  musicRoutes);
+app.use('/api/blocks',        apiLimiter,  blocksRoutes);
+app.use('/api/legal',         apiLimiter,  legalRoutes);
+app.use('/api/mod',           apiLimiter,  moderatorRoutes);
+app.use('/api/reports',       apiLimiter,  reportsRoutes);
+app.use('/api/sitemap',       apiLimiter,  sitemapRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((err, req, res, next) => {
