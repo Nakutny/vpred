@@ -1,23 +1,20 @@
-import express from 'express';
+import { Router } from 'express';
 import { query } from '../db/client.js';
 import { optionalAuth } from '../middleware/auth.js';
 
-const router = express.Router();
+const router = Router();
 
-// GET /api/nav-counts
-// Returns counts for all nav items in one parallel batch.
-// friends is only included when the caller is authenticated.
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const userId = req.user?.id || null;
 
-    // All public counts run in parallel
-    const [feedRes, essaysRes, textsRes, categoriesRes, usersRes] = await Promise.all([
+    const [feedRes, essaysRes, textsRes, categoriesRes, usersRes, musicRes] = await Promise.all([
       query(`SELECT COUNT(*)::int AS c FROM posts WHERE type = 'research' AND status = 'published' AND deleted_at IS NULL`),
       query(`SELECT COUNT(*)::int AS c FROM posts WHERE type = 'essay'    AND status = 'published' AND deleted_at IS NULL`),
       query(`SELECT COUNT(*)::int AS c FROM posts WHERE type = 'text'     AND status = 'published' AND deleted_at IS NULL`),
       query(`SELECT COUNT(*)::int AS c FROM categories`),
       query(`SELECT COUNT(*)::int AS c FROM users WHERE is_banned = false OR ban_expires_at < NOW()`),
+      query(`SELECT COUNT(*)::int AS c FROM music_tracks WHERE deleted_at IS NULL`),
     ]);
 
     const counts = {
@@ -26,6 +23,7 @@ router.get('/', optionalAuth, async (req, res) => {
       texts:      textsRes.rows[0].c,
       categories: categoriesRes.rows[0].c,
       users:      usersRes.rows[0].c,
+      music:      musicRes.rows[0].c,
       friends:    null,
     };
 
@@ -38,12 +36,11 @@ router.get('/', optionalAuth, async (req, res) => {
       counts.friends = friendsRes.rows[0].c;
     }
 
-    // Short cache — counts change frequently but a few seconds stale is fine
     res.set('Cache-Control', 'private, max-age=15');
     res.json(counts);
   } catch (err) {
-    console.error('[nav-counts]', err.message);
-    res.status(500).json({ error: 'Failed to load nav counts.' });
+    console.error('navCounts GET /', err);
+    res.status(500).json({ error: 'Failed to load counts.' });
   }
 });
 
