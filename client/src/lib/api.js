@@ -12,11 +12,11 @@ async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   const data = await res.json().catch(() => ({}));
 
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { code: data.code, status: res.status });
   return data;
 }
 
-// Auth
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
 export const auth = {
   register: (body) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
@@ -26,7 +26,7 @@ export const auth = {
   verifyEmail: (token) => request(`/api/auth/verify-email?token=${token}`),
 };
 
-// Posts
+// ─── POSTS ────────────────────────────────────────────────────────────────────
 export const posts = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -39,80 +39,73 @@ export const posts = {
   vote: (id) => request(`/api/posts/${id}/vote`, { method: 'POST' }),
 };
 
-// Comments
+// ─── COMMENTS ────────────────────────────────────────────────────────────────
 export const comments = {
   list: (postId) => request(`/api/comments?post_id=${postId}`),
   create: (body) => request('/api/comments', { method: 'POST', body: JSON.stringify(body) }),
   delete: (id) => request(`/api/comments/${id}`, { method: 'DELETE' }),
-  vote: (id) => request(`/api/comments/${id}/vote`, { method: 'POST' }),
 };
 
-// Categories
+// ─── CATEGORIES ───────────────────────────────────────────────────────────────
 export const categories = {
   list: () => request('/api/categories'),
   create: (body) => request('/api/categories', { method: 'POST', body: JSON.stringify(body) }),
   delete: (id) => request(`/api/categories/${id}`, { method: 'DELETE' }),
 };
 
-// Admin
-export const admin = {
-  users: () => request('/api/admin/users'),
-  banUser: (id, body) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify(body) }),
-  unbanUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned: false }) }),
-  setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-  posts: () => request('/api/admin/posts'),
-  setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-  maintenance: () => request('/api/admin/maintenance'),
-  setMaintenance: (body) => request('/api/admin/maintenance', { method: 'POST', body: JSON.stringify(body) }),
-  // Music admin
-  deletedMusic: () => request('/api/music/admin/deleted'),
-  purgeDeletedMusic: () => request('/api/music/admin/deleted', { method: 'DELETE' }),
-};
-
-// Profile
+// ─── PROFILE ─────────────────────────────────────────────────────────────────
 export const profile = {
   get: (username) => request(`/api/profile/${username}`),
-  updateBio: (bio) => request('/api/profile/me/bio', { method: 'PATCH', body: JSON.stringify({ bio }) }),
-  updateAvatar: (body) => request('/api/profile/me/avatar', { method: 'PATCH', body: JSON.stringify(body) }),
-  changePassword: (body) => request('/api/profile/me/password', { method: 'PATCH', body: JSON.stringify(body) }),
-  deleteAccount: () => request('/api/profile/me', { method: 'DELETE' }),
+  update: (body) => request('/api/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+  uploadAvatar: (formData) => {
+    const token = getToken();
+    return fetch(`${BASE}/api/profile/avatar`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    }).then(r => r.json());
+  },
 };
 
-// Friendships
+// ─── FRIENDSHIPS ─────────────────────────────────────────────────────────────
 export const friendships = {
   list: () => request('/api/friendships'),
-  send: (addresseeId) => request('/api/friendships', { method: 'POST', body: JSON.stringify({ addressee_id: addresseeId }) }),
-  respond: (id, status) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  requests: () => request('/api/friendships/requests'),
+  send: (userId) => request('/api/friendships/request', { method: 'POST', body: JSON.stringify({ userId }) }),
+  accept: (id) => request(`/api/friendships/${id}/accept`, { method: 'POST' }),
+  decline: (id) => request(`/api/friendships/${id}/decline`, { method: 'POST' }),
   remove: (id) => request(`/api/friendships/${id}`, { method: 'DELETE' }),
+  status: (userId) => request(`/api/friendships/status/${userId}`),
 };
 
-// Blocks
-export const blocks = {
-  list: () => request('/api/blocks'),
-  block: (userId) => request(`/api/blocks/${userId}`, { method: 'POST' }),
-  unblock: (userId) => request(`/api/blocks/${userId}`, { method: 'DELETE' }),
-};
-
-// Messages
+// ─── MESSAGES ────────────────────────────────────────────────────────────────
 export const messages = {
-  list: (userId, params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/api/messages/${userId}${q ? '?' + q : ''}`);
-  },
-  send: (userId, body) => request(`/api/messages/${userId}`, { method: 'POST', body: JSON.stringify(body) }),
+  list: (userId) => request(`/api/messages/${userId}`),
+  send: (body) => request('/api/messages', { method: 'POST', body: JSON.stringify(body) }),
   unreadCount: () => request('/api/messages/unread-count'),
   conversations: () => request('/api/messages/conversations'),
 };
 
-// Notifications
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 export const notifications = {
   list: () => request('/api/notifications'),
-  markRead: (id) => request(`/api/notifications/${id}/read`, { method: 'PATCH' }),
-  markAllRead: () => request('/api/notifications/read-all', { method: 'PATCH' }),
-  unreadCount: () => request('/api/notifications/unread-count'),
+  readAll: () => request('/api/notifications/read-all', { method: 'POST' }),
+  delete: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
 };
 
-// Users
+// ─── BLOCKS ──────────────────────────────────────────────────────────────────
+export const blocks = {
+  list: () => request('/api/blocks'),
+  block: (userId) => request('/api/blocks', { method: 'POST', body: JSON.stringify({ userId }) }),
+  unblock: (userId) => request(`/api/blocks/${userId}`, { method: 'DELETE' }),
+};
+
+// ─── REPORTS ─────────────────────────────────────────────────────────────────
+export const reports = {
+  create: (body) => request('/api/reports', { method: 'POST', body: JSON.stringify(body) }),
+};
+
+// ─── USERS ───────────────────────────────────────────────────────────────────
 export const users = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -121,62 +114,129 @@ export const users = {
   get: (username) => request(`/api/users/${username}`),
 };
 
-// Essays
-export const essays = {
-  list: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/api/essays${q ? '?' + q : ''}`);
-  },
-  get: (slug) => request(`/api/essays/${slug}`),
-  create: (body) => request('/api/essays', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id, body) => request(`/api/essays/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  delete: (id) => request(`/api/essays/${id}`, { method: 'DELETE' }),
-};
-
-// Stories / Texts
-export const stories = {
-  list: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/api/stories${q ? '?' + q : ''}`);
-  },
-  get: (slug) => request(`/api/stories/${slug}`),
-  create: (body) => request('/api/stories', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id, body) => request(`/api/stories/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  delete: (id) => request(`/api/stories/${id}`, { method: 'DELETE' }),
-};
-
-// Donate
-export const donate = {
-  create: (body) => request('/api/donate', { method: 'POST', body: JSON.stringify(body) }),
-  list: () => request('/api/donate'),
-};
-
-// Legal
+// ─── LEGAL ───────────────────────────────────────────────────────────────────
 export const legal = {
-  get: () => request('/api/legal'),
-  update: (body) => request('/api/legal', { method: 'PUT', body: JSON.stringify(body) }),
+  get: (type) => request(`/api/legal/${type}`),
+  update: (type, body) => request(`/api/legal/${type}`, { method: 'PUT', body: JSON.stringify(body) }),
 };
 
-// Mod
+// ─── MOD ─────────────────────────────────────────────────────────────────────
 export const mod = {
-  reports: () => request('/api/mod/reports'),
-  resolveReport: (id, body) => request(`/api/mod/reports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  bannedUsers: () => request('/api/mod/banned'),
+  stats: () => request('/api/mod/stats'),
+  users: (search = '') => request(`/api/mod/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  banUser: (id, banned, ban_duration_days) => request(`/api/mod/users/${id}/ban`, {
+    method: 'PATCH',
+    body: JSON.stringify({ banned, ban_duration_days: ban_duration_days !== undefined ? Number(ban_duration_days) : undefined }),
+  }),
+  warnUser: (id, reason) => request(`/api/mod/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  posts: (search = '') => request(`/api/mod/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  setPostStatus: (id, status) => request(`/api/mod/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deletePost: (id) => request(`/api/mod/posts/${id}`, { method: 'DELETE' }),
+  comments: () => request('/api/mod/comments'),
+  removeComment: (id, removed) => request(`/api/mod/comments/${id}/remove`, { method: 'PATCH', body: JSON.stringify({ removed }) }),
+  reports: (status = 'open') => request(`/api/mod/reports?status=${status}`),
+  resolveReport: (id, status) => request(`/api/mod/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 };
 
-// Nav Counts
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
+export const admin = {
+  stats: () => request('/api/admin/stats'),
+
+  // Users
+  users: (search = '') => request(`/api/admin/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  userDetail: (id) => request(`/api/admin/users/${id}`),
+  banUser: (id, banned, ban_duration_days, reason) => request(`/api/admin/users/${id}/ban`, {
+    method: 'PATCH',
+    body: JSON.stringify({ banned, ban_duration_days: ban_duration_days !== undefined ? Number(ban_duration_days) : undefined, reason: reason || null }),
+  }),
+  setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  verifyUser: (id, verified) => request(`/api/admin/users/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ verified }) }),
+  warnUser: (id, reason) => request(`/api/admin/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
+  deleteWarning: (id) => request(`/api/admin/warnings/${id}`, { method: 'DELETE' }),
+  exportUsersCSV: () => `${BASE}/api/admin/users/export/csv`,
+
+  // Posts
+  posts: (search = '') => request(`/api/admin/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  deletedPosts: () => request('/api/admin/posts/deleted'),
+  setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deletePost: (id) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
+  restorePost: (id) => request(`/api/admin/posts/${id}/restore`, { method: 'PATCH' }),
+  permanentDeletePost: (id) => request(`/api/admin/posts/${id}/permanent`, { method: 'DELETE' }),
+  bulkPosts: (ids, action) => request('/api/admin/posts/bulk', { method: 'POST', body: JSON.stringify({ ids, action }) }),
+
+  // Comments
+  comments: () => request('/api/admin/comments'),
+  removeComment: (id, removed) => request(`/api/admin/comments/${id}/remove`, { method: 'PATCH', body: JSON.stringify({ removed }) }),
+
+  // Reports
+  reports: (status = 'open') => request(`/api/admin/reports?status=${status}`),
+  resolveReport: (id, status) => request(`/api/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
+  // Audit log
+  auditLog: () => request('/api/admin/audit-log'),
+
+  // DB Status & Cleanup
+  dbStatus: () => request('/api/admin/db-status'),
+  runCleanup: () => request('/api/admin/db-cleanup', { method: 'POST' }),
+
+  // Anomalies
+  anomalies: () => request('/api/admin/anomalies'),
+  deleteAnomaly: (id) => request(`/api/admin/anomalies/${id}`, { method: 'DELETE' }),
+  clearAnomalies: () => request('/api/admin/anomalies', { method: 'DELETE' }),
+
+  // IP bans
+  ipBans: () => request('/api/admin/ip-bans'),
+  addIpBan: (ip_address, reason) => request('/api/admin/ip-bans', { method: 'POST', body: JSON.stringify({ ip_address, reason }) }),
+  removeIpBan: (id) => request(`/api/admin/ip-bans/${id}`, { method: 'DELETE' }),
+
+  // Messages
+  messages: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/api/admin/messages${q ? '?' + q : ''}`);
+  },
+  deleteMessage: (id) => request(`/api/admin/messages/${id}`, { method: 'DELETE' }),
+
+  // Visitor log
+  visitorLog: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/api/admin/visitor-log${q ? '?' + q : ''}`);
+  },
+
+  // Maintenance mode
+  maintenanceStatus: () => request('/api/admin/maintenance'),
+  setMaintenance: (enabled, message, estimated_end) => request('/api/admin/maintenance', {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled, message, estimated_end }),
+  }),
+
+  // Test mail
+  testMail: (to) => request('/api/admin/test-mail', { method: 'POST', body: JSON.stringify({ to }) }),
+
+  // Admin color
+  setAdminColor: (color) => request('/api/admin/set-color', { method: 'POST', body: JSON.stringify({ color }) }),
+
+  // HTTP log
+  clearHttpLog: () => request('/api/admin/http-log', { method: 'DELETE' }),
+
+  // Donations
+  donations: () => request('/api/admin/donations'),
+};
+
+// ─── DONATE ───────────────────────────────────────────────────────────────────
+export const donate = {
+  currencies: () => request('/api/donate/currencies'),
+  createPayment: (body) => request('/api/donate/create-payment', { method: 'POST', body: JSON.stringify(body) }),
+  status: (paymentId) => request(`/api/donate/status/${paymentId}`),
+  setColor: (color) => request('/api/donate/set-color', { method: 'POST', body: JSON.stringify({ color }) }),
+};
+
+// ─── PUBLIC MAINTENANCE CHECK ─────────────────────────────────────────────────
+export const maintenance = {
+  check: () => request('/api/maintenance'),
+};
+
+// ─── NAV COUNTS ───────────────────────────────────────────────────────────────
 export const navCounts = {
   get: () => request('/api/nav-counts'),
-};
-
-// Music
-export const music = {
-  list: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/api/music${q ? '?' + q : ''}`);
-  },
-  upload: (body) => request('/api/music', { method: 'POST', body: JSON.stringify(body) }),
-  delete: (id) => request(`/api/music/${id}`, { method: 'DELETE' }),
-  addVersion: (trackId, body) => request(`/api/music/${trackId}/versions`, { method: 'POST', body: JSON.stringify(body) }),
-  deleteVersion: (trackId, versionId) => request(`/api/music/${trackId}/versions/${versionId}`, { method: 'DELETE' }),
 };

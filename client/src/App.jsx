@@ -26,7 +26,6 @@ import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
 import MaintenanceGate from './components/MaintenanceGate';
 import DonatePage from './pages/DonatePage';
-import MusicPage from './pages/MusicPage';
 
 export default function App() {
   return (
@@ -58,12 +57,11 @@ export default function App() {
               <Route path="/essays/new" element={<NewEssayPage />} />
               <Route path="/texts" element={<StoriesPage />} />
               <Route path="/texts/new" element={<NewStoryPage />} />
-              {/* Legacy URLs */}
+              {/* Legacy URLs — keep old /stories links working */}
               <Route path="/stories" element={<StoriesPage />} />
               <Route path="/stories/new" element={<NewStoryPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/donate" element={<DonatePage />} />
-              <Route path="/music" element={<MusicPage />} />
             </Routes>
           </Layout>
         </MaintenanceGate>
