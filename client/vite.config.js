@@ -18,8 +18,6 @@ export default defineConfig({
           'page-admin': ['./src/pages/AdminPage.jsx'],
           // Texts/Stories page — editor + tiptap is heavy, split out
           'page-texts': ['./src/pages/StoriesPage.jsx', './src/pages/NewStoryPage.jsx'],
-          // Markdown renderer (if used) — lazy chunk
-          'vendor-markdown': ['react-markdown'],
         },
       },
     },
