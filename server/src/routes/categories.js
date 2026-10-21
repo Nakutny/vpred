@@ -18,6 +18,8 @@ router.get('/', async (req, res) => {
        GROUP BY c.id, pc.name, pc.slug
        ORDER BY COALESCE(pc.name, c.name) ASC, c.name ASC`
     );
+    // Categories change rarely — cache for 2 minutes in the browser / CDN
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=60');
     res.json({ categories: result.rows });
   } catch (err) {
     console.error('Get categories error:', err);

@@ -10,38 +10,39 @@ router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Friends (accepted)
-    const friendsResult = await query(
-      `SELECT
-        f.id, f.status, f.created_at,
-        CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END as friend_id,
-        u.username as friend_username, u.avatar_url as friend_avatar, u.bio as friend_bio
-       FROM friendships f
-       JOIN users u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
-       WHERE (f.requester_id = $1 OR f.addressee_id = $1) AND f.status = 'accepted'
-       ORDER BY u.username ASC`,
-      [userId]
-    );
-
-    // Incoming pending requests
-    const incomingResult = await query(
-      `SELECT f.id, f.created_at, u.id as requester_id, u.username as requester_username, u.avatar_url as requester_avatar
-       FROM friendships f
-       JOIN users u ON u.id = f.requester_id
-       WHERE f.addressee_id = $1 AND f.status = 'pending'
-       ORDER BY f.created_at DESC`,
-      [userId]
-    );
-
-    // Outgoing pending requests
-    const outgoingResult = await query(
-      `SELECT f.id, f.created_at, u.id as addressee_id, u.username as addressee_username, u.avatar_url as addressee_avatar
-       FROM friendships f
-       JOIN users u ON u.id = f.addressee_id
-       WHERE f.requester_id = $1 AND f.status = 'pending'
-       ORDER BY f.created_at DESC`,
-      [userId]
-    );
+    // All three queries are independent — run in parallel
+    const [friendsResult, incomingResult, outgoingResult] = await Promise.all([
+      // Friends (accepted)
+      query(
+        `SELECT
+          f.id, f.status, f.created_at,
+          CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END as friend_id,
+          u.username as friend_username, u.avatar_url as friend_avatar, u.bio as friend_bio
+         FROM friendships f
+         JOIN users u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
+         WHERE (f.requester_id = $1 OR f.addressee_id = $1) AND f.status = 'accepted'
+         ORDER BY u.username ASC`,
+        [userId]
+      ),
+      // Incoming pending requests
+      query(
+        `SELECT f.id, f.created_at, u.id as requester_id, u.username as requester_username, u.avatar_url as requester_avatar
+         FROM friendships f
+         JOIN users u ON u.id = f.requester_id
+         WHERE f.addressee_id = $1 AND f.status = 'pending'
+         ORDER BY f.created_at DESC`,
+        [userId]
+      ),
+      // Outgoing pending requests
+      query(
+        `SELECT f.id, f.created_at, u.id as addressee_id, u.username as addressee_username, u.avatar_url as addressee_avatar
+         FROM friendships f
+         JOIN users u ON u.id = f.addressee_id
+         WHERE f.requester_id = $1 AND f.status = 'pending'
+         ORDER BY f.created_at DESC`,
+        [userId]
+      ),
+    ]);
 
     res.json({
       friends: friendsResult.rows,

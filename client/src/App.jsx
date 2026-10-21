@@ -55,6 +55,9 @@ export default function App() {
               <Route path="/chat/:userId" element={<ChatPage />} />
               <Route path="/essays" element={<EssaysPage />} />
               <Route path="/essays/new" element={<NewEssayPage />} />
+              <Route path="/texts" element={<StoriesPage />} />
+              <Route path="/texts/new" element={<NewStoryPage />} />
+              {/* Legacy URLs — keep old /stories links working */}
               <Route path="/stories" element={<StoriesPage />} />
               <Route path="/stories/new" element={<NewStoryPage />} />
               <Route path="/users" element={<UsersPage />} />

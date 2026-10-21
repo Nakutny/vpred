@@ -235,3 +235,8 @@ export const donate = {
 export const maintenance = {
   check: () => request('/api/maintenance'),
 };
+
+// ─── NAV COUNTS ───────────────────────────────────────────────────────────────
+export const navCounts = {
+  get: () => request('/api/nav-counts'),
+};

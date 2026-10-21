@@ -47,7 +47,7 @@ export default function NewStoryPage() {
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Placeholder.configure({ placeholder: 'Tell your story here…' }),
+      Placeholder.configure({ placeholder: 'Write your text here…' }),
     ],
     editorProps: {
       attributes: { class: 'tiptap-editor' },
@@ -101,21 +101,21 @@ export default function NewStoryPage() {
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
       <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 6 }}>
-        Tell a Story
+        Write a Text
       </h1>
       <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 32 }}>
-        Share your experiences, memories, or fictional narratives — no rules, just storytelling.
+        Share your experiences, memories, or fictional narratives — no rules, just writing.
       </p>
 
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Title *</label>
-          <input className="input" style={{ fontSize: 18 }} placeholder="Your story title…" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
+          <input className="input" style={{ fontSize: 18 }} placeholder="Your text title…" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
         </div>
 
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-            Topic <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — e.g. "Travel", "Childhood", "Adventure")</span>
+            Topic <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — e.g. "Travel", "Childhood", "Essay")</span>
           </label>
           <input className="input" placeholder="Enter a topic or genre…" value={topic} onChange={e => setTopic(e.target.value)} maxLength={100} />
         </div>
@@ -124,7 +124,7 @@ export default function NewStoryPage() {
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
             Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — shown in the story feed)</span>
           </label>
-          <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="A brief teaser for your story…" value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
+          <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="A brief teaser for your text…" value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
         </div>
 
         <div style={{ marginBottom: 24 }}>
@@ -178,9 +178,9 @@ export default function NewStoryPage() {
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="submit" disabled={submitting} className="btn btn-primary">
-            {submitting ? 'Publishing…' : 'Publish story'}
+            {submitting ? 'Publishing…' : 'Publish text'}
           </button>
-          <button type="button" onClick={() => navigate('/stories')} className="btn btn-ghost">Cancel</button>
+          <button type="button" onClick={() => navigate('/texts')} className="btn btn-ghost">Cancel</button>
         </div>
       </form>
     </div>

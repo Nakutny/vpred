@@ -48,6 +48,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
     params.push(limit, offset);
 
+    // Single query with window function — avoids a second COUNT round-trip
     const result = await query(
       `SELECT
         p.id, p.title, p.slug, p.summary, p.view_count, p.created_at,
@@ -56,7 +57,8 @@ router.get('/', optionalAuth, async (req, res) => {
         c.name as category_name, c.slug as category_slug,
         COUNT(DISTINCT cm.id) as comment_count,
         COUNT(DISTINCT pv.user_id) as vote_count,
-        COUNT(DISTINCT ep.id) as expand_count
+        COUNT(DISTINCT ep.id) as expand_count,
+        COUNT(*) OVER () AS total_count
        FROM posts p
        LEFT JOIN users u ON p.author_id = u.id
        LEFT JOIN categories c ON p.category_id = c.id
@@ -70,14 +72,7 @@ router.get('/', optionalAuth, async (req, res) => {
       params
     );
 
-    const countResult = await query(
-      `SELECT COUNT(*) FROM posts p
-       LEFT JOIN categories c ON p.category_id = c.id
-       ${whereClause.split('LIMIT')[0]}`,
-      params.slice(0, -2)
-    );
-
-    const total = parseInt(countResult.rows[0].count);
+    const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
 
     res.json({
       posts: result.rows,
@@ -137,23 +132,22 @@ router.get('/:slug', optionalAuth, async (req, res) => {
       await query('UPDATE posts SET view_count = view_count + 1 WHERE id = $1', [post.id]);
     }
 
-    const expandResult = await query(
-      `SELECT p.id, p.title, p.slug, p.created_at, u.username as author_username
-       FROM posts p
-       LEFT JOIN users u ON p.author_id = u.id
-       WHERE p.parent_post_id = $1 AND p.status = 'published' AND p.deleted_at IS NULL
-       ORDER BY p.created_at ASC`,
-      [post.id]
-    );
+    // Run expand + vote check in parallel — both are independent of each other
+    const [expandResult, voteResult] = await Promise.all([
+      query(
+        `SELECT p.id, p.title, p.slug, p.created_at, u.username as author_username
+         FROM posts p
+         LEFT JOIN users u ON p.author_id = u.id
+         WHERE p.parent_post_id = $1 AND p.status = 'published' AND p.deleted_at IS NULL
+         ORDER BY p.created_at ASC`,
+        [post.id]
+      ),
+      req.user
+        ? query('SELECT 1 FROM post_votes WHERE user_id = $1 AND post_id = $2', [req.user.id, post.id])
+        : Promise.resolve({ rows: [] }),
+    ]);
 
-    let userVoted = false;
-    if (req.user) {
-      const voteResult = await query(
-        'SELECT 1 FROM post_votes WHERE user_id = $1 AND post_id = $2',
-        [req.user.id, post.id]
-      );
-      userVoted = voteResult.rows.length > 0;
-    }
+    const userVoted = voteResult.rows.length > 0;
 
     res.json({ post: { ...post, userVoted, expand_posts: expandResult.rows } });
   } catch (err) {
@@ -165,20 +159,14 @@ router.get('/:slug', optionalAuth, async (req, res) => {
 // POST /api/posts
 router.post('/', requireAuth, async (req, res) => {
   try {
-    // Enforce ban: banned users cannot create posts
-    const authorCheck = await query(
-      'SELECT is_banned, ban_expires_at FROM users WHERE id = $1',
-      [req.user.id]
-    );
-    if (authorCheck.rows[0]) {
-      const { is_banned, ban_expires_at } = authorCheck.rows[0];
-      if (is_banned) {
-        const expired = ban_expires_at && new Date(ban_expires_at) <= new Date();
-        if (!expired) {
-          return res.status(403).json({ error: 'Your account is suspended. You cannot create posts.' });
-        }
-        await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.user.id]);
+    // Ban check from JWT (requireAuth already set req.user.is_banned) — no extra DB query needed
+    if (req.user.is_banned) {
+      const expired = req.user.ban_expires_at && new Date(req.user.ban_expires_at) <= new Date();
+      if (!expired) {
+        return res.status(403).json({ error: 'Your account is suspended. You cannot create posts.' });
       }
+      // Expired ban — auto-lift silently
+      await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.user.id]);
     }
 
     const { title, content, summary, category_id, status = 'published', parent_post_id, topic, images, erd_data } = req.body;

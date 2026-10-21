@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { friendships as friendshipsApi, messages as messagesApi, notifications as notificationsApi } from '../lib/api';
+import { navCounts as navCountsApi, messages as messagesApi, notifications as notificationsApi } from '../lib/api';
 import Avatar from './Avatar';
 
 export default function Layout({ children }) {
@@ -11,44 +11,58 @@ export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
+  const [navCts, setNavCts] = useState({ feed: null, essays: null, texts: null, categories: null, users: null, friends: null });
   const [pendingCount, setPendingCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const notifRef = useRef(null);
 
-  // Poll for pending friend requests + unread messages + notifications
+  // Poll for nav counts + unread messages + notifications
   useEffect(() => {
     if (!user) {
+      setNavCts({ feed: null, essays: null, texts: null, categories: null, users: null, friends: null });
       setPendingCount(0);
       setUnreadMsgCount(0);
       setNotifications([]);
       setUnreadNotifCount(0);
-      return;
     }
 
-    async function fetchCounts() {
+    async function fetchAll() {
       try {
-        const [frRes, msgRes] = await Promise.all([
-          friendshipsApi.list(),
-          messagesApi.unreadCount(),
+        // nav-counts covers ALL nav badge numbers in one request
+        // messages unread + notifications run in parallel alongside
+        const [counts, msgRes] = await Promise.all([
+          navCountsApi.get(),
+          user ? messagesApi.unreadCount() : Promise.resolve({ count: 0 }),
         ]);
-        setPendingCount(frRes.incoming?.length || 0);
+        setNavCts(counts);
         setUnreadMsgCount(msgRes.count || 0);
+        // pending friend requests is inferred from navCounts only when logged in
+        // (friends count is total accepted, not pending — keep existing pending poll via notifications)
       } catch {}
     }
 
     async function fetchNotifications() {
+      if (!user) return;
       try {
         const res = await notificationsApi.list();
         setNotifications(res.notifications || []);
         setUnreadNotifCount(res.unread || 0);
+        // Derive pending friend requests count from notifications list
+        const pending = (res.notifications || []).filter(
+          n => n.type === 'friend_request' && !n.is_read
+        ).length;
+        setPendingCount(pending);
       } catch {}
     }
 
-    fetchCounts();
+    fetchAll();
     fetchNotifications();
-    const interval = setInterval(() => { fetchCounts(); fetchNotifications(); }, 30000);
+    const interval = setInterval(() => {
+      fetchAll();
+      fetchNotifications();
+    }, 30000);
     return () => clearInterval(interval);
   }, [user, location.pathname]);
 
@@ -68,13 +82,20 @@ export default function Layout({ children }) {
       await notificationsApi.readAll();
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadNotifCount(0);
+      setPendingCount(0);
     } catch {}
   }
 
   async function deleteNotif(id) {
     try {
       await notificationsApi.delete(id);
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotifications(prev => {
+        const notif = prev.find(n => n.id === id);
+        if (notif && !notif.is_read && notif.type === 'friend_request') {
+          setPendingCount(p => Math.max(0, p - 1));
+        }
+        return prev.filter(n => n.id !== id);
+      });
       setUnreadNotifCount(prev => {
         const notif = notifications.find(n => n.id === id);
         return notif && !notif.is_read ? Math.max(0, prev - 1) : prev;
@@ -106,7 +127,6 @@ export default function Layout({ children }) {
     return `${Math.floor(h / 24)}d`;
   }
 
-  // Combined unread badge: notifications + unread messages
   const totalBell = unreadNotifCount + unreadMsgCount;
 
   return (
@@ -130,18 +150,19 @@ export default function Layout({ children }) {
           </Link>
 
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <NavLink to="/" label="Feed" active={location.pathname === '/'} />
-            <NavLink to="/essays" label="Essays" active={location.pathname.startsWith('/essays')} />
-            <NavLink to="/stories" label="Stories" active={location.pathname.startsWith('/stories')} />
-            <NavLink to="/categories" label="Categories" active={location.pathname === '/categories'} />
-            <NavLink to="/users" label="Users" active={location.pathname === '/users'} />
-            <NavLink to="/support" label="Support me" active={location.pathname === '/support'} />
-            <NavLink to="/donate" label="Donate" active={location.pathname === '/donate'} />
+            <NavCount to="/" label="Feed"       active={location.pathname === '/'}                    count={navCts.feed} />
+            <NavCount to="/essays" label="Essays"    active={location.pathname.startsWith('/essays')}     count={navCts.essays} />
+            <NavCount to="/texts"  label="Texts"     active={location.pathname.startsWith('/texts') || location.pathname.startsWith('/stories')} count={navCts.texts} />
+            <NavCount to="/categories" label="Categories" active={location.pathname === '/categories'}   count={navCts.categories} />
+            <NavCount to="/users" label="Users"      active={location.pathname === '/users'}              count={navCts.users} />
+            <NavLink  to="/support" label="Support me" active={location.pathname === '/support'} />
+            <NavLink  to="/donate"  label="Donate"    active={location.pathname === '/donate'} />
             {user && (
-              <NavLinkBadge
+              <NavCount
                 to="/friends"
                 label="Friends"
                 active={location.pathname === '/friends'}
+                count={navCts.friends}
                 badge={pendingCount}
               />
             )}
@@ -236,17 +257,10 @@ export default function Layout({ children }) {
                             background: n.is_read ? 'transparent' : 'rgba(79,142,247,0.06)',
                             borderBottom: '1px solid var(--border)',
                           }}>
-                            {/* Icon by type */}
                             <div style={{ flexShrink: 0, marginTop: 1 }}>
-                              {n.type === 'friend_request' && (
-                                <span style={{ fontSize: 16 }}>👤</span>
-                              )}
-                              {n.type === 'friend_accepted' && (
-                                <span style={{ fontSize: 16 }}>🤝</span>
-                              )}
-                              {(n.type !== 'friend_request' && n.type !== 'friend_accepted') && (
-                                <span style={{ fontSize: 16 }}>🔔</span>
-                              )}
+                              {n.type === 'friend_request' && <span style={{ fontSize: 16 }}>👤</span>}
+                              {n.type === 'friend_accepted' && <span style={{ fontSize: 16 }}>🤝</span>}
+                              {(n.type !== 'friend_request' && n.type !== 'friend_accepted') && <span style={{ fontSize: 16 }}>🔔</span>}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               {n.link ? (
@@ -303,7 +317,7 @@ export default function Layout({ children }) {
                         <MenuItem to={`/profile/${user.username}`} label="My profile" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/dashboard" label="My Dashboard" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/essays" label="Essays" onClose={() => setMenuOpen(false)} />
-                        <MenuItem to="/stories" label="Stories" onClose={() => setMenuOpen(false)} />
+                        <MenuItem to="/texts" label="Texts" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/users" label="Users" onClose={() => setMenuOpen(false)} />
                         <MenuItem to="/friends" label={`Friends${pendingCount > 0 ? ` (${pendingCount})` : ''}`} onClose={() => setMenuOpen(false)} />
                         {isAdmin && <MenuItem to="/admin" label="Admin Panel" onClose={() => setMenuOpen(false)} />}
@@ -363,6 +377,44 @@ export default function Layout({ children }) {
   );
 }
 
+// Nav link with optional count badge (grey, small) + optional pending badge (accent)
+function NavCount({ to, label, active, count, badge }) {
+  return (
+    <Link to={to} style={{
+      position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '5px 12px', borderRadius: 6, fontSize: 14,
+      fontWeight: active ? 500 : 400,
+      color: active ? 'var(--text)' : 'var(--muted)',
+      background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
+      transition: 'all 0.15s',
+      textDecoration: 'none',
+    }}>
+      {label}
+      {count !== null && count !== undefined && (
+        <span style={{
+          fontSize: 10, fontWeight: 500,
+          color: active ? 'var(--muted)' : 'var(--muted)',
+          opacity: 0.7,
+          lineHeight: 1,
+        }}>
+          {count > 9999 ? '9999+' : count}
+        </span>
+      )}
+      {badge > 0 && (
+        <span style={{
+          position: 'absolute', top: 1, right: 2,
+          background: 'var(--accent)', color: '#fff',
+          borderRadius: 9999, fontSize: 9, fontWeight: 700,
+          minWidth: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 3px',
+        }}>
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 function NavLink({ to, label, active, accent }) {
   return (
     <Link to={to} style={{
@@ -371,33 +423,9 @@ function NavLink({ to, label, active, accent }) {
       color: accent ? 'var(--accent)' : active ? 'var(--text)' : 'var(--muted)',
       background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
       transition: 'all 0.15s',
+      textDecoration: 'none',
     }}>
       {label}
-    </Link>
-  );
-}
-
-function NavLinkBadge({ to, label, active, badge }) {
-  return (
-    <Link to={to} style={{
-      position: 'relative', display: 'inline-flex', alignItems: 'center',
-      padding: '5px 12px', borderRadius: 6, fontSize: 14,
-      fontWeight: active ? 500 : 400,
-      color: active ? 'var(--text)' : 'var(--muted)',
-      background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
-      transition: 'all 0.15s',
-    }}>
-      {label}
-      {badge > 0 && (
-        <span style={{
-          marginLeft: 5, background: 'var(--accent)', color: '#fff',
-          borderRadius: 9999, fontSize: 10, fontWeight: 700,
-          minWidth: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          padding: '0 4px',
-        }}>
-          {badge > 9 ? '9+' : badge}
-        </span>
-      )}
     </Link>
   );
 }
@@ -407,7 +435,7 @@ function MenuItem({ to, label, onClose }) {
     <Link
       to={to}
       onClick={onClose}
-      style={{ display: 'block', padding: '8px 12px', borderRadius: 6, fontSize: 14, color: 'var(--text)' }}
+      style={{ display: 'block', padding: '8px 12px', borderRadius: 6, fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}
       onMouseEnter={e => e.currentTarget.style.background = 'var(--border)'}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >

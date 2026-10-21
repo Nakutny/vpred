@@ -17,19 +17,21 @@ export default function HomePage() {
   const page = parseInt(searchParams.get('page') || '1');
 
   useEffect(() => {
-    categories.list().then(d => setCategoryList(d.categories || [])).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     setLoading(true);
     const params = { page, limit: 15 };
     if (search) params.search = search;
     if (category) params.category = category;
 
-    posts.list(params)
-      .then(d => {
-        setPostList(d.posts || []);
-        setPagination(d.pagination);
+    // Load posts + categories in parallel on first render;
+    // on subsequent filter/page changes only posts change so categories are already cached.
+    Promise.all([
+      posts.list(params),
+      categoryList.length === 0 ? categories.list() : Promise.resolve(null),
+    ])
+      .then(([postsData, catsData]) => {
+        setPostList(postsData.posts || []);
+        setPagination(postsData.pagination);
+        if (catsData) setCategoryList(catsData.categories || []);
       })
       .catch(() => setPostList([]))
       .finally(() => setLoading(false));

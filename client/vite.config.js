@@ -16,6 +16,8 @@ export default defineConfig({
           'vendor-router': ['react-router-dom'],
           // Heavy admin-only page — only loaded when admin visits /admin
           'page-admin': ['./src/pages/AdminPage.jsx'],
+          // Texts/Stories page — editor + tiptap is heavy, split out
+          'page-texts': ['./src/pages/StoriesPage.jsx', './src/pages/NewStoryPage.jsx'],
           // Markdown renderer (if used) — lazy chunk
           'vendor-markdown': ['react-markdown'],
         },

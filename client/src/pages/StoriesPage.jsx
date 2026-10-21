@@ -117,16 +117,16 @@ export default function StoriesPage() {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 'clamp(2rem, 5vw, 2.8rem)', fontWeight: 400, lineHeight: 1.15, marginBottom: 10 }}>
-              Stories
+              Texts
             </h1>
             <p style={{ color: 'var(--muted)', fontSize: 15, maxWidth: 480 }}>
-              Personal stories, experiences and narratives — shared openly.
+              Personal texts, experiences and narratives — shared openly.
             </p>
           </div>
           {user && (
-            <Link to="/stories/new" className="btn btn-primary" style={{ flexShrink: 0, marginTop: 8 }}>
+            <Link to="/texts/new" className="btn btn-primary" style={{ flexShrink: 0, marginTop: 8 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-              Tell a story
+              Write a text
             </Link>
           )}
         </div>
@@ -140,7 +140,7 @@ export default function StoriesPage() {
               <input
                 className="input"
                 style={{ paddingLeft: 36 }}
-                placeholder="Search stories…"
+                placeholder="Search texts…"
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
               />
@@ -158,10 +158,10 @@ export default function StoriesPage() {
       ) : data.posts.length === 0 ? (
         <div style={{ padding: '60px 0', textAlign: 'center' }}>
           <p style={{ color: 'var(--muted)', fontSize: 15, marginBottom: 20 }}>
-            {search ? 'No stories found for this search.' : 'No stories published yet.'}
+            {search ? 'No texts found for this search.' : 'No texts published yet.'}
           </p>
           {user && !search && (
-            <Link to="/stories/new" className="btn btn-primary">Tell the first story</Link>
+            <Link to="/texts/new" className="btn btn-primary">Write the first text</Link>
           )}
         </div>
       ) : (

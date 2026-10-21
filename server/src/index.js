@@ -18,6 +18,7 @@ import reportRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
 import userRoutes from './routes/users.js';
 import donateRoutes from './routes/donate.js';
+import navCountsRoutes from './routes/navCounts.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
 import { authLimiter, apiLimiter, donateLimiter } from './middleware/rateLimiter.js';
@@ -49,7 +50,7 @@ app.use(express.json({ limit: '2mb' }));
 visitorLogMiddleware(app);
 
 // ─── Always-available endpoints (before maintenance gate) ─────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch35', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch36', timestamp: new Date().toISOString() }));
 
 // Public maintenance status — MUST be before checkMaintenance middleware
 app.get('/api/maintenance', async (req, res) => {
@@ -95,6 +96,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/donate', donateRoutes);
+app.use('/api/nav-counts', navCountsRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((err, req, res, next) => {
@@ -108,7 +110,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch35]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch36]`);
   scheduledCleanup();
   setInterval(scheduledCleanup, 30 * 60 * 1000);
 
