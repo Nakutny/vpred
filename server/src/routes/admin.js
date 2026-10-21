@@ -280,7 +280,7 @@ router.get('/users/:id', async (req, res) => {
 // ban_duration_days: number of days, or 0/null for permanent
 router.patch('/users/:id/ban', async (req, res) => {
   try {
-    const { banned, ban_duration_days } = req.body;
+    const { banned, ban_duration_days, reason } = req.body;
     if (req.params.id === String(req.user.id)) {
       return res.status(400).json({ error: 'You cannot ban yourself.' });
     }
@@ -306,17 +306,20 @@ router.patch('/users/:id/ban', async (req, res) => {
         [banExpiresAt, req.params.id]
       );
 
+      const reasonText = reason?.trim() ? `\n\nReason: ${reason.trim()}` : '';
+      const restrictionsText = '\n\nRestrictions: You cannot post, comment, or message other users during this period.';
+
       const notifBody = banExpiresAt
-        ? `Your account has been suspended for ${durationLabel} until ${new Date(banExpiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. During this time you cannot post or message other users.`
-        : `Your account has been permanently suspended. You cannot post or message other users.`;
+        ? `Your account has been suspended for ${durationLabel} until ${new Date(banExpiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.${reasonText}${restrictionsText}`
+        : `Your account has been permanently suspended.${reasonText}${restrictionsText}`;
 
       await createNotification(req.params.id, 'ban', '🚫 Account Suspended', notifBody, null);
-      await auditLog(req.user.id, 'user_banned', 'user', req.params.id, { duration: durationLabel, ban_expires_at: banExpiresAt });
+      await auditLog(req.user.id, 'user_banned', 'user', req.params.id, { duration: durationLabel, ban_expires_at: banExpiresAt, reason: reason?.trim() || null });
 
       res.json({ message: `${targetUser.username} banned (${durationLabel}).` });
     } else {
       await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.params.id]);
-      await createNotification(req.params.id, 'unban', '✅ Account Reactivated', 'Your account suspension has been lifted. You can now post and message other users again.', null);
+      await createNotification(req.params.id, 'unban', '✅ Account Reactivated', 'Your account suspension has been lifted. You can now post, comment, and message other users again.', null);
       await auditLog(req.user.id, 'user_unbanned', 'user', req.params.id);
       res.json({ message: `${targetUser.username} unbanned.` });
     }

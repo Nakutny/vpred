@@ -49,7 +49,7 @@ app.use(express.json({ limit: '2mb' }));
 visitorLogMiddleware(app);
 
 // ─── Always-available endpoints (before maintenance gate) ─────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch33', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch34', timestamp: new Date().toISOString() }));
 
 // Public maintenance status — MUST be before checkMaintenance middleware
 app.get('/api/maintenance', async (req, res) => {
@@ -108,7 +108,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch33]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch34]`);
   scheduledCleanup();
   setInterval(scheduledCleanup, 30 * 60 * 1000);
 });

@@ -145,9 +145,9 @@ export const admin = {
   // Users
   users: (search = '') => request(`/api/admin/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
   userDetail: (id) => request(`/api/admin/users/${id}`),
-  banUser: (id, banned, ban_duration_days) => request(`/api/admin/users/${id}/ban`, {
+  banUser: (id, banned, ban_duration_days, reason) => request(`/api/admin/users/${id}/ban`, {
     method: 'PATCH',
-    body: JSON.stringify({ banned, ban_duration_days: ban_duration_days !== undefined ? Number(ban_duration_days) : undefined }),
+    body: JSON.stringify({ banned, ban_duration_days: ban_duration_days !== undefined ? Number(ban_duration_days) : undefined, reason: reason || null }),
   }),
   setRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   verifyUser: (id, verified) => request(`/api/admin/users/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ verified }) }),

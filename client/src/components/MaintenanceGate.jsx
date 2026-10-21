@@ -39,6 +39,8 @@ export default function MaintenanceGate({ children }) {
 
   function handleLogin(user) {
     setCurrentUser(user);
+    // Re-check maintenance status so the gate re-renders immediately
+    checkMaintenance();
   }
 
   if (!checked) {

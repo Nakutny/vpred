@@ -59,6 +59,7 @@ function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = 'Confirm',
 // ─── Ban Modal ────────────────────────────────────────────────────────────────
 function BanModal({ user: targetUser, onClose, onBanned }) {
   const [duration, setDuration] = useState('');
+  const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
@@ -78,7 +79,7 @@ function BanModal({ user: targetUser, onClose, onBanned }) {
     setErr('');
     try {
       const days = Number(duration);
-      await admin.banUser(targetUser.id, true, days);
+      await admin.banUser(targetUser.id, true, days, reason.trim() || null);
       onBanned(targetUser.id, true, days);
       onClose();
     } catch (e) { setErr(e.message); setLoading(false); }
@@ -86,10 +87,10 @@ function BanModal({ user: targetUser, onClose, onBanned }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="card" style={{ maxWidth: 380, width: '90%', padding: 28 }}>
+      <div className="card" style={{ maxWidth: 400, width: '90%', padding: 28 }}>
         <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.2rem', fontWeight: 400, marginBottom: 6 }}>Ban {targetUser.username}</h3>
-        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Select ban duration:</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Select ban duration:</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           {durations.map(d => (
             <button key={d.value} onClick={() => setDuration(String(d.value))}
               style={{
@@ -101,6 +102,20 @@ function BanModal({ user: targetUser, onClose, onBanned }) {
               }}>{d.label}</button>
           ))}
         </div>
+        <textarea
+          placeholder="Reason (optional — will be shown to the user)"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          maxLength={300}
+          rows={3}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'var(--input-bg, #111)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '8px 12px', color: 'var(--text)',
+            fontSize: 13, resize: 'vertical', marginBottom: 16,
+            fontFamily: 'inherit',
+          }}
+        />
         {err && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{err}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
