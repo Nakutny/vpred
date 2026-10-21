@@ -293,13 +293,25 @@ export default function ProfilePage() {
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 4 }}>
             {data.user.username}
           </h1>
+          {/* Ban notice — shown on own profile when banned */}
+          {isOwn && data.user.is_banned && (
+            <div style={{
+              background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.3)',
+              borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#E63946',
+            }}>
+              🚫 Your account is currently suspended.
+              {data.user.ban_expires_at
+                ? ` Your bio and profile picture will be restored after ${new Date(data.user.ban_expires_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.`
+                : ' Your bio and profile picture will be restored when the ban is lifted.'}
+            </div>
+          )}
           {data.user.bio ? (
             <p style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.6, maxWidth: 500, marginBottom: 10 }}>
               {data.user.bio}
             </p>
           ) : isOwn ? (
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 10, fontStyle: 'italic' }}>
-              No bio yet. Add one in "Edit Bio".
+              {data.user.is_banned ? 'Bio hidden during suspension.' : 'No bio yet. Add one in "Edit Bio".'}
             </p>
           ) : null}
           <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>

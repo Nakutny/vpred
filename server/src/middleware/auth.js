@@ -65,17 +65,12 @@ export async function requireAuth(req, res, next) {
 
     const user = result.rows[0];
 
-    if (user.is_banned) {
-      if (user.ban_expires_at && new Date(user.ban_expires_at) <= new Date()) {
-        await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [user.id]);
-        user.is_banned = false;
-        user.ban_expires_at = null;
-      } else {
-        const expiresMsg = user.ban_expires_at
-          ? ` until ${new Date(user.ban_expires_at).toLocaleDateString()}`
-          : ' permanently';
-        return res.status(403).json({ error: `Your account has been suspended${expiresMsg}.` });
-      }
+    // Auto-lift expired ban — but DO NOT block banned users here.
+    // Restrictions are enforced per-feature (posts, messages, profile, etc.).
+    if (user.is_banned && user.ban_expires_at && new Date(user.ban_expires_at) <= new Date()) {
+      await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [user.id]);
+      user.is_banned = false;
+      user.ban_expires_at = null;
     }
 
     req.user = user;

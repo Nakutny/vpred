@@ -9,6 +9,13 @@ const router = express.Router();
 
 router.patch('/me/avatar', requireAuth, async (req, res) => {
   try {
+    // Banned users cannot change their avatar
+    if (req.user.is_banned) {
+      const expired = req.user.ban_expires_at && new Date(req.user.ban_expires_at) <= new Date();
+      if (!expired) {
+        return res.status(403).json({ error: 'Your account is suspended. You cannot change your avatar.' });
+      }
+    }
     const { avatar_url } = req.body;
     if (avatar_url && avatar_url.startsWith('data:image')) {
       const sizeKB = Buffer.byteLength(avatar_url, 'utf8') / 1024;
@@ -24,6 +31,13 @@ router.patch('/me/avatar', requireAuth, async (req, res) => {
 
 router.patch('/me/bio', requireAuth, async (req, res) => {
   try {
+    // Banned users cannot change their bio
+    if (req.user.is_banned) {
+      const expired = req.user.ban_expires_at && new Date(req.user.ban_expires_at) <= new Date();
+      if (!expired) {
+        return res.status(403).json({ error: 'Your account is suspended. You cannot change your bio.' });
+      }
+    }
     const { bio } = req.body;
     if (bio && bio.length > 300) return res.status(400).json({ error: 'Bio must be 300 characters or less.' });
     await query('UPDATE users SET bio = $1 WHERE id = $2', [bio || null, req.user.id]);
@@ -51,11 +65,11 @@ router.patch('/me/password', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/profile/:username  (Patch 19: avatar_url hinzugefügt)
+// GET /api/profile/:username
 router.get('/:username', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, username, bio, avatar_url, created_at FROM users WHERE LOWER(username) = LOWER($1)`,
+      `SELECT id, username, bio, avatar_url, created_at, is_banned, ban_expires_at, pre_ban_bio, pre_ban_avatar_url FROM users WHERE LOWER(username) = LOWER($1)`,
       [req.params.username]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'User not found.' });

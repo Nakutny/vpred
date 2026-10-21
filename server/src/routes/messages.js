@@ -2,6 +2,18 @@ import express from 'express';
 import { query } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
 
+// Helper: create a notification for a user
+async function createNotification(userId, type, title, body, link = null) {
+  try {
+    await query(
+      `INSERT INTO notifications (user_id, type, title, body, link) VALUES ($1, $2, $3, $4, $5)`,
+      [userId, type, title, body, link]
+    );
+  } catch (err) {
+    console.error('Notification error:', err);
+  }
+}
+
 const router = express.Router();
 
 // IMPORTANT: specific routes before /:userId
@@ -146,11 +158,23 @@ router.post('/', requireAuth, async (req, res) => {
     if (content.trim().length > 2000) return res.status(400).json({ error: 'Message too long (max 2000 chars).' });
     if (receiver_id === req.user.id) return res.status(400).json({ error: 'You cannot message yourself.' });
 
-    // Enforce ban: banned users cannot send messages
-    const senderCheck = await query(
-      'SELECT is_banned, ban_expires_at FROM users WHERE id = $1',
-      [req.user.id]
-    );
+    // Parallel checks: sender ban status, friendship, block, receiver ban status
+    const [senderCheck, friendship, block, receiverCheck] = await Promise.all([
+      query('SELECT is_banned, ban_expires_at FROM users WHERE id = $1', [req.user.id]),
+      query(
+        `SELECT id FROM friendships
+         WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
+           AND status = 'accepted'`,
+        [req.user.id, receiver_id]
+      ),
+      query(
+        `SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
+        [req.user.id, receiver_id]
+      ),
+      query('SELECT id, username, is_banned, ban_expires_at FROM users WHERE id = $1', [receiver_id]),
+    ]);
+
+    // Enforce ban on sender
     if (senderCheck.rows[0]) {
       const { is_banned, ban_expires_at } = senderCheck.rows[0];
       if (is_banned) {
@@ -158,29 +182,39 @@ router.post('/', requireAuth, async (req, res) => {
         if (!expired) {
           return res.status(403).json({ error: 'Your account is suspended. You cannot send messages.' });
         }
-        // Auto-lift if expired
         await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.user.id]);
       }
     }
 
     // Must be friends
-    const friendship = await query(
-      `SELECT id FROM friendships
-       WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
-         AND status = 'accepted'`,
-      [req.user.id, receiver_id]
-    );
     if (!friendship.rows[0]) {
       return res.status(403).json({ error: 'You can only message friends.' });
     }
 
     // Check not blocked
-    const block = await query(
-      `SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
-      [req.user.id, receiver_id]
-    );
     if (block.rows.length > 0) {
       return res.status(403).json({ error: 'Cannot message this user.' });
+    }
+
+    // Check if receiver is banned — message cannot be delivered
+    const receiver = receiverCheck.rows[0];
+    if (receiver) {
+      const receiverBanned = receiver.is_banned &&
+        !(receiver.ban_expires_at && new Date(receiver.ban_expires_at) <= new Date());
+      if (receiverBanned) {
+        // Notify sender that message was not delivered
+        await createNotification(
+          req.user.id,
+          'message_failed',
+          '📨 Message Not Delivered',
+          `Your message to ${receiver.username} could not be delivered because their account is currently suspended.`,
+          null
+        );
+        return res.status(403).json({
+          error: 'Message could not be delivered: the recipient\'s account is currently suspended.',
+          code: 'RECIPIENT_BANNED',
+        });
+      }
     }
 
     const result = await query(

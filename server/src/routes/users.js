@@ -39,4 +39,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/users/:username — get a single user by username (public)
+router.get('/:username', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, username, avatar_url, bio, created_at, role
+       FROM users
+       WHERE LOWER(username) = LOWER($1)`,
+      [req.params.username]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found.' });
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error('Get user error:', err);
+    res.status(500).json({ error: 'Failed to load user.' });
+  }
+});
+
 export default router;

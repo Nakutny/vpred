@@ -285,7 +285,7 @@ router.patch('/users/:id/ban', async (req, res) => {
       return res.status(400).json({ error: 'You cannot ban yourself.' });
     }
 
-    const targetRes = await query('SELECT id, username FROM users WHERE id = $1', [req.params.id]);
+    const targetRes = await query('SELECT id, username, bio, avatar_url FROM users WHERE id = $1', [req.params.id]);
     if (!targetRes.rows[0]) return res.status(404).json({ error: 'User not found.' });
     const targetUser = targetRes.rows[0];
 
@@ -301,13 +301,18 @@ router.patch('/users/:id/ban', async (req, res) => {
         durationLabel = `${days} day${days === 1 ? '' : 's'}`;
       }
 
+      // Backup bio + avatar, then reset them during ban
       await query(
-        'UPDATE users SET is_banned = TRUE, ban_expires_at = $1 WHERE id = $2',
+        `UPDATE users
+         SET is_banned = TRUE, ban_expires_at = $1,
+             pre_ban_bio = bio, pre_ban_avatar_url = avatar_url,
+             bio = NULL, avatar_url = NULL
+         WHERE id = $2`,
         [banExpiresAt, req.params.id]
       );
 
       const reasonText = reason?.trim() ? `\n\nReason: ${reason.trim()}` : '';
-      const restrictionsText = '\n\nRestrictions: You cannot post, comment, or message other users during this period.';
+      const restrictionsText = '\n\nRestrictions: You cannot post, comment, send messages, or change your bio/avatar during this period. Your previous bio and profile picture will be restored when the ban ends.';
 
       const notifBody = banExpiresAt
         ? `Your account has been suspended for ${durationLabel} until ${new Date(banExpiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.${reasonText}${restrictionsText}`
@@ -318,8 +323,17 @@ router.patch('/users/:id/ban', async (req, res) => {
 
       res.json({ message: `${targetUser.username} banned (${durationLabel}).` });
     } else {
-      await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [req.params.id]);
-      await createNotification(req.params.id, 'unban', '✅ Account Reactivated', 'Your account suspension has been lifted. You can now post, comment, and message other users again.', null);
+      // Restore bio + avatar from backup on unban
+      await query(
+        `UPDATE users
+         SET is_banned = FALSE, ban_expires_at = NULL,
+             bio = COALESCE(pre_ban_bio, bio),
+             avatar_url = COALESCE(pre_ban_avatar_url, avatar_url),
+             pre_ban_bio = NULL, pre_ban_avatar_url = NULL
+         WHERE id = $1`,
+        [req.params.id]
+      );
+      await createNotification(req.params.id, 'unban', '✅ Account Reactivated', 'Your account suspension has been lifted. Your bio and profile picture have been restored. You can now post, comment, and message other users again.', null);
       await auditLog(req.user.id, 'user_unbanned', 'user', req.params.id);
       res.json({ message: `${targetUser.username} unbanned.` });
     }

@@ -41,18 +41,13 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const result = await query(
-      'INSERT INTO users (username, email, password_hash, email_verified) VALUES ($1, $2, $3, TRUE) RETURNING id, username, email, role, avatar_url',
+    await query(
+      'INSERT INTO users (username, email, password_hash, email_verified) VALUES ($1, $2, $3, TRUE)',
       [username, email.toLowerCase(), passwordHash]
     );
 
-    const user = result.rows[0];
-    const token = createToken(user.id);
-
-    res.status(201).json({
-      token,
-      user: { id: user.id, username: user.username, email: user.email, role: user.role, avatar_url: user.avatar_url },
-    });
+    // No auto-login: user must log in manually after registration
+    res.status(201).json({ message: 'Registration successful. Please log in.' });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ error: 'Registration failed. Please try again.' });
@@ -60,6 +55,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
+// NOTE: Banned users CAN log in — restrictions are enforced per-feature, not at login.
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -69,21 +65,35 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await query(
-      'SELECT id, username, email, role, password_hash, is_banned, avatar_url FROM users WHERE email = $1',
+      'SELECT id, username, email, role, password_hash, is_banned, ban_expires_at, avatar_url FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
     const user = result.rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid email or password.' });
-    if (user.is_banned) return res.status(403).json({ error: 'Your account has been suspended.' });
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
 
+    // Auto-lift expired ban silently
+    if (user.is_banned && user.ban_expires_at && new Date(user.ban_expires_at) <= new Date()) {
+      await query('UPDATE users SET is_banned = FALSE, ban_expires_at = NULL WHERE id = $1', [user.id]);
+      user.is_banned = false;
+      user.ban_expires_at = null;
+    }
+
     const token = createToken(user.id);
     res.json({
       token,
-      user: { id: user.id, username: user.username, email: user.email, role: user.role, avatar_url: user.avatar_url },
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        avatar_url: user.avatar_url,
+        is_banned: user.is_banned,
+        ban_expires_at: user.ban_expires_at,
+      },
     });
   } catch (err) {
     console.error('Login error:', err);
