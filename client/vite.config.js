@@ -8,7 +8,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react':  ['react', 'react-dom', 'react-router-dom'],
-          'vendor-editor': ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/extension-link'],
+          'vendor-editor': ['@tiptap/react', '@tiptap/starter-kit'],
           'page-music':    ['./src/pages/MusicPage.jsx'],
         },
       },
