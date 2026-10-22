@@ -1,12 +1,16 @@
+// ─── Music routes ─────────────────────────────────────────────────────────────
 import express from 'express';
 import { query } from '../db/client.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { uploadToR2, streamFromR2, deleteFromR2 } from '../lib/r2.js';
 
 const router = express.Router();
 
-// ─── IMPORTANT: /admin/* routes MUST come before /:id routes ─────────────────
-// Otherwise Express matches "admin" as a UUID parameter and routes never reach
-// the admin handlers.
+function safeFilename(title) {
+  return (title || 'track').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+}
+
+// ─── IMPORTANT: named sub-routes MUST come before /:id ───────────────────────
 
 // ─── GET /api/music/admin/deleted — list soft-deleted tracks (admin) ─────────
 router.get('/admin/deleted', requireAuth, requireAdmin, async (req, res) => {
@@ -53,32 +57,81 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ─── GET /api/music/:id/stream — stream audio ─────────────────────────────────
+// ─── GET /api/music/:id/stream — stream audio from R2 ────────────────────────
+// NOTE: Must stay before /:id
 router.get('/:id/stream', async (req, res) => {
   try {
     const result = await query(
-      `SELECT audio_data, mime_type, title FROM music_tracks
+      `SELECT title, audio_url, audio_data, mime_type
+       FROM music_tracks
        WHERE id = $1 AND deleted_at IS NULL`,
       [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Track not found.' });
 
-    const { audio_data, mime_type, title } = result.rows[0];
-    // audio_data stored as base64 TEXT
-    const buffer = Buffer.from(audio_data, 'base64');
+    const { title, audio_url, audio_data, mime_type } = result.rows[0];
 
-    // Safe filename for Content-Disposition
-    const safeTitle = (title || 'track').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
-
-    res.setHeader('Content-Type', mime_type || 'audio/mpeg');
-    res.setHeader('Content-Length', buffer.length);
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.setHeader('Content-Disposition', `inline; filename="${safeTitle}.mp3"`);
-    res.end(buffer);
+    if (audio_url) {
+      // ── New path: stream from R2 ──────────────────────────────────────────
+      const r2Res = await streamFromR2(audio_url);
+      res.setHeader('Content-Type', mime_type || 'audio/mpeg');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Content-Disposition', `inline; filename="${safeFilename(title)}.mp3"`);
+      if (r2Res.ContentLength) res.setHeader('Content-Length', r2Res.ContentLength);
+      r2Res.Body.pipe(res);
+    } else if (audio_data) {
+      // ── Legacy path: serve base64 from DB (old tracks not yet migrated) ──
+      const buffer = Buffer.from(audio_data, 'base64');
+      res.setHeader('Content-Type', mime_type || 'audio/mpeg');
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Content-Disposition', `inline; filename="${safeFilename(title)}.mp3"`);
+      res.end(buffer);
+    } else {
+      res.status(404).json({ error: 'Audio file not available.' });
+    }
   } catch (err) {
     console.error('Music stream error:', err);
-    res.status(500).json({ error: 'Could not stream track.' });
+    res.status(500).json({ error: 'Could not stream track.', detail: err.message });
+  }
+});
+
+// ─── GET /api/music/:id/download — force-download from R2 ────────────────────
+// Content-Disposition: attachment  →  browser always downloads, never plays inline
+// NOTE: Must stay before /:id
+router.get('/:id/download', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT title, audio_url, audio_data, mime_type
+       FROM music_tracks
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Track not found.' });
+
+    const { title, audio_url, audio_data, mime_type } = result.rows[0];
+    const filename = `${safeFilename(title)}.mp3`;
+
+    if (audio_url) {
+      const r2Res = await streamFromR2(audio_url);
+      res.setHeader('Content-Type', mime_type || 'audio/mpeg');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      if (r2Res.ContentLength) res.setHeader('Content-Length', r2Res.ContentLength);
+      r2Res.Body.pipe(res);
+    } else if (audio_data) {
+      const buffer = Buffer.from(audio_data, 'base64');
+      res.setHeader('Content-Type', mime_type || 'audio/mpeg');
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.end(buffer);
+    } else {
+      res.status(404).json({ error: 'Audio file not available.' });
+    }
+  } catch (err) {
+    console.error('Music download error:', err);
+    res.status(500).json({ error: 'Could not download track.', detail: err.message });
   }
 });
 
@@ -89,20 +142,26 @@ router.post('/', requireAuth, async (req, res) => {
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required.' });
     if (!audio_base64) return res.status(400).json({ error: 'Audio data is required.' });
 
-    // Validate base64 size (~20MB limit for base64 = ~15MB MP3)
+    // Validate size (~20 MB limit)
     const sizeBytes = Math.ceil(audio_base64.length * 0.75);
     if (sizeBytes > 20 * 1024 * 1024) {
       return res.status(413).json({ error: 'File too large. Maximum size is 20 MB.' });
     }
 
+    // Decode base64 → Buffer and upload to R2
+    const base64Data = audio_base64.replace(/^data:audio\/\w+;base64,/, '');
+    const audioBuffer = Buffer.from(base64Data, 'base64');
+    const key = `tracks/${Date.now()}_${safeFilename(title.trim())}.mp3`;
+    await uploadToR2(key, audioBuffer, mime_type || 'audio/mpeg');
+
     const result = await query(
-      `INSERT INTO music_tracks (title, description, audio_data, mime_type, duration_seconds, uploaded_by)
+      `INSERT INTO music_tracks (title, description, audio_url, mime_type, duration_seconds, uploaded_by)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, title, description, duration_seconds, created_at`,
       [
         title.trim(),
         description?.trim() || null,
-        audio_base64,
+        key,
         mime_type || 'audio/mpeg',
         duration_seconds ? Number(duration_seconds) : null,
         req.user.id,
@@ -112,27 +171,45 @@ router.post('/', requireAuth, async (req, res) => {
     res.status(201).json({ track: result.rows[0] });
   } catch (err) {
     console.error('Music upload error:', err);
-    res.status(500).json({ error: 'Upload failed.' });
+    res.status(500).json({ error: 'Upload failed.', detail: err.message });
   }
 });
 
 // ─── DELETE /api/music/:id — soft-delete (own track or admin) ────────────────
+// NOTE: Must stay after all /:id/<sub> routes
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const isAdmin = req.user.role === 'admin';
-    // Admin can delete any track; others can only delete their own
-    const result = await query(
-      `UPDATE music_tracks SET deleted_at = NOW(), deleted_by = $1
-       WHERE id = $2 AND deleted_at IS NULL
-         AND ($3 OR uploaded_by = $1)
-       RETURNING id`,
-      [req.user.id, req.params.id, isAdmin]
+
+    // Fetch audio_url to clean up R2 if needed
+    const trackRes = await query(
+      `SELECT audio_url, uploaded_by FROM music_tracks WHERE id = $1 AND deleted_at IS NULL`,
+      [req.params.id]
     );
-    if (!result.rows[0]) return res.status(404).json({ error: 'Track not found or not authorized.' });
+    if (!trackRes.rows[0]) return res.status(404).json({ error: 'Track not found or not authorized.' });
+
+    const { audio_url, uploaded_by } = trackRes.rows[0];
+    if (!isAdmin && uploaded_by !== req.user.id) {
+      return res.status(403).json({ error: 'Not your track.' });
+    }
+
+    // Soft-delete in DB
+    await query(
+      `UPDATE music_tracks SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2`,
+      [req.user.id, req.params.id]
+    );
+
+    // Optionally delete from R2 (non-fatal if it fails)
+    if (audio_url) {
+      try { await deleteFromR2(audio_url); } catch (e) {
+        console.warn('R2 delete warning (continuing):', e.message);
+      }
+    }
+
     res.json({ message: 'Track deleted.' });
   } catch (err) {
     console.error('Music delete error:', err);
-    res.status(500).json({ error: 'Could not delete track.' });
+    res.status(500).json({ error: 'Could not delete track.', detail: err.message });
   }
 });
 

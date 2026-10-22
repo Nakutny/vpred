@@ -388,10 +388,11 @@ export default function MusicPage() {
                   </div>
                 )}
 
-                {/* Download button — visible to everyone */}
+                {/* Download button — uses /download endpoint (Content-Disposition: attachment)
+                    so the browser always saves the file. <a download> only works same-origin;
+                    this backend endpoint works cross-origin. */}
                 <a
-                  href={`${BASE}/api/music/${track.id}/stream`}
-                  download={`${track.title}.mp3`}
+                  href={`${BASE}/api/music/${track.id}/download`}
                   onClick={e => e.stopPropagation()}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
