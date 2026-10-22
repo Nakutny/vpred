@@ -78,8 +78,8 @@ router.get('/:id/stream', async (req, res) => {
   }
 });
 
-// ─── POST /api/music — upload track (admin only) ─────────────────────────────
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+// ─── POST /api/music — upload track (any logged-in user) ─────────────────────
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { title, description, audio_base64, mime_type, duration_seconds } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required.' });
@@ -112,16 +112,19 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// ─── DELETE /api/music/:id — soft-delete track (admin only) ──────────────────
-router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+// ─── DELETE /api/music/:id — soft-delete (own track or admin) ────────────────
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
+    const isAdmin = req.user.role === 'admin';
+    // Admin can delete any track; others can only delete their own
     const result = await query(
       `UPDATE music_tracks SET deleted_at = NOW(), deleted_by = $1
        WHERE id = $2 AND deleted_at IS NULL
+         AND ($3 OR uploaded_by = $1)
        RETURNING id`,
-      [req.user.id, req.params.id]
+      [req.user.id, req.params.id, isAdmin]
     );
-    if (!result.rows[0]) return res.status(404).json({ error: 'Track not found.' });
+    if (!result.rows[0]) return res.status(404).json({ error: 'Track not found or not authorized.' });
     res.json({ message: 'Track deleted.' });
   } catch (err) {
     console.error('Music delete error:', err);

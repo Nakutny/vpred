@@ -209,7 +209,12 @@ export default function Layout({ children }) {
                 {/* Notification Bell */}
                 <div ref={notifRef} style={{ position: 'relative' }}>
                   <button
-                    onClick={() => setNotifOpen(o => !o)}
+                    onClick={() => {
+                      const opening = !notifOpen;
+                      setNotifOpen(opening);
+                      // Auto-mark all as read when opening the dropdown
+                      if (opening && unreadNotifCount > 0) markAllRead();
+                    }}
                     title="Notifications"
                     style={{ position: 'relative', display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }}
                   >

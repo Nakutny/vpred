@@ -237,7 +237,7 @@ export default function MusicPage() {
             Original tracks made from scratch
           </p>
         </div>
-        {isAdmin && (
+        {user && (
           <button
             onClick={() => setShowUpload(s => !s)}
             className="btn btn-primary btn-sm"
@@ -251,8 +251,8 @@ export default function MusicPage() {
         )}
       </div>
 
-      {/* Upload form (admin only) */}
-      {showUpload && isAdmin && (
+      {/* Upload form (logged-in users) */}
+      {showUpload && user && (
         <div style={{
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 12, padding: 24, marginBottom: 32,
@@ -388,8 +388,8 @@ export default function MusicPage() {
                   </div>
                 )}
 
-                {/* Delete (admin) */}
-                {isAdmin && (
+                {/* Delete (own track or admin) */}
+                {user && (isAdmin || track.uploader_id === user.id) && (
                   <button
                     onClick={e => { e.stopPropagation(); deleteTrack(track.id); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px 6px', borderRadius: 6, fontSize: 16 }}
