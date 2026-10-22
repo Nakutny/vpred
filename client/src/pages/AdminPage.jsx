@@ -21,6 +21,29 @@ function fmtDatetime(d) {
   return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// ─── Classify visitor type from User-Agent ────────────────────────────────────
+function classifyVisitor(userAgent) {
+  if (!userAgent) return { label: 'Unknown', color: 'var(--muted)', emoji: '❓' };
+  const ua = userAgent.toLowerCase();
+  if (/googlebot|bingbot|yandexbot|duckduckbot|baiduspider|slurp|sogou|exabot|facebot|ia_archiver/.test(ua))
+    return { label: 'Search Bot', color: '#4f8ef7', emoji: '🤖' };
+  if (/semrushbot|ahrefsbot|mj12bot|dotbot|petalbot|sistrix|seokicks|screaming frog/.test(ua))
+    return { label: 'SEO Bot', color: '#a78bfa', emoji: '🔍' };
+  if (/curl|wget|python-requests|python-urllib|go-http|java\/|axios|node-fetch|got\/|undici|libwww|okhttp|scrapy|httpx/.test(ua))
+    return { label: 'Script/Tool', color: '#fb923c', emoji: '⚙️' };
+  if (/bot|crawl|spider|scraper|monitor|checker|scan|probe|test|ping|health/.test(ua))
+    return { label: 'Bot', color: '#f59e0b', emoji: '🤖' };
+  if (/chrome|chromium|crios/.test(ua) && !/edg/.test(ua))
+    return { label: 'Person (Chrome)', color: 'var(--success)', emoji: '👤' };
+  if (/firefox|fxios/.test(ua))
+    return { label: 'Person (Firefox)', color: 'var(--success)', emoji: '👤' };
+  if (/safari/.test(ua) && !/chrome/.test(ua))
+    return { label: 'Person (Safari)', color: 'var(--success)', emoji: '👤' };
+  if (/edg\/|edge\//.test(ua))
+    return { label: 'Person (Edge)', color: 'var(--success)', emoji: '👤' };
+  return { label: 'Person', color: 'var(--success)', emoji: '👤' };
+}
+
 function Flash({ msg, type = 'success' }) {
   if (!msg) return null;
   const color = type === 'error' ? 'var(--danger)' : 'var(--success)';
@@ -799,26 +822,35 @@ export default function AdminPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Time', 'IP', 'Method', 'Path', 'Status', 'User'].map(h => (
+                      {['Time', 'Type', 'IP', 'Country', 'Method', 'Path', 'User'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {httpRequests.map((r, i) => (
+                    {httpRequests.map((r, i) => {
+                      const vis = classifyVisitor(r.user_agent);
+                      return (
                       <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '8px 14px', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDatetime(r.created_at)}</td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, whiteSpace: 'nowrap' }}>
+                          <span title={r.user_agent || ''} style={{ color: vis.color, cursor: 'help' }}>
+                            {vis.emoji} {vis.label}
+                          </span>
+                        </td>
                         <td style={{ padding: '8px 14px', fontSize: 12, fontFamily: 'monospace' }}>{r.ip}</td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--muted)' }}>
+                          {r.country_code ? `${r.country_code}` : '—'}
+                          {r.city ? ` · ${r.city}` : ''}
+                        </td>
                         <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, color: r.method === 'POST' ? '#4f8ef7' : r.method === 'DELETE' ? 'var(--danger)' : 'var(--text)' }}>
                           {r.method || 'GET'}
                         </td>
-                        <td style={{ padding: '8px 14px', fontSize: 12, fontFamily: 'monospace', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.path}</td>
-                        <td style={{ padding: '8px 14px', fontSize: 12, color: r.status_code >= 400 ? 'var(--danger)' : r.status_code >= 300 ? '#f7a94f' : 'var(--success)' }}>
-                          {r.status_code || '—'}
-                        </td>
+                        <td style={{ padding: '8px 14px', fontSize: 12, fontFamily: 'monospace', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.path}</td>
                         <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--muted)' }}>{r.username || '—'}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

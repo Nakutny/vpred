@@ -4,6 +4,37 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// ─── IMPORTANT: /admin/* routes MUST come before /:id routes ─────────────────
+// Otherwise Express matches "admin" as a UUID parameter and routes never reach
+// the admin handlers.
+
+// ─── GET /api/music/admin/deleted — list soft-deleted tracks (admin) ─────────
+router.get('/admin/deleted', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, title, artist, description, duration_seconds, created_at, deleted_at
+       FROM music_tracks
+       WHERE deleted_at IS NOT NULL
+       ORDER BY deleted_at DESC`
+    );
+    res.json({ tracks: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load deleted tracks.' });
+  }
+});
+
+// ─── DELETE /api/music/admin/deleted — purge all soft-deleted tracks (admin) ──
+router.delete('/admin/deleted', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await query(
+      `DELETE FROM music_tracks WHERE deleted_at IS NOT NULL RETURNING id`
+    );
+    res.json({ purged: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not purge deleted tracks.' });
+  }
+});
+
 // ─── GET /api/music — public list of all tracks ───────────────────────────────
 router.get('/', async (req, res) => {
   try {
@@ -94,33 +125,6 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Music delete error:', err);
     res.status(500).json({ error: 'Could not delete track.' });
-  }
-});
-
-// ─── GET /api/music/admin/deleted — list soft-deleted tracks (admin) ─────────
-router.get('/admin/deleted', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT id, title, artist, description, duration_seconds, created_at, deleted_at
-       FROM music_tracks
-       WHERE deleted_at IS NOT NULL
-       ORDER BY deleted_at DESC`
-    );
-    res.json({ tracks: result.rows });
-  } catch (err) {
-    res.status(500).json({ error: 'Could not load deleted tracks.' });
-  }
-});
-
-// ─── DELETE /api/music/admin/deleted — purge all soft-deleted tracks (admin) ──
-router.delete('/admin/deleted', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const result = await query(
-      `DELETE FROM music_tracks WHERE deleted_at IS NOT NULL RETURNING id`
-    );
-    res.json({ purged: result.rowCount });
-  } catch (err) {
-    res.status(500).json({ error: 'Could not purge deleted tracks.' });
   }
 });
 

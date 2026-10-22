@@ -389,6 +389,7 @@ function NavCount({ to, label, active, count, badge }) {
       background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
       transition: 'all 0.15s',
       textDecoration: 'none',
+      whiteSpace: 'nowrap',
     }}>
       {label}
       {count !== null && count !== undefined && (
@@ -425,6 +426,7 @@ function NavLink({ to, label, active, accent }) {
       background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
       transition: 'all 0.15s',
       textDecoration: 'none',
+      whiteSpace: 'nowrap',
     }}>
       {label}
     </Link>
