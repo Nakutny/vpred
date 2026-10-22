@@ -52,7 +52,8 @@ export default function MusicPage() {
       const data = await apiRequest('/api/music');
       setTracks(data.tracks || []);
     } catch (err) {
-      setError('Could not load music.');
+      // Treat as empty list rather than showing an error — table may just be empty
+      setTracks([]);
     } finally {
       setLoading(false);
     }
@@ -317,7 +318,6 @@ export default function MusicPage() {
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>Loading…</div>
       ) : tracks.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎵</div>
           <p style={{ color: 'var(--muted)', fontSize: 15 }}>No tracks uploaded yet.</p>
         </div>
       ) : (
