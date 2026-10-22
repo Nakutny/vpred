@@ -19,6 +19,7 @@ import notificationRoutes from './routes/notifications.js';
 import userRoutes from './routes/users.js';
 import donateRoutes from './routes/donate.js';
 import navCountsRoutes from './routes/navCounts.js';
+import musicRoutes from './routes/music.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
 import { authLimiter, apiLimiter, donateLimiter } from './middleware/rateLimiter.js';
@@ -44,7 +45,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '30mb' })); // increased for base64-encoded MP3 uploads
 
 // Visitor log (before everything)
 visitorLogMiddleware(app);
@@ -97,6 +98,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/donate', donateRoutes);
 app.use('/api/nav-counts', navCountsRoutes);
+app.use('/api/music', musicRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((err, req, res, next) => {

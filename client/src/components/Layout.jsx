@@ -155,6 +155,7 @@ export default function Layout({ children }) {
             <NavCount to="/texts"  label="Texts"     active={location.pathname.startsWith('/texts') || location.pathname.startsWith('/stories')} count={navCts.texts} />
             <NavCount to="/categories" label="Categories" active={location.pathname === '/categories'}   count={navCts.categories} />
             <NavCount to="/users" label="Users"      active={location.pathname === '/users'}              count={navCts.users} />
+            <NavLink  to="/music"   label="Selfmade Music" active={location.pathname === '/music'} />
             <NavLink  to="/support" label="Support me" active={location.pathname === '/support'} />
             <NavLink  to="/donate"  label="Donate"    active={location.pathname === '/donate'} />
             {user && (
