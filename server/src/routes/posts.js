@@ -209,7 +209,8 @@ router.post('/', requireAuth, async (req, res) => {
     res.status(201).json({ post: result.rows[0] });
   } catch (err) {
     console.error('Create post error:', err);
-    res.status(500).json({ error: 'Failed to create post.' });
+    // Surface DB column errors so they're visible in Render logs
+    res.status(500).json({ error: 'Failed to create post.', detail: err.message });
   }
 });
 

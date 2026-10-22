@@ -57,20 +57,24 @@ router.get('/', async (req, res) => {
 router.get('/:id/stream', async (req, res) => {
   try {
     const result = await query(
-      `SELECT audio_data, mime_type FROM music_tracks
+      `SELECT audio_data, mime_type, title FROM music_tracks
        WHERE id = $1 AND deleted_at IS NULL`,
       [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Track not found.' });
 
-    const { audio_data, mime_type } = result.rows[0];
+    const { audio_data, mime_type, title } = result.rows[0];
     // audio_data stored as base64 TEXT
     const buffer = Buffer.from(audio_data, 'base64');
+
+    // Safe filename for Content-Disposition
+    const safeTitle = (title || 'track').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
 
     res.setHeader('Content-Type', mime_type || 'audio/mpeg');
     res.setHeader('Content-Length', buffer.length);
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Content-Disposition', `inline; filename="${safeTitle}.mp3"`);
     res.end(buffer);
   } catch (err) {
     console.error('Music stream error:', err);

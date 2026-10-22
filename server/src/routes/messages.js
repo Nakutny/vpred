@@ -77,8 +77,9 @@ router.get('/conversations', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/messages/unread/count — total unread count
-router.get('/unread/count', requireAuth, async (req, res) => {
+// GET /api/messages/unread-count — total unread count
+// NOTE: Must stay before /:userId — otherwise Express matches "unread-count" as a userId param
+router.get('/unread-count', requireAuth, async (req, res) => {
   try {
     const result = await query(
       `SELECT COUNT(*) as count FROM messages WHERE receiver_id = $1 AND is_read = FALSE`,
