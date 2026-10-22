@@ -37,7 +37,7 @@ export default function MusicPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [showUpload, setShowUpload] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ title: '', artist: '', description: '' });
+  const [uploadForm, setUploadForm] = useState({ title: '', description: '' });
   const [uploadFile, setUploadFile] = useState(null);
   const audioRef = useRef(null);
   const progressRef = useRef(null);
@@ -188,7 +188,6 @@ export default function MusicPage() {
         method: 'POST',
         body: JSON.stringify({
           title: uploadForm.title.trim(),
-          artist: uploadForm.artist.trim() || null,
           description: uploadForm.description.trim() || null,
           audio_base64: base64,
           mime_type: uploadFile.type || 'audio/mpeg',
@@ -197,7 +196,7 @@ export default function MusicPage() {
       });
 
       setShowUpload(false);
-      setUploadForm({ title: '', artist: '', description: '' });
+      setUploadForm({ title: '', description: '' });
       setUploadFile(null);
       await loadTracks();
     } catch (err) {
@@ -260,26 +259,15 @@ export default function MusicPage() {
         }}>
           <h3 style={{ margin: '0 0 20px', fontSize: 17 }}>Upload New Track</h3>
           <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Title *</label>
-                <input
-                  className="input"
-                  value={uploadForm.title}
-                  onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Track title"
-                  required
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Artist</label>
-                <input
-                  className="input"
-                  value={uploadForm.artist}
-                  onChange={e => setUploadForm(f => ({ ...f, artist: e.target.value }))}
-                  placeholder="Artist name (optional)"
-                />
-              </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Title *</label>
+              <input
+                className="input"
+                value={uploadForm.title}
+                onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Track title"
+                required
+              />
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Description</label>
@@ -350,7 +338,7 @@ export default function MusicPage() {
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--surface)'; }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
               >
-                {/* Track number / play indicator */}
+                {/* Play button — always visible */}
                 <div
                   style={{
                     width: 36, height: 36, borderRadius: '50%',
@@ -364,12 +352,10 @@ export default function MusicPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
                       <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
                     </svg>
-                  ) : isActive ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isActive ? 'white' : 'var(--text)'}>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isActive ? 'white' : 'var(--muted)'}>
                       <polygon points="5,3 19,12 5,21"/>
                     </svg>
-                  ) : (
-                    <span style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 500 }}>{i + 1}</span>
                   )}
                 </div>
 
@@ -383,9 +369,9 @@ export default function MusicPage() {
                   }}>
                     {track.title}
                   </div>
-                  {track.artist && (
+                  {track.uploader_username && (
                     <div style={{ fontSize: 13, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {track.artist}
+                      {track.uploader_username}
                     </div>
                   )}
                   {track.description && (

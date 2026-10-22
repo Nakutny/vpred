@@ -39,10 +39,12 @@ router.delete('/admin/deleted', requireAuth, requireAdmin, async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, title, artist, description, duration_seconds, created_at
-       FROM music_tracks
-       WHERE deleted_at IS NULL
-       ORDER BY created_at DESC`
+      `SELECT mt.id, mt.title, mt.description, mt.duration_seconds, mt.created_at,
+              u.username AS uploader_username, u.id AS uploader_id
+       FROM music_tracks mt
+       LEFT JOIN users u ON u.id = mt.uploaded_by
+       WHERE mt.deleted_at IS NULL
+       ORDER BY mt.created_at DESC`
     );
     res.json({ tracks: result.rows });
   } catch (err) {
@@ -79,7 +81,7 @@ router.get('/:id/stream', async (req, res) => {
 // ─── POST /api/music — upload track (admin only) ─────────────────────────────
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { title, artist, description, audio_base64, mime_type, duration_seconds } = req.body;
+    const { title, description, audio_base64, mime_type, duration_seconds } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required.' });
     if (!audio_base64) return res.status(400).json({ error: 'Audio data is required.' });
 
@@ -90,12 +92,11 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO music_tracks (title, artist, description, audio_data, mime_type, duration_seconds, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, title, artist, description, duration_seconds, created_at`,
+      `INSERT INTO music_tracks (title, description, audio_data, mime_type, duration_seconds, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, title, description, duration_seconds, created_at`,
       [
         title.trim(),
-        artist?.trim() || null,
         description?.trim() || null,
         audio_base64,
         mime_type || 'audio/mpeg',
