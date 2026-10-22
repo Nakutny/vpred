@@ -11,7 +11,7 @@ export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
-  const [navCts, setNavCts] = useState({ feed: null, essays: null, texts: null, categories: null, users: null, friends: null });
+  const [navCts, setNavCts] = useState({ feed: null, essays: null, texts: null, categories: null, users: null, music: null, friends: null });
   const [pendingCount, setPendingCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -155,7 +155,7 @@ export default function Layout({ children }) {
             <NavCount to="/texts"  label="Texts"     active={location.pathname.startsWith('/texts') || location.pathname.startsWith('/stories')} count={navCts.texts} />
             <NavCount to="/categories" label="Categories" active={location.pathname === '/categories'}   count={navCts.categories} />
             <NavCount to="/users" label="Users"      active={location.pathname === '/users'}              count={navCts.users} />
-            <NavLink  to="/music"   label="Selfmade Music" active={location.pathname === '/music'} />
+            <NavCount to="/music"   label="Selfmade Music" active={location.pathname === '/music'} count={navCts.music} />
             <NavLink  to="/support" label="Support me" active={location.pathname === '/support'} />
             <NavLink  to="/donate"  label="Donate"    active={location.pathname === '/donate'} />
             {user && (

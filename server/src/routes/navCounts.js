@@ -12,12 +12,13 @@ router.get('/', optionalAuth, async (req, res) => {
     const userId = req.user?.id || null;
 
     // All public counts run in parallel
-    const [feedRes, essaysRes, textsRes, categoriesRes, usersRes] = await Promise.all([
+    const [feedRes, essaysRes, textsRes, categoriesRes, usersRes, musicRes] = await Promise.all([
       query(`SELECT COUNT(*)::int AS c FROM posts WHERE type = 'research' AND status = 'published' AND deleted_at IS NULL`),
       query(`SELECT COUNT(*)::int AS c FROM posts WHERE type = 'essay'    AND status = 'published' AND deleted_at IS NULL`),
       query(`SELECT COUNT(*)::int AS c FROM posts WHERE type = 'text'     AND status = 'published' AND deleted_at IS NULL`),
       query(`SELECT COUNT(*)::int AS c FROM categories`),
       query(`SELECT COUNT(*)::int AS c FROM users WHERE is_banned = false OR ban_expires_at < NOW()`),
+      query(`SELECT COUNT(*)::int AS c FROM music_tracks WHERE deleted_at IS NULL`).catch(() => ({ rows: [{ c: 0 }] })),
     ]);
 
     const counts = {
@@ -26,6 +27,7 @@ router.get('/', optionalAuth, async (req, res) => {
       texts:      textsRes.rows[0].c,
       categories: categoriesRes.rows[0].c,
       users:      usersRes.rows[0].c,
+      music:      musicRes.rows[0].c,
       friends:    null,
     };
 

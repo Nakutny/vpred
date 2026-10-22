@@ -156,6 +156,7 @@ export default function MusicPage() {
     e.preventDefault();
     if (!uploadFile) { setUploadError('Please select an MP3 file.'); return; }
     if (!uploadForm.title.trim()) { setUploadError('Title is required.'); return; }
+    if (uploadFile.size > 20 * 1024 * 1024) { setUploadError('File is too large. Maximum size is 20 MB.'); return; }
 
     setUploading(true);
     setUploadError('');
@@ -167,10 +168,20 @@ export default function MusicPage() {
           const result = reader.result;
           // result is "data:audio/mpeg;base64,XXXX..."
           const b64 = result.split(',')[1];
+          if (!b64) { reject(new Error('Could not read file.')); return; }
           resolve(b64);
         };
-        reader.onerror = reject;
+        reader.onerror = () => reject(new Error('Could not read file.'));
         reader.readAsDataURL(uploadFile);
+      });
+
+      // Get duration via Audio element before uploading
+      const duration_seconds = await new Promise((resolve) => {
+        const audio = new Audio();
+        audio.preload = 'metadata';
+        audio.onloadedmetadata = () => resolve(Math.round(audio.duration) || null);
+        audio.onerror = () => resolve(null);
+        audio.src = URL.createObjectURL(uploadFile);
       });
 
       await apiRequest('/api/music', {
@@ -181,6 +192,7 @@ export default function MusicPage() {
           description: uploadForm.description.trim() || null,
           audio_base64: base64,
           mime_type: uploadFile.type || 'audio/mpeg',
+          duration_seconds,
         }),
       });
 
