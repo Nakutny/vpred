@@ -6,7 +6,7 @@ import Avatar from '../components/Avatar';
 
 export default function ChatPage() {
   const { userId } = useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [msgs, setMsgs] = useState([]);
   const [otherUser, setOtherUser] = useState(null);
@@ -46,6 +46,7 @@ export default function ChatPage() {
   }
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate('/login'); return; }
     // Initial load: scroll to bottom
     load(true);

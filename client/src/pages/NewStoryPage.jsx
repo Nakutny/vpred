@@ -28,7 +28,7 @@ const MAX_IMAGES = 3;
 const MAX_SIZE_KB = 500;
 
 export default function NewStoryPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState('');
@@ -41,8 +41,9 @@ export default function NewStoryPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) navigate('/login');
-  }, [user]);
+  }, [user, authLoading]);
 
   const editor = useEditor({
     extensions: [

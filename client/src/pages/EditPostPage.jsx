@@ -28,7 +28,7 @@ function ToolbarBtn({ onClick, active, title, children }) {
 
 export default function EditPostPage() {
   const { slug } = useParams();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [post, setPost] = useState(null);
@@ -54,6 +54,7 @@ export default function EditPostPage() {
   });
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate('/login'); return; }
 
     Promise.all([

@@ -22,7 +22,7 @@ function ToolbarBtn({ onClick, active, title, children }) {
 }
 
 export default function NewPostPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate  = useNavigate();
   const location  = useLocation();
 
@@ -43,6 +43,7 @@ export default function NewPostPage() {
 
   // Load saved draft on mount
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate('/login'); return; }
     categories.list().then(d => setCategoryList(d.categories || [])).catch(() => {});
 
