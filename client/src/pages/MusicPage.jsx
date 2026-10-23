@@ -64,6 +64,9 @@ export default function MusicPage() {
   const [editCoverUploading, setEditCoverUploading] = useState(false); // cover upload in progress
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  // Lightbox
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
   const audioRef = useRef(null);
   const progressRef = useRef(null);
 
@@ -514,7 +517,7 @@ export default function MusicPage() {
                   <img
                     src={track.cover_url.startsWith('/') ? `${BASE}${track.cover_url}` : track.cover_url}
                     alt=""
-                    onClick={e => { e.stopPropagation(); window.open(track.cover_url.startsWith('/') ? `${BASE}${track.cover_url}` : track.cover_url, '_blank'); }}
+                    onClick={e => { e.stopPropagation(); setLightboxUrl(track.cover_url.startsWith('/') ? `${BASE}${track.cover_url}` : track.cover_url); setLightboxZoom(1); }}
                     onError={e => { e.currentTarget.style.display = 'none'; }}
                     style={{
                       width: 60, height: 60, borderRadius: 8,
@@ -623,7 +626,7 @@ export default function MusicPage() {
               <img
                 src={currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url}
                 alt=""
-                onClick={() => window.open(currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url, '_blank')}
+                onClick={() => { setLightboxUrl(currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url); setLightboxZoom(1); }}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
                 style={{ width: 54, height: 54, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)', cursor: 'pointer' }}
               />
@@ -813,6 +816,48 @@ export default function MusicPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox overlay */}
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          onWheel={e => {
+            e.preventDefault();
+            setLightboxZoom(z => Math.min(4, Math.max(0.5, z - e.deltaY * 0.001)));
+          }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out',
+          }}
+        >
+          <img
+            src={lightboxUrl}
+            alt=""
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: '90vw', maxHeight: '90vh',
+              borderRadius: 12,
+              transform: `scale(${lightboxZoom})`,
+              transformOrigin: 'center center',
+              transition: 'transform 0.1s',
+              boxShadow: '0 8px 48px rgba(0,0,0,0.6)',
+              cursor: lightboxZoom > 1 ? 'zoom-out' : 'zoom-in',
+            }}
+            onWheel={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxUrl(null)}
+            style={{
+              position: 'absolute', top: 20, right: 24,
+              background: 'none', border: 'none', color: '#fff',
+              fontSize: 28, cursor: 'pointer', lineHeight: 1,
+              opacity: 0.8,
+            }}
+          >×</button>
         </div>
       )}
     </div>
