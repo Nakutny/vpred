@@ -338,7 +338,8 @@ export default function AdminPage() {
     try {
       const d = await admin.dbStatus();
       setDbStatus(d);
-      setHttpRequests(d.recent_requests || []);
+      const reqs = (d.recent_requests || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setHttpRequests(reqs);
       setTopIps(d.top_ips || []);
     } catch (e) { flash(e.message, 'error'); }
     setDbLoading(false);

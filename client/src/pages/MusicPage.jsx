@@ -25,6 +25,15 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Could not read file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 // Image helpers imported from ../lib/uploadImage
 
 export default function MusicPage() {
@@ -503,9 +512,10 @@ export default function MusicPage() {
                 {/* Cover thumbnail (if available) */}
                 {track.cover_url && (
                   <img
-                    src={track.cover_url}
+                    src={track.cover_url.startsWith('/') ? `${BASE}${track.cover_url}` : track.cover_url}
                     alt=""
                     onClick={() => playTrack(track)}
+                    onError={e => { e.currentTarget.style.display = 'none'; }}
                     style={{
                       width: 40, height: 40, borderRadius: 6,
                       objectFit: 'cover', flexShrink: 0,
@@ -610,8 +620,9 @@ export default function MusicPage() {
             {/* Cover in player bar */}
             {currentTrack.cover_url && (
               <img
-                src={currentTrack.cover_url}
+                src={currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url}
                 alt=""
+                onError={e => { e.currentTarget.style.display = 'none'; }}
                 style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }}
               />
             )}
@@ -744,8 +755,9 @@ export default function MusicPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   {editCoverPreview && !editCoverCleared ? (
                     <img
-                      src={editCoverPreview}
+                      src={editCoverPreview.startsWith('/') ? `${BASE}${editCoverPreview}` : editCoverPreview}
                       alt="Cover"
+                      onError={e => { e.currentTarget.style.display = 'none'; }}
                       style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0 }}
                     />
                   ) : (
