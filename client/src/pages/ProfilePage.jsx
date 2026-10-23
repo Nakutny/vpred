@@ -309,7 +309,7 @@ export default function ProfilePage() {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 36, paddingBottom: 32, borderBottom: '1px solid var(--border)' }}>
-        <Avatar avatarUrl={savedAvatar} username={data.user.username} size={72} />
+        <Avatar avatarUrl={savedAvatar} username={data.user.username} size={72} clickable={true} />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 4 }}>
             {data.user.username}
