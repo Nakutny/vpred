@@ -57,14 +57,12 @@ export const categories = {
 export const profile = {
   get: (username) => request(`/api/profile/${username}`),
   update: (body) => request('/api/profile', { method: 'PATCH', body: JSON.stringify(body) }),
-  uploadAvatar: (formData) => {
-    const token = getToken();
-    return fetch(`${BASE}/api/profile/avatar`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    }).then(r => r.json());
-  },
+  // PATCH /api/profile/me/avatar  { avatar_url }
+  updateAvatar: (avatar_url) => request('/api/profile/me/avatar', { method: 'PATCH', body: JSON.stringify({ avatar_url }) }),
+  // PATCH /api/profile/me/bio  { bio }
+  updateBio: (bio) => request('/api/profile/me/bio', { method: 'PATCH', body: JSON.stringify({ bio }) }),
+  // PATCH /api/profile/me/password  { currentPassword, newPassword }
+  changePassword: (body) => request('/api/profile/me/password', { method: 'PATCH', body: JSON.stringify(body) }),
 };
 
 // ─── FRIENDSHIPS ─────────────────────────────────────────────────────────────
@@ -74,6 +72,8 @@ export const friendships = {
   send: (userId) => request('/api/friendships/request', { method: 'POST', body: JSON.stringify({ userId }) }),
   accept: (id) => request(`/api/friendships/${id}/accept`, { method: 'POST' }),
   decline: (id) => request(`/api/friendships/${id}/decline`, { method: 'POST' }),
+  // respond(id, 'accepted'|'declined') — alias used by ProfilePage
+  respond: (id, action) => request(`/api/friendships/${id}/${action}`, { method: 'POST' }),
   remove: (id) => request(`/api/friendships/${id}`, { method: 'DELETE' }),
   status: (userId) => request(`/api/friendships/status/${userId}`),
 };
