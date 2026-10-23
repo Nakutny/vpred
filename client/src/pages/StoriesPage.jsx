@@ -66,7 +66,7 @@ function StoryCard({ post }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <Link to={`/profile/${post.author_username}`} style={{ display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
-            <Avatar src={post.author_avatar} username={post.author_username} size={22} />
+            <Avatar avatarUrl={post.author_avatar} username={post.author_username} size={22} />
             <span style={{ fontSize: 13, color: 'var(--muted)' }}>{post.author_username}</span>
           </Link>
           <span style={{ color: 'var(--border)', fontSize: 12 }}>·</span>

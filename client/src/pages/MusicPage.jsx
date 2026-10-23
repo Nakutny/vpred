@@ -52,6 +52,7 @@ export default function MusicPage() {
   const [editCoverPreview, setEditCoverPreview] = useState(null);
   const [editCoverUrl, setEditCoverUrl] = useState(null); // new R2 URL for cover
   const [editCoverCleared, setEditCoverCleared] = useState(false); // user explicitly removed cover
+  const [editCoverUploading, setEditCoverUploading] = useState(false); // cover upload in progress
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
   const audioRef = useRef(null);
@@ -247,12 +248,14 @@ export default function MusicPage() {
     setEditCoverUrl(null);
     setEditCoverFile(null);
     setEditCoverCleared(false);
+    setEditCoverUploading(false);
     setEditError('');
   }
 
   function closeEdit() {
     setEditTrack(null);
     setEditError('');
+    setEditCoverUploading(false);
   }
 
   async function handleEditCoverSelect(e) {
@@ -267,11 +270,15 @@ export default function MusicPage() {
     setEditCoverFile(file);
     setEditCoverCleared(false);
     setEditError('');
+    setEditCoverUploading(true);
     try {
       const url = await uploadImage(file);
       setEditCoverUrl(url);
     } catch (err) {
       setEditError('Cover upload failed: ' + err.message);
+      setEditCoverPreview(editTrack?.cover_url || null); // revert preview on error
+    } finally {
+      setEditCoverUploading(false);
     }
   }
 
@@ -764,6 +771,11 @@ export default function MusicPage() {
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>Max. 5 MB</div>
                   </div>
                 </div>
+                {editCoverUploading && (
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+                    ⏳ Uploading cover…
+                  </div>
+                )}
                 {(editCoverPreview || editTrack.cover_url) && !editCoverCleared && (
                   <button
                     type="button"
@@ -778,8 +790,8 @@ export default function MusicPage() {
                 <div style={{ color: 'var(--danger)', fontSize: 13 }}>{editError}</div>
               )}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button type="submit" className="btn btn-primary btn-sm" disabled={editSaving}>
-                  {editSaving ? 'Saving…' : 'Save changes'}
+                <button type="submit" className="btn btn-primary btn-sm" disabled={editSaving || editCoverUploading}>
+                  {editCoverUploading ? 'Uploading cover…' : editSaving ? 'Saving…' : 'Save changes'}
                 </button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={closeEdit}>
                   Cancel
