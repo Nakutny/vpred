@@ -514,12 +514,13 @@ export default function MusicPage() {
                   <img
                     src={track.cover_url.startsWith('/') ? `${BASE}${track.cover_url}` : track.cover_url}
                     alt=""
-                    onClick={() => playTrack(track)}
+                    onClick={e => { e.stopPropagation(); window.open(track.cover_url.startsWith('/') ? `${BASE}${track.cover_url}` : track.cover_url, '_blank'); }}
                     onError={e => { e.currentTarget.style.display = 'none'; }}
                     style={{
-                      width: 40, height: 40, borderRadius: 6,
+                      width: 60, height: 60, borderRadius: 8,
                       objectFit: 'cover', flexShrink: 0,
                       border: '1px solid var(--border)',
+                      cursor: 'pointer',
                     }}
                   />
                 )}
@@ -622,8 +623,9 @@ export default function MusicPage() {
               <img
                 src={currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url}
                 alt=""
+                onClick={() => window.open(currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url, '_blank')}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
-                style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }}
+                style={{ width: 54, height: 54, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)', cursor: 'pointer' }}
               />
             )}
             {/* Track name */}
