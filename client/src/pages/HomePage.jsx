@@ -18,7 +18,7 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoading(true);
-    const params = { page, limit: 15 };
+    const params = { page, limit: 15, type: 'research' };
     if (search) params.search = search;
     if (category) params.category = category;
 

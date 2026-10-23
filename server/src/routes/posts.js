@@ -17,10 +17,15 @@ router.get('/', optionalAuth, async (req, res) => {
     const offset = (page - 1) * limit;
     const category = req.query.category;
     const search = req.query.search;
+    const type = req.query.type;
 
     let whereClause = "WHERE p.status = 'published'";
     const params = [];
 
+    if (type) {
+      params.push(type);
+      whereClause += ` AND p.type = $${params.length}`;
+    }
     if (category) {
       params.push(category);
       whereClause += ` AND c.slug = $${params.length}`;

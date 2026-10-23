@@ -150,7 +150,7 @@ export default function Layout({ children }) {
           </Link>
 
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <NavCount to="/" label="Feed"       active={location.pathname === '/'}                    count={navCts.feed} />
+            <NavCount to="/" label="Research"    active={location.pathname === '/'}                    count={navCts.feed} />
             <NavCount to="/essays" label="Essays"    active={location.pathname.startsWith('/essays')}     count={navCts.essays} />
             <NavCount to="/texts"  label="Texts"     active={location.pathname.startsWith('/texts') || location.pathname.startsWith('/stories')} count={navCts.texts} />
             <NavCount to="/categories" label="Categories" active={location.pathname === '/categories'}   count={navCts.categories} />
