@@ -40,7 +40,8 @@ export default function ProfilePage() {
 
   // Avatar
   const [savedAvatar, setSavedAvatar] = useState(null);
-  const [selectedAvatar, setSelectedAvatar] = useState(null);
+  const [selectedAvatar, setSelectedAvatar] = useState(null); // local preview URL
+  const [pendingAvatarUrl, setPendingAvatarUrl] = useState(null); // R2 URL to save
   const [avatarMsg, setAvatarMsg] = useState('');
   const [avatarSaving, setAvatarSaving] = useState(false);
   const fileInputRef = useRef(null);
@@ -133,11 +134,15 @@ export default function ProfilePage() {
   }
 
   async function handleSaveAvatar() {
+    // Use R2 URL if we uploaded a file, otherwise use selectedAvatar directly (presets / existing)
+    const urlToSave = pendingAvatarUrl || selectedAvatar;
     setAvatarSaving(true);
     try {
-      await profileApi.updateAvatar(selectedAvatar);
-      setSavedAvatar(selectedAvatar);
-      setData(d => ({ ...d, user: { ...d.user, avatar_url: selectedAvatar } }));
+      await profileApi.updateAvatar(urlToSave);
+      setSavedAvatar(urlToSave);
+      setSelectedAvatar(urlToSave);
+      setPendingAvatarUrl(null);
+      setData(d => ({ ...d, user: { ...d.user, avatar_url: urlToSave } }));
       flash(setAvatarMsg, 'Avatar saved!');
     } catch (err) {
       flash(setAvatarMsg, 'Error: ' + err.message);
@@ -154,17 +159,17 @@ export default function ProfilePage() {
     const ok = await looksLikeImage(file);
     if (!ok) return flash(setAvatarMsg, 'Please select an image file.');
 
-    // Show local preview immediately
+    // Show local preview immediately — stays visible the whole time
     const reader = new FileReader();
     reader.onload = (ev) => setSelectedAvatar(ev.target.result);
     reader.readAsDataURL(file);
+    setPendingAvatarUrl(null); // clear any previous pending
 
-    // Upload to R2 in background — sets selectedAvatar to the R2 URL when done
-    // so that saveAvatar() will use the real URL instead of the large data URL
+    // Upload to R2 in background — store URL separately so preview doesn't break
     try {
       flash(setAvatarMsg, 'Uploading…');
       const url = await uploadImage(file);
-      setSelectedAvatar(url);   // replace preview data URL with R2 URL
+      setPendingAvatarUrl(url); // R2 URL used when Save is clicked
       flash(setAvatarMsg, 'Image ready — click Save to apply.');
     } catch (err) {
       flash(setAvatarMsg, 'Upload failed: ' + err.message);
@@ -481,7 +486,7 @@ export default function ProfilePage() {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              Upload image (max 500KB)
+              Upload image (max 5 MB)
             </button>
           </div>
 
@@ -513,7 +518,7 @@ export default function ProfilePage() {
               {avatarSaving ? 'Saving...' : 'Save avatar'}
             </button>
             {hasUnsavedAvatar && (
-              <button onClick={() => setSelectedAvatar(savedAvatar)} className="btn btn-ghost btn-sm">Cancel</button>
+              <button onClick={() => { setSelectedAvatar(savedAvatar); setPendingAvatarUrl(null); }} className="btn btn-ghost btn-sm">Cancel</button>
             )}
             {savedAvatar && (
               <button onClick={() => setSelectedAvatar(null)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>

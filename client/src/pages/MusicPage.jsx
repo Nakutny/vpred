@@ -43,7 +43,8 @@ export default function MusicPage() {
   const [uploadForm, setUploadForm] = useState({ title: '', description: '' });
   const [uploadFile, setUploadFile] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
-  const [coverPreview, setCoverPreview] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null); // local preview
+  const [pendingCoverUrl, setPendingCoverUrl] = useState(null); // R2 URL
   const audioRef = useRef(null);
   const progressRef = useRef(null);
 
@@ -161,12 +162,20 @@ export default function MusicPage() {
     const ok = await looksLikeImage(file);
     if (!ok) { setUploadError('Cover must be an image file.'); e.target.value = ''; return; }
     if (file.size > 5 * 1024 * 1024) { setUploadError('Cover image too large. Max 5 MB.'); e.target.value = ''; return; }
-    // Show local preview immediately
+    // Show local preview immediately — stays visible the whole time
     const reader = new FileReader();
     reader.onload = ev => setCoverPreview(ev.target.result);
     reader.readAsDataURL(file);
     setCoverFile(file);
+    setPendingCoverUrl(null);
     setUploadError('');
+    // Upload to R2 in background
+    try {
+      const url = await uploadImage(file);
+      setPendingCoverUrl(url);
+    } catch (err) {
+      setUploadError('Cover upload failed: ' + err.message);
+    }
   }
 
   async function handleUpload(e) {
@@ -192,11 +201,8 @@ export default function MusicPage() {
         audio.src = URL.createObjectURL(uploadFile);
       });
 
-      // Upload cover image to R2 if provided
-      let cover_url = null;
-      if (coverFile) {
-        cover_url = await uploadImage(coverFile);
-      }
+      // Cover image was already uploaded to R2 in handleCoverSelect
+      const cover_url = pendingCoverUrl || null;
 
       await apiRequest('/api/music', {
         method: 'POST',
@@ -215,6 +221,7 @@ export default function MusicPage() {
       setUploadFile(null);
       setCoverFile(null);
       setCoverPreview(null);
+      setPendingCoverUrl(null);
       await loadTracks();
     } catch (err) {
       setUploadError(err.message || 'Upload failed.');
@@ -328,13 +335,13 @@ export default function MusicPage() {
                     onChange={handleCoverSelect}
                     style={{ fontSize: 14 }}
                   />
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Max. 500 KB · JPG, PNG, WebP, etc.</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Max. 5 MB · JPG, PNG, WebP, etc.</div>
                 </div>
               </div>
               {coverFile && (
                 <button
                   type="button"
-                  onClick={() => { setCoverFile(null); setCoverPreview(null); }}
+                  onClick={() => { setCoverFile(null); setCoverPreview(null); setPendingCoverUrl(null); }}
                   style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 4 }}
                 >
                   Remove cover
@@ -348,7 +355,7 @@ export default function MusicPage() {
               <button type="submit" className="btn btn-primary btn-sm" disabled={uploading}>
                 {uploading ? 'Uploading…' : 'Upload'}
               </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowUpload(false); setCoverFile(null); setCoverPreview(null); setUploadError(''); }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowUpload(false); setCoverFile(null); setCoverPreview(null); setPendingCoverUrl(null); setUploadError(''); }}>
                 Cancel
               </button>
             </div>
