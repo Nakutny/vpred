@@ -14,6 +14,9 @@ export default function Avatar({ username, avatarUrl, size = 32, style = {}, cli
   const [lightbox, setLightbox] = useState(false);
   const initial = username?.[0]?.toUpperCase() || '?';
 
+  // Reset broken state when URL changes (e.g. new local preview after upload)
+  useEffect(() => { setBroken(false); }, [avatarUrl]);
+
   const base = {
     width: size,
     height: size,
