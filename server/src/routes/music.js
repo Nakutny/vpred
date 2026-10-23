@@ -186,6 +186,63 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
+// ─── PATCH /api/music/:id — edit title, description, cover (own track or admin) ─
+router.patch('/:id', requireAuth, async (req, res) => {
+  try {
+    const trackRes = await query(
+      `SELECT id, uploaded_by FROM music_tracks WHERE id = $1 AND deleted_at IS NULL`,
+      [req.params.id]
+    );
+    if (!trackRes.rows[0]) return res.status(404).json({ error: 'Track not found.' });
+
+    const isOwner = trackRes.rows[0].uploaded_by === req.user.id;
+    const isAdmin = req.user.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Not your track.' });
+    }
+
+    const { title, description } = req.body;
+    if (title !== undefined && !title?.trim()) {
+      return res.status(400).json({ error: 'Title cannot be empty.' });
+    }
+
+    // cover_url: null = clear it, string = set it, missing key = keep existing
+    let coverSql = '';
+    const params = [
+      title?.trim() ?? null,
+      description !== undefined ? (description?.trim() || null) : null,
+      req.params.id,
+    ];
+
+    if ('cover_url' in req.body) {
+      const cv = req.body.cover_url;
+      const isValid = cv && (
+        cv.startsWith('/api/images/') ||
+        cv.startsWith('https://') ||
+        cv.startsWith('http://') ||
+        cv.startsWith('data:image')
+      );
+      params.splice(2, 0, isValid ? cv : null); // insert as $3, id becomes $4
+      coverSql = ', cover_url = $3';
+    }
+
+    const idParam = params.length; // last param is always the id
+    const result = await query(
+      `UPDATE music_tracks SET
+        title       = COALESCE($1, title),
+        description = $2${coverSql}
+       WHERE id = $${idParam} AND deleted_at IS NULL
+       RETURNING id, title, description, duration_seconds, created_at, cover_url`,
+      params
+    );
+
+    res.json({ track: result.rows[0] });
+  } catch (err) {
+    console.error('Music edit error:', err);
+    res.status(500).json({ error: 'Could not update track.', detail: err.message });
+  }
+});
+
 // ─── DELETE /api/music/:id — soft-delete (own track or admin) ────────────────
 // NOTE: Must stay after all /:id/<sub> routes
 router.delete('/:id', requireAuth, async (req, res) => {

@@ -18,6 +18,7 @@ router.get('/', optionalAuth, async (req, res) => {
     const category = req.query.category;
     const search = req.query.search;
     const type = req.query.type;
+    const author = req.query.author;
 
     let whereClause = "WHERE p.status = 'published'";
     const params = [];
@@ -25,6 +26,10 @@ router.get('/', optionalAuth, async (req, res) => {
     if (type) {
       params.push(type);
       whereClause += ` AND p.type = $${params.length}`;
+    }
+    if (author) {
+      params.push(author);
+      whereClause += ` AND u.username = $${params.length}`;
     }
     if (category) {
       params.push(category);

@@ -99,7 +99,7 @@ export default function StoriesPage() {
 
   useEffect(() => {
     setLoading(true);
-    posts.list({ type: 'story', page, limit: 10, ...(search ? { search } : {}) })
+    posts.list({ type: 'text', page, limit: 10, ...(search ? { search } : {}) })
       .then(d => setData(d))
       .catch(() => {})
       .finally(() => setLoading(false));
