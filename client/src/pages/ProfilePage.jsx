@@ -140,7 +140,9 @@ export default function ProfilePage() {
     try {
       await profileApi.updateAvatar(urlToSave);
       setSavedAvatar(urlToSave);
-      setSelectedAvatar(urlToSave);
+      // Keep selectedAvatar as local preview (data URL) if we have one,
+      // so the header avatar doesn't go black while the R2 proxy is deploying
+      if (!pendingAvatarUrl) setSelectedAvatar(urlToSave);
       setPendingAvatarUrl(null);
       setData(d => ({ ...d, user: { ...d.user, avatar_url: urlToSave } }));
       flash(setAvatarMsg, 'Avatar saved!');
@@ -309,7 +311,7 @@ export default function ProfilePage() {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 36, paddingBottom: 32, borderBottom: '1px solid var(--border)' }}>
-        <Avatar avatarUrl={savedAvatar} username={data.user.username} size={72} clickable={true} />
+        <Avatar avatarUrl={selectedAvatar || savedAvatar} username={data.user.username} size={72} clickable={true} />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 4 }}>
             {data.user.username}
