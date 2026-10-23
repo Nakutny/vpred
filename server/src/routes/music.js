@@ -165,13 +165,14 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO music_tracks (title, description, audio_url, mime_type, duration_seconds, uploaded_by, cover_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO music_tracks (title, description, audio_url, audio_data, mime_type, duration_seconds, uploaded_by, cover_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, title, description, duration_seconds, created_at, cover_url`,
       [
         title.trim(),
         description?.trim() || null,
         key,
+        '',   // audio_data NOT NULL — R2 key stored in audio_url, this column is unused
         mime_type || 'audio/mpeg',
         duration_seconds ? Number(duration_seconds) : null,
         req.user.id,
