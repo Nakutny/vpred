@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi, donate as donateApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
+import { uploadImage, looksLikeImage } from '../lib/uploadImage';
 import PostCard from '../components/PostCard';
 
 const PRESET_AVATARS = [
@@ -148,11 +149,26 @@ export default function ProfilePage() {
   async function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) return flash(setAvatarMsg, 'Please select an image file.');
-    if (file.size > 500 * 1024) return flash(setAvatarMsg, 'Image too large. Max 500KB.');
+    // Max 5 MB (server will compress to JPEG)
+    if (file.size > 5 * 1024 * 1024) return flash(setAvatarMsg, 'Image too large. Max 5 MB.');
+    const ok = await looksLikeImage(file);
+    if (!ok) return flash(setAvatarMsg, 'Please select an image file.');
+
+    // Show local preview immediately
     const reader = new FileReader();
     reader.onload = (ev) => setSelectedAvatar(ev.target.result);
     reader.readAsDataURL(file);
+
+    // Upload to R2 in background — sets selectedAvatar to the R2 URL when done
+    // so that saveAvatar() will use the real URL instead of the large data URL
+    try {
+      flash(setAvatarMsg, 'Uploading…');
+      const url = await uploadImage(file);
+      setSelectedAvatar(url);   // replace preview data URL with R2 URL
+      flash(setAvatarMsg, 'Image ready — click Save to apply.');
+    } catch (err) {
+      flash(setAvatarMsg, 'Upload failed: ' + err.message);
+    }
     e.target.value = '';
   }
 

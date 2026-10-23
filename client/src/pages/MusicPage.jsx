@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { uploadImage, looksLikeImage } from '../lib/uploadImage';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -24,6 +25,8 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// Image helpers imported from ../lib/uploadImage
+
 export default function MusicPage() {
   const { user, isAdmin } = useAuth();
   const [tracks, setTracks] = useState([]);
@@ -39,6 +42,8 @@ export default function MusicPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadForm, setUploadForm] = useState({ title: '', description: '' });
   const [uploadFile, setUploadFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
   const audioRef = useRef(null);
   const progressRef = useRef(null);
 
@@ -52,7 +57,6 @@ export default function MusicPage() {
       const data = await apiRequest('/api/music');
       setTracks(data.tracks || []);
     } catch (err) {
-      // Treat as empty list rather than showing an error — table may just be empty
       setTracks([]);
     } finally {
       setLoading(false);
@@ -68,7 +72,6 @@ export default function MusicPage() {
     const onEnded = () => {
       setIsPlaying(false);
       setProgress(0);
-      // Auto-play next track
       const idx = tracks.findIndex(t => t.id === currentTrack?.id);
       if (idx >= 0 && idx < tracks.length - 1) {
         playTrack(tracks[idx + 1]);
@@ -152,6 +155,20 @@ export default function MusicPage() {
     if (idx > 0) playTrack(tracks[idx - 1]);
   }
 
+  async function handleCoverSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const ok = await looksLikeImage(file);
+    if (!ok) { setUploadError('Cover must be an image file.'); e.target.value = ''; return; }
+    if (file.size > 5 * 1024 * 1024) { setUploadError('Cover image too large. Max 5 MB.'); e.target.value = ''; return; }
+    // Show local preview immediately
+    const reader = new FileReader();
+    reader.onload = ev => setCoverPreview(ev.target.result);
+    reader.readAsDataURL(file);
+    setCoverFile(file);
+    setUploadError('');
+  }
+
   async function handleUpload(e) {
     e.preventDefault();
     if (!uploadFile) { setUploadError('Please select an MP3 file.'); return; }
@@ -161,21 +178,12 @@ export default function MusicPage() {
     setUploading(true);
     setUploadError('');
     try {
-      // Convert MP3 to base64
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result;
-          // result is "data:audio/mpeg;base64,XXXX..."
-          const b64 = result.split(',')[1];
-          if (!b64) { reject(new Error('Could not read file.')); return; }
-          resolve(b64);
-        };
-        reader.onerror = () => reject(new Error('Could not read file.'));
-        reader.readAsDataURL(uploadFile);
-      });
+      // Read audio as base64
+      const audioDataUrl = await readFileAsDataURL(uploadFile);
+      const base64 = audioDataUrl.split(',')[1];
+      if (!base64) throw new Error('Could not read audio file.');
 
-      // Get duration via Audio element before uploading
+      // Get duration via Audio element
       const duration_seconds = await new Promise((resolve) => {
         const audio = new Audio();
         audio.preload = 'metadata';
@@ -183,6 +191,12 @@ export default function MusicPage() {
         audio.onerror = () => resolve(null);
         audio.src = URL.createObjectURL(uploadFile);
       });
+
+      // Upload cover image to R2 if provided
+      let cover_url = null;
+      if (coverFile) {
+        cover_url = await uploadImage(coverFile);
+      }
 
       await apiRequest('/api/music', {
         method: 'POST',
@@ -192,12 +206,15 @@ export default function MusicPage() {
           audio_base64: base64,
           mime_type: uploadFile.type || 'audio/mpeg',
           duration_seconds,
+          cover_url,
         }),
       });
 
       setShowUpload(false);
       setUploadForm({ title: '', description: '' });
       setUploadFile(null);
+      setCoverFile(null);
+      setCoverPreview(null);
       await loadTracks();
     } catch (err) {
       setUploadError(err.message || 'Upload failed.');
@@ -251,7 +268,7 @@ export default function MusicPage() {
         )}
       </div>
 
-      {/* Upload form (logged-in users) */}
+      {/* Upload form */}
       {showUpload && user && (
         <div style={{
           background: 'var(--surface)', border: '1px solid var(--border)',
@@ -291,6 +308,39 @@ export default function MusicPage() {
               />
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Max. 20 MB</div>
             </div>
+            {/* Cover image (optional) */}
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                Cover Image <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(optional, shown next to track title)</span>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {coverPreview && (
+                  <img
+                    src={coverPreview}
+                    alt="Cover preview"
+                    style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0 }}
+                  />
+                )}
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.tiff,.svg"
+                    onChange={handleCoverSelect}
+                    style={{ fontSize: 14 }}
+                  />
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Max. 500 KB · JPG, PNG, WebP, etc.</div>
+                </div>
+              </div>
+              {coverFile && (
+                <button
+                  type="button"
+                  onClick={() => { setCoverFile(null); setCoverPreview(null); }}
+                  style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginTop: 4 }}
+                >
+                  Remove cover
+                </button>
+              )}
+            </div>
             {uploadError && (
               <div style={{ color: 'var(--danger)', fontSize: 13 }}>{uploadError}</div>
             )}
@@ -298,7 +348,7 @@ export default function MusicPage() {
               <button type="submit" className="btn btn-primary btn-sm" disabled={uploading}>
                 {uploading ? 'Uploading…' : 'Upload'}
               </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowUpload(false)}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowUpload(false); setCoverFile(null); setCoverPreview(null); setUploadError(''); }}>
                 Cancel
               </button>
             </div>
@@ -322,7 +372,7 @@ export default function MusicPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {tracks.map((track, i) => {
+          {tracks.map((track) => {
             const isActive = currentTrack?.id === track.id;
             return (
               <div
@@ -338,7 +388,7 @@ export default function MusicPage() {
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--surface)'; }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
               >
-                {/* Play button — always visible */}
+                {/* Play button */}
                 <div
                   style={{
                     width: 36, height: 36, borderRadius: '50%',
@@ -358,6 +408,20 @@ export default function MusicPage() {
                     </svg>
                   )}
                 </div>
+
+                {/* Cover thumbnail (if available) */}
+                {track.cover_url && (
+                  <img
+                    src={track.cover_url}
+                    alt=""
+                    onClick={() => playTrack(track)}
+                    style={{
+                      width: 40, height: 40, borderRadius: 6,
+                      objectFit: 'cover', flexShrink: 0,
+                      border: '1px solid var(--border)',
+                    }}
+                  />
+                )}
 
                 {/* Track info */}
                 <div style={{ flex: 1, minWidth: 0 }} onClick={() => playTrack(track)}>
@@ -388,9 +452,7 @@ export default function MusicPage() {
                   </div>
                 )}
 
-                {/* Download button — uses /download endpoint (Content-Disposition: attachment)
-                    so the browser always saves the file. <a download> only works same-origin;
-                    this backend endpoint works cross-origin. */}
+                {/* Download button */}
                 <a
                   href={`${BASE}/api/music/${track.id}/download`}
                   onClick={e => e.stopPropagation()}
@@ -429,7 +491,7 @@ export default function MusicPage() {
         </div>
       )}
 
-      {/* Player bar — fixed at bottom when a track is loaded */}
+      {/* Player bar */}
       {currentTrack && (
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0,
@@ -440,13 +502,21 @@ export default function MusicPage() {
           backdropFilter: 'blur(12px)',
         }}>
           <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Cover in player bar */}
+            {currentTrack.cover_url && (
+              <img
+                src={currentTrack.cover_url}
+                alt=""
+                style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }}
+              />
+            )}
             {/* Track name */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {currentTrack.title}
               </div>
-              {currentTrack.artist && (
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{currentTrack.artist}</div>
+              {currentTrack.uploader_username && (
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{currentTrack.uploader_username}</div>
               )}
             </div>
 

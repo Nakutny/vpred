@@ -16,7 +16,7 @@ function safeFilename(title) {
 router.get('/admin/deleted', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, title, artist, description, duration_seconds, created_at, deleted_at
+      `SELECT id, title, description, duration_seconds, created_at, deleted_at
        FROM music_tracks
        WHERE deleted_at IS NOT NULL
        ORDER BY deleted_at DESC`
@@ -44,6 +44,7 @@ router.get('/', async (req, res) => {
   try {
     const result = await query(
       `SELECT mt.id, mt.title, mt.description, mt.duration_seconds, mt.created_at,
+              mt.cover_url,
               u.username AS uploader_username, u.id AS uploader_id
        FROM music_tracks mt
        LEFT JOIN users u ON u.id = mt.uploaded_by
@@ -72,7 +73,6 @@ router.get('/:id/stream', async (req, res) => {
     const { title, audio_url, audio_data, mime_type } = result.rows[0];
 
     if (audio_url) {
-      // ── New path: stream from R2 ──────────────────────────────────────────
       const r2Res = await streamFromR2(audio_url);
       res.setHeader('Content-Type', mime_type || 'audio/mpeg');
       res.setHeader('Accept-Ranges', 'bytes');
@@ -81,7 +81,6 @@ router.get('/:id/stream', async (req, res) => {
       if (r2Res.ContentLength) res.setHeader('Content-Length', r2Res.ContentLength);
       r2Res.Body.pipe(res);
     } else if (audio_data) {
-      // ── Legacy path: serve base64 from DB (old tracks not yet migrated) ──
       const buffer = Buffer.from(audio_data, 'base64');
       res.setHeader('Content-Type', mime_type || 'audio/mpeg');
       res.setHeader('Content-Length', buffer.length);
@@ -138,11 +137,11 @@ router.get('/:id/download', async (req, res) => {
 // ─── POST /api/music — upload track (any logged-in user) ─────────────────────
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { title, description, audio_base64, mime_type, duration_seconds } = req.body;
+    const { title, description, audio_base64, mime_type, duration_seconds, cover_url: cover_url_input } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required.' });
     if (!audio_base64) return res.status(400).json({ error: 'Audio data is required.' });
 
-    // Validate size (~20 MB limit)
+    // Validate audio size (~20 MB limit)
     const sizeBytes = Math.ceil(audio_base64.length * 0.75);
     if (sizeBytes > 20 * 1024 * 1024) {
       return res.status(413).json({ error: 'File too large. Maximum size is 20 MB.' });
@@ -154,10 +153,21 @@ router.post('/', requireAuth, async (req, res) => {
     const key = `tracks/${Date.now()}_${safeFilename(title.trim())}.mp3`;
     await uploadToR2(key, audioBuffer, mime_type || 'audio/mpeg');
 
+    // cover_url is now a URL returned by /api/upload/image (R2) — just validate and use it
+    let cover_url = null;
+    if (cover_url_input) {
+      // Accept R2 proxy paths (/api/images/...), R2 public URLs (https://...), and data: URLs as fallback
+      const isValid = cover_url_input.startsWith('/api/images/') ||
+        cover_url_input.startsWith('https://') ||
+        cover_url_input.startsWith('http://') ||
+        cover_url_input.startsWith('data:image');
+      if (isValid) cover_url = cover_url_input;
+    }
+
     const result = await query(
-      `INSERT INTO music_tracks (title, description, audio_url, mime_type, duration_seconds, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, title, description, duration_seconds, created_at`,
+      `INSERT INTO music_tracks (title, description, audio_url, mime_type, duration_seconds, uploaded_by, cover_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, title, description, duration_seconds, created_at, cover_url`,
       [
         title.trim(),
         description?.trim() || null,
@@ -165,6 +175,7 @@ router.post('/', requireAuth, async (req, res) => {
         mime_type || 'audio/mpeg',
         duration_seconds ? Number(duration_seconds) : null,
         req.user.id,
+        cover_url,
       ]
     );
 
@@ -181,7 +192,6 @@ router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const isAdmin = req.user.role === 'admin';
 
-    // Fetch audio_url to clean up R2 if needed
     const trackRes = await query(
       `SELECT audio_url, uploaded_by FROM music_tracks WHERE id = $1 AND deleted_at IS NULL`,
       [req.params.id]
@@ -193,13 +203,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Not your track.' });
     }
 
-    // Soft-delete in DB
     await query(
       `UPDATE music_tracks SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2`,
       [req.user.id, req.params.id]
     );
 
-    // Optionally delete from R2 (non-fatal if it fails)
     if (audio_url) {
       try { await deleteFromR2(audio_url); } catch (e) {
         console.warn('R2 delete warning (continuing):', e.message);

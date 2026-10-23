@@ -17,9 +17,24 @@ router.patch('/me/avatar', requireAuth, async (req, res) => {
       }
     }
     const { avatar_url } = req.body;
-    if (avatar_url && avatar_url.startsWith('data:image')) {
-      const sizeKB = Buffer.byteLength(avatar_url, 'utf8') / 1024;
-      if (sizeKB > 500) return res.status(400).json({ error: 'Image too large. Max 500KB.' });
+    // Accept R2 URLs (https://...), proxy paths (/api/images/...), preset SVG paths (/avatars/...),
+    // and data: URLs as fallback (e.g. preset SVGs rendered as data URLs)
+    if (avatar_url) {
+      const isValid =
+        avatar_url.startsWith('https://') ||
+        avatar_url.startsWith('http://') ||
+        avatar_url.startsWith('/api/images/') ||
+        avatar_url.startsWith('/avatars/') ||
+        avatar_url.startsWith('data:image') ||
+        avatar_url.startsWith('data:application/octet-stream');
+      if (!isValid) {
+        return res.status(400).json({ error: 'Invalid avatar format.' });
+      }
+      // Size check only for base64 data URLs (R2 URLs are just short strings)
+      if (avatar_url.startsWith('data:')) {
+        const sizeKB = Buffer.byteLength(avatar_url, 'utf8') / 1024;
+        if (sizeKB > 500) return res.status(400).json({ error: 'Image too large. Max 500KB.' });
+      }
     }
     await query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatar_url || null, req.user.id]);
     res.json({ message: 'Avatar updated.', avatar_url: avatar_url || null });
