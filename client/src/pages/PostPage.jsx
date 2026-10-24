@@ -174,7 +174,7 @@ export default function PostPage() {
   }
 
   if (loading) return (
-    <div style={{ maxWidth: 820, margin: '60px auto', padding: '0 24px', color: 'var(--muted)' }}>Loading...</div>
+    <div style={{ maxWidth: 820, margin: '40px auto', padding: '0 16px', color: 'var(--muted)' }}>Loading...</div>
   );
 
   if (!post) return null;
@@ -193,7 +193,7 @@ export default function PostPage() {
   }
 
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
+    <div style={{ maxWidth: 820, margin: '0 auto', padding: '24px 16px' }}>
       {/* SEO */}
       <SEO
         title={post.title}

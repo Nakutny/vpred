@@ -120,8 +120,8 @@ export default function AdminPage() {
         <>
           {/* Users tab */}
           {tab === 'users' && (
-            <div className="card" style={{ overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
                     {['Username', 'Email', 'Role', 'Status', 'Color', 'Joined', 'Actions'].map(h => (
