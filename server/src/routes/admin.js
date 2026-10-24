@@ -195,7 +195,7 @@ router.get('/anomalies', async (req, res) => {
   try {
     // Try anomaly_log table; fall back to empty
     const result = await query(
-      `SELECT id, type, details, ip, created_at FROM anomaly_log ORDER BY created_at DESC LIMIT 100`
+      `SELECT id, type, details, ip, created_at FROM anomalies ORDER BY created_at DESC LIMIT 100`
     );
     res.json({ anomalies: result.rows });
   } catch (err) {
