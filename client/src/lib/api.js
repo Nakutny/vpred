@@ -78,6 +78,17 @@ export const mod = {
   demoteSelf: () => request('/api/mod/demote-self', { method: 'PATCH' }),
 };
 
+// Legal pages (impressum, privacy)
+export const legal = {
+  get: (key) => request(`/api/legal/${key}`),
+  update: (key, content) => request(`/api/legal/${key}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
+};
+
+// Reports (user-submitted reports on posts/comments)
+export const reports = {
+  submit: (type, targetId, reason) => request('/api/reports', { method: 'POST', body: JSON.stringify({ type, target_id: targetId, reason }) }),
+};
+
 // Profile
 export const profile = {
   get: (username) => request(`/api/profile/${username}`),
