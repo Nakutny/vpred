@@ -85,6 +85,26 @@ router.patch('/users/:id/color', async (req, res) => {
   }
 });
 
+// POST /api/admin/set-color  (legacy alias — kept for backward compatibility)
+// Body: { userId, color }
+router.post('/set-color', async (req, res) => {
+  try {
+    const { userId, color } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required.' });
+
+    const finalColor = (!color || color === 'null') ? null : color;
+
+    if (finalColor !== null && !/^#[0-9A-Fa-f]{6}$/.test(finalColor)) {
+      return res.status(400).json({ error: 'Invalid color. Must be #RRGGBB or null to reset.' });
+    }
+
+    await query('UPDATE users SET donator_color = $1 WHERE id = $2', [finalColor, userId]);
+    res.json({ ok: true, donator_color: finalColor });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update color.' });
+  }
+});
+
 // GET /api/admin/posts
 router.get('/posts', async (req, res) => {
   try {
@@ -112,6 +132,57 @@ router.patch('/posts/:id/status', async (req, res) => {
     res.json({ message: 'Status updated.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update status.' });
+  }
+});
+
+// GET /api/admin/maintenance  — current maintenance status
+router.get('/maintenance', async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT enabled, message, started_at, estimated_end FROM maintenance_mode WHERE id = 1'
+    );
+    const mode = result.rows[0] || { enabled: false };
+    res.json({
+      maintenance: mode.enabled || false,
+      message: mode.message || null,
+      started_at: mode.started_at || null,
+      estimated_end: mode.estimated_end || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load maintenance status.' });
+  }
+});
+
+// POST /api/admin/maintenance  — toggle maintenance mode on/off
+// Body: { enabled: boolean, message?: string, estimated_end?: string|null }
+router.post('/maintenance', async (req, res) => {
+  try {
+    const { enabled, message = null, estimated_end = null } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: '"enabled" must be a boolean.' });
+    }
+
+    // Upsert — ensure row with id=1 exists
+    await query(
+      `INSERT INTO maintenance_mode (id, enabled, message, started_at, estimated_end)
+       VALUES (1, $1, $2, NOW(), $3)
+       ON CONFLICT (id) DO UPDATE
+         SET enabled      = EXCLUDED.enabled,
+             message      = EXCLUDED.message,
+             started_at   = CASE WHEN EXCLUDED.enabled THEN NOW() ELSE maintenance_mode.started_at END,
+             estimated_end = EXCLUDED.estimated_end`,
+      [enabled, message, estimated_end]
+    );
+
+    res.json({
+      ok: true,
+      maintenance: enabled,
+      message,
+      estimated_end,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update maintenance mode.' });
   }
 });
 

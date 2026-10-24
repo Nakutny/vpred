@@ -21,7 +21,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Prevent horizontal scroll on all mobile devices */
+  overflow-x: hidden;
+}
 
 body {
   background: var(--bg);
@@ -30,6 +34,8 @@ body {
   font-size: 15px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
+  /* Prevent horizontal overflow */
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4 {
@@ -180,107 +186,62 @@ a { color: inherit; text-decoration: none; }
 /* Divider */
 .divider { border: none; border-top: 1px solid var(--border); }
 
-/* ═══════════════════════════════════════════════════════
-   patch60: Mobile Responsive Design
-   ═══════════════════════════════════════════════════════ */
-
+/* ─── Hamburger drawer animation ──────────────────────────── */
 @keyframes slideInLeft {
   from { transform: translateX(-100%); opacity: 0; }
   to   { transform: translateX(0);     opacity: 1; }
 }
 
-/* By default mobile hamburger is hidden (desktop) */
-.mobile-hamburger { display: none !important; }
-
-/* ── Breakpoint: ≤ 900px — collapse desktop nav ── */
-@media (max-width: 900px) {
-  .desktop-nav        { display: none !important; }
-  .desktop-search     { display: none !important; }
-  .desktop-write-btn  { display: none !important; }
-  .desktop-avatar     { display: none !important; }
-  .desktop-icon       { display: none !important; }
-  .desktop-auth-btn   { display: none !important; }
-  .mobile-hamburger   { display: flex !important; }
+/* ─── Mobile-only / Desktop-only visibility ──────────────── */
+/* Hamburger button: hidden on desktop by default */
+.mobile-hamburger {
+  display: none !important;
 }
 
-/* ── Breakpoint: ≤ 768px — page layout adjustments ── */
+/* At ≤900px: hide desktop nav items, show hamburger */
+@media (max-width: 900px) {
+  .desktop-nav       { display: none !important; }
+  .desktop-search    { display: none !important; }
+  .desktop-write-btn { display: none !important; }
+  .desktop-avatar    { display: none !important; }
+  .desktop-icon      { display: none !important; }
+  .desktop-auth-btn  { display: none !important; }
+  .mobile-hamburger  { display: flex !important; }
+}
+
+/* At ≤768px: stack homepage layout, wrap admin tables */
 @media (max-width: 768px) {
-  /* Homepage: stack main feed + sidebar vertically */
+  html, body, #root {
+    overflow-x: hidden !important;
+    max-width: 100vw;
+  }
+
+  /* Homepage: stack sidebar below feed on mobile */
   .home-layout {
     flex-direction: column !important;
     padding: 16px !important;
     gap: 24px !important;
   }
+
+  /* Sidebar takes full width and shows above feed */
   .home-sidebar {
     width: 100% !important;
-    order: -1; /* sidebar above feed on mobile */
+    order: -1;
   }
 
-  /* Post page: full width */
-  .post-layout {
-    flex-direction: column !important;
-    padding: 16px !important;
-    gap: 20px !important;
-  }
-  .post-sidebar { width: 100% !important; }
-
-  /* Profile page */
-  .profile-layout {
-    flex-direction: column !important;
-    padding: 16px !important;
+  /* Admin tables: allow internal horizontal scroll */
+  .admin-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* Admin table: horizontal scroll */
-  .admin-table-wrap { overflow-x: auto !important; }
-
-  /* Categories grid */
-  .categories-grid {
-    grid-template-columns: 1fr !important;
+  /* Post page padding reduction */
+  .post-page-inner {
+    padding: 24px 16px !important;
   }
-
-  /* General page padding */
-  .page-pad {
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-  }
-
-  /* Card padding on mobile */
-  .card { border-radius: 8px; }
-
-  /* Smaller headings on mobile */
-  h1 { font-size: 1.5rem !important; }
-
-  /* Footer links wrap tightly */
-  footer .footer-links { flex-direction: column; gap: 8px; }
-
-  /* New/Edit post page full width */
-  .new-post-layout {
-    max-width: 100% !important;
-    padding: 16px !important;
-  }
-
-  /* Pagination wrap */
-  .pagination-wrap { flex-wrap: wrap; gap: 4px; }
-
-  /* Modal / overlay content */
-  .modal-content { width: calc(100vw - 32px) !important; margin: 16px !important; }
 }
 
-/* ── Breakpoint: ≤ 480px — very small phones ── */
+/* At ≤480px: slightly smaller base font */
 @media (max-width: 480px) {
   body { font-size: 14px; }
-  .btn { font-size: 13px; padding: 7px 13px; }
-  .btn-sm { font-size: 12px; padding: 4px 9px; }
-}
-
-/* Global mobile overflow fix */
-@media (max-width: 768px) {
-  body, #root { overflow-x: hidden; }
-  
-  /* All main page containers: reduce padding on small screens */
-  [style*="padding: '40px 24px'"],
-  [style*="padding: '32px 24px'"] {
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-  }
 }

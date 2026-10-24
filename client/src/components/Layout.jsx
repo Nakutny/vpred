@@ -259,7 +259,7 @@ export default function Layout({ children }) {
             ) : (
               <>
                 <Link to="/login" className="btn btn-ghost btn-sm desktop-auth-btn" style={{ textDecoration: 'none' }}>Sign in</Link>
-                <Link to="/register" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>Join</Link>
+                <Link to="/register" className="btn btn-primary btn-sm desktop-auth-btn" style={{ textDecoration: 'none' }}>Join</Link>
                 {/* Hamburger for logged-out mobile */}
                 <button onClick={() => setMobileNavOpen(true)} className="mobile-hamburger" aria-label="Open menu"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: 4, display: 'flex', alignItems: 'center' }}>
