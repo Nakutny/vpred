@@ -44,7 +44,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="home-layout" style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px', display: 'flex', gap: 40 }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px', display: 'flex', gap: 40 }}>
       {/* Main feed */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ marginBottom: 24 }}>
@@ -105,7 +105,7 @@ export default function HomePage() {
       </div>
 
       {/* Sidebar */}
-      <aside className="home-sidebar" style={{ width: 260, flexShrink: 0 }}>
+      <aside style={{ width: 260, flexShrink: 0 }}>
         <div className="card" style={{ padding: '18px 20px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
