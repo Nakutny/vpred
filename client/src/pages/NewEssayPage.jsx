@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { posts } from '../lib/api';
+import { uploadImage } from '../lib/uploadImage';
 import { useAuth } from '../contexts/AuthContext';
 
 function ToolbarBtn({ onClick, active, title, children }) {
@@ -28,7 +29,7 @@ const MAX_IMAGES = 3;
 const MAX_SIZE_KB = 500;
 
 export default function NewEssayPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState('');
@@ -41,9 +42,8 @@ export default function NewEssayPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (authLoading) return;
     if (!user) navigate('/login');
-  }, [user, authLoading]);
+  }, [user]);
 
   const editor = useEditor({
     extensions: [
@@ -55,7 +55,7 @@ export default function NewEssayPage() {
     },
   });
 
-  function handleImageUpload(e) {
+  async function handleImageUpload(e) {
     setImageError('');
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -69,24 +69,25 @@ export default function NewEssayPage() {
 
     const toProcess = files.slice(0, remaining);
 
-    toProcess.forEach(file => {
+    for (const file of toProcess) {
       if (!file.type.startsWith('image/')) {
         setImageError('Only image files are allowed.');
-        return;
+        continue;
       }
       if (file.size > MAX_SIZE_KB * 1024) {
         setImageError(`Image too large — max ${MAX_SIZE_KB}KB per image.`);
-        return;
+        continue;
       }
-      const reader = new FileReader();
-      reader.onload = ev => {
+      try {
+        const url = await uploadImage(file);
         setImages(prev => {
           if (prev.length >= MAX_IMAGES) return prev;
-          return [...prev, ev.target.result];
+          return [...prev, url];
         });
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch (err) {
+        setImageError('Upload failed: ' + err.message);
+      }
+    }
 
     e.target.value = '';
   }

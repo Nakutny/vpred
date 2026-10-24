@@ -1,68 +1,50 @@
-// ─── Image upload route ───────────────────────────────────────────────────────
-// POST /api/upload/image
-//   Body: { image_base64: "<data URL or raw base64>", filename?: string }
-//   Returns: { url: "https://..." }  (public R2 URL or proxy URL)
-//
-// Pipeline: base64 → Buffer → sharp (resize + JPEG compress) → R2 upload → URL
-// Requires: sharp (npm i sharp), R2 env vars
-// Limit: 5 MB input, output is auto-compressed JPEG (quality 82, max 1600px wide)
-// ─────────────────────────────────────────────────────────────────────────────
 import express from 'express';
-import sharp from 'sharp';
 import { requireAuth } from '../middleware/auth.js';
 import { uploadToR2 } from '../lib/r2.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
-// Public R2 URL base — set R2_PUBLIC_URL env var to your bucket's public domain
-// e.g. https://pub-xxxx.r2.dev  or a custom domain
-// Falls back to streaming via our own /api/images/:key endpoint if not set.
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || null;
-
-function imageUrl(key) {
-  if (R2_PUBLIC_URL) return `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`;
-  // Fallback: serve via our own backend proxy
-  return `/api/images/${encodeURIComponent(key)}`;
-}
-
-// ─── POST /api/upload/image ────────────────────────────────────────────────
+// POST /api/upload/image
+// Body: { data: "data:image/png;base64,...", filename?: "photo.png" }
+// Returns: { url: "/api/images/<key>" }
 router.post('/image', requireAuth, async (req, res) => {
   try {
-    const { image_base64, filename } = req.body;
-    if (!image_base64) return res.status(400).json({ error: 'image_base64 is required.' });
-
-    // Strip data URL prefix if present
-    const raw = image_base64.replace(/^data:[^;]+;base64,/, '');
-    const inputBuffer = Buffer.from(raw, 'base64');
-
-    // Size check on raw input (5 MB)
-    if (inputBuffer.length > 5 * 1024 * 1024) {
-      return res.status(413).json({ error: 'Image too large. Maximum input size is 5 MB.' });
+    const { data, filename } = req.body;
+    if (!data || !data.startsWith('data:image')) {
+      return res.status(400).json({ error: 'Invalid image data.' });
     }
 
-    // Convert + compress with sharp
-    // - max 1600px on longest side (preserves aspect ratio)
-    // - JPEG quality 82 → typically 50–200 KB for photos
-    const jpegBuffer = await sharp(inputBuffer)
-      .rotate()                          // auto-rotate from EXIF
-      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82, mozjpeg: true })
-      .toBuffer();
+    // Parse base64 data URL
+    const matches = data.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+    if (!matches) return res.status(400).json({ error: 'Invalid image format.' });
+    const mimeType = matches[1];
+    const base64Data = matches[2];
+    const buffer = Buffer.from(base64Data, 'base64');
 
-    // Build a unique R2 key
-    const safeName = (filename || 'image')
-      .replace(/\.[^.]+$/, '')           // strip extension
-      .replace(/[^\w-]/g, '_')
-      .slice(0, 40);
-    const key = `images/${Date.now()}_${req.user.id}_${safeName}.jpg`;
+    // Limit: 5MB
+    if (buffer.byteLength > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Image too large. Max 5MB.' });
+    }
 
-    await uploadToR2(key, jpegBuffer, 'image/jpeg');
+    // Build R2 key
+    const ext = mimeType.split('/')[1]?.replace('+xml', '') || 'jpg';
+    const uid = crypto.randomBytes(12).toString('hex');
+    const safeName = filename
+      ? filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60)
+      : `img_${uid}.${ext}`;
+    const key = `images/${uid}_${safeName}`;
 
-    const url = imageUrl(key);
-    res.json({ url, key });
+    await uploadToR2(key, buffer, mimeType);
+
+    // If R2_PUBLIC_URL is configured, return a direct CDN link
+    const publicBase = process.env.R2_PUBLIC_URL;
+    const url = publicBase ? `${publicBase}/${key}` : `/api/images/${key}`;
+
+    res.json({ url });
   } catch (err) {
     console.error('Image upload error:', err);
-    res.status(500).json({ error: 'Image upload failed.', detail: err.message });
+    res.status(500).json({ error: 'Failed to upload image.' });
   }
 });
 

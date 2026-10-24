@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { posts } from '../lib/api';
+import { uploadImage } from '../lib/uploadImage';
 import { useAuth } from '../contexts/AuthContext';
 
 function ToolbarBtn({ onClick, active, title, children }) {
@@ -28,7 +29,7 @@ const MAX_IMAGES = 3;
 const MAX_SIZE_KB = 500;
 
 export default function NewStoryPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState('');
@@ -41,21 +42,20 @@ export default function NewStoryPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (authLoading) return;
     if (!user) navigate('/login');
-  }, [user, authLoading]);
+  }, [user]);
 
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Placeholder.configure({ placeholder: 'Write your text here…' }),
+      Placeholder.configure({ placeholder: 'Tell your story here…' }),
     ],
     editorProps: {
       attributes: { class: 'tiptap-editor' },
     },
   });
 
-  function handleImageUpload(e) {
+  async function handleImageUpload(e) {
     setImageError('');
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -63,13 +63,16 @@ export default function NewStoryPage() {
     const remaining = MAX_IMAGES - images.length;
     if (remaining <= 0) { setImageError(`Maximum ${MAX_IMAGES} images allowed.`); e.target.value = ''; return; }
 
-    files.slice(0, remaining).forEach(file => {
-      if (!file.type.startsWith('image/')) { setImageError('Only image files are allowed.'); return; }
-      if (file.size > MAX_SIZE_KB * 1024) { setImageError(`Image too large — max ${MAX_SIZE_KB}KB per image.`); return; }
-      const reader = new FileReader();
-      reader.onload = ev => setImages(prev => prev.length >= MAX_IMAGES ? prev : [...prev, ev.target.result]);
-      reader.readAsDataURL(file);
-    });
+    for (const file of files.slice(0, remaining)) {
+      if (!file.type.startsWith('image/')) { setImageError('Only image files are allowed.'); continue; }
+      if (file.size > MAX_SIZE_KB * 1024) { setImageError(`Image too large — max ${MAX_SIZE_KB}KB per image.`); continue; }
+      try {
+        const url = await uploadImage(file);
+        setImages(prev => prev.length >= MAX_IMAGES ? prev : [...prev, url]);
+      } catch (err) {
+        setImageError('Upload failed: ' + err.message);
+      }
+    }
     e.target.value = '';
   }
 
@@ -102,21 +105,21 @@ export default function NewStoryPage() {
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
       <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 6 }}>
-        Write a Text
+        Tell a Story
       </h1>
       <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 32 }}>
-        Share your experiences, memories, or fictional narratives — no rules, just writing.
+        Share your experiences, memories, or fictional narratives — no rules, just storytelling.
       </p>
 
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Title *</label>
-          <input className="input" style={{ fontSize: 18 }} placeholder="Your text title…" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
+          <input className="input" style={{ fontSize: 18 }} placeholder="Your story title…" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
         </div>
 
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-            Topic <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — e.g. "Travel", "Childhood", "Essay")</span>
+            Topic <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — e.g. "Travel", "Childhood", "Adventure")</span>
           </label>
           <input className="input" placeholder="Enter a topic or genre…" value={topic} onChange={e => setTopic(e.target.value)} maxLength={100} />
         </div>
@@ -125,7 +128,7 @@ export default function NewStoryPage() {
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
             Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — shown in the story feed)</span>
           </label>
-          <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="A brief teaser for your text…" value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
+          <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="A brief teaser for your story…" value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
         </div>
 
         <div style={{ marginBottom: 24 }}>
@@ -179,9 +182,9 @@ export default function NewStoryPage() {
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="submit" disabled={submitting} className="btn btn-primary">
-            {submitting ? 'Publishing…' : 'Publish text'}
+            {submitting ? 'Publishing…' : 'Publish story'}
           </button>
-          <button type="button" onClick={() => navigate('/texts')} className="btn btn-ghost">Cancel</button>
+          <button type="button" onClick={() => navigate('/stories')} className="btn btn-ghost">Cancel</button>
         </div>
       </form>
     </div>

@@ -1,43 +1,52 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { query } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
+import { uploadToR2, deleteFromR2 } from '../lib/r2.js';
 
 const router = express.Router();
 
 // PATCH-Routen MÜSSEN vor /:username kommen
 
+// PATCH /api/profile/me/avatar — upload avatar to R2
 router.patch('/me/avatar', requireAuth, async (req, res) => {
   try {
-    // Banned users cannot change their avatar
-    if (req.user.is_banned) {
-      const expired = req.user.ban_expires_at && new Date(req.user.ban_expires_at) <= new Date();
-      if (!expired) {
-        return res.status(403).json({ error: 'Your account is suspended. You cannot change your avatar.' });
-      }
-    }
     const { avatar_url } = req.body;
-    // Accept R2 URLs (https://...), proxy paths (/api/images/...), preset SVG paths (/avatars/...),
-    // and data: URLs as fallback (e.g. preset SVGs rendered as data URLs)
-    if (avatar_url) {
-      const isValid =
-        avatar_url.startsWith('https://') ||
-        avatar_url.startsWith('http://') ||
-        avatar_url.startsWith('/api/images/') ||
-        avatar_url.startsWith('/avatars/') ||
-        avatar_url.startsWith('data:image') ||
-        avatar_url.startsWith('data:application/octet-stream');
-      if (!isValid) {
-        return res.status(400).json({ error: 'Invalid avatar format.' });
+
+    let finalUrl = avatar_url || null;
+
+    // If it's a base64 data URL, upload to R2
+    if (avatar_url && avatar_url.startsWith('data:image')) {
+      const matches = avatar_url.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+      if (!matches) return res.status(400).json({ error: 'Invalid image format.' });
+
+      const mimeType = matches[1];
+      const buffer = Buffer.from(matches[2], 'base64');
+
+      if (buffer.byteLength > 2 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Avatar too large. Max 2MB.' });
       }
-      // Size check only for base64 data URLs (R2 URLs are just short strings)
-      if (avatar_url.startsWith('data:')) {
-        const sizeKB = Buffer.byteLength(avatar_url, 'utf8') / 1024;
-        if (sizeKB > 500) return res.status(400).json({ error: 'Image too large. Max 500KB.' });
+
+      const ext = mimeType.split('/')[1]?.replace('+xml', '') || 'jpg';
+      const uid = crypto.randomBytes(12).toString('hex');
+      const key = `avatars/${uid}.${ext}`;
+      await uploadToR2(key, buffer, mimeType);
+
+      // Delete old avatar from R2 if it was an R2 path
+      const oldRes = await query('SELECT avatar_url FROM users WHERE id = $1', [req.user.id]);
+      const oldUrl = oldRes.rows[0]?.avatar_url;
+      if (oldUrl && oldUrl.includes('/api/images/avatars/')) {
+        const oldKey = oldUrl.split('/api/images/')[1];
+        try { await deleteFromR2(oldKey); } catch (_) {}
       }
+
+      const publicBase = process.env.R2_PUBLIC_URL;
+      finalUrl = publicBase ? `${publicBase}/${key}` : `/api/images/${key}`;
     }
-    await query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatar_url || null, req.user.id]);
-    res.json({ message: 'Avatar updated.', avatar_url: avatar_url || null });
+
+    await query('UPDATE users SET avatar_url = $1 WHERE id = $2', [finalUrl, req.user.id]);
+    res.json({ message: 'Avatar updated.', avatar_url: finalUrl });
   } catch (err) {
     console.error('Update avatar error:', err);
     res.status(500).json({ error: 'Failed to update avatar.' });
@@ -46,13 +55,6 @@ router.patch('/me/avatar', requireAuth, async (req, res) => {
 
 router.patch('/me/bio', requireAuth, async (req, res) => {
   try {
-    // Banned users cannot change their bio
-    if (req.user.is_banned) {
-      const expired = req.user.ban_expires_at && new Date(req.user.ban_expires_at) <= new Date();
-      if (!expired) {
-        return res.status(403).json({ error: 'Your account is suspended. You cannot change your bio.' });
-      }
-    }
     const { bio } = req.body;
     if (bio && bio.length > 300) return res.status(400).json({ error: 'Bio must be 300 characters or less.' });
     await query('UPDATE users SET bio = $1 WHERE id = $2', [bio || null, req.user.id]);
@@ -80,11 +82,12 @@ router.patch('/me/password', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/profile/:username
+// GET /api/profile/:username — now includes donator_color
 router.get('/:username', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, username, bio, avatar_url, created_at, is_banned, ban_expires_at, pre_ban_bio, pre_ban_avatar_url FROM users WHERE LOWER(username) = LOWER($1)`,
+      `SELECT id, username, bio, avatar_url, created_at, donator_color, is_donator, donator_badge_visible
+       FROM users WHERE LOWER(username) = LOWER($1)`,
       [req.params.username]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'User not found.' });
@@ -111,7 +114,7 @@ router.get('/:username', async (req, res) => {
   }
 });
 
-// ─── PATCH /api/profile — general profile update (donator settings etc.) ─────
+// PATCH /api/profile — general profile update (donator settings etc.)
 router.patch('/', requireAuth, async (req, res) => {
   try {
     const { donator_badge_visible } = req.body;

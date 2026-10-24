@@ -18,10 +18,8 @@ import reportRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
 import userRoutes from './routes/users.js';
 import donateRoutes from './routes/donate.js';
-import navCountsRoutes from './routes/navCounts.js';
-import musicRoutes from './routes/music.js';
-import uploadRoutes from './routes/upload.js';
 import imageRoutes from './routes/images.js';
+import uploadRoutes from './routes/upload.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
 import { authLimiter, apiLimiter, donateLimiter } from './middleware/rateLimiter.js';
@@ -47,13 +45,13 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '30mb' })); // increased for base64-encoded MP3 uploads
+app.use(express.json({ limit: '2mb' }));
 
 // Visitor log (before everything)
 visitorLogMiddleware(app);
 
 // ─── Always-available endpoints (before maintenance gate) ─────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch36', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch34', timestamp: new Date().toISOString() }));
 
 // Public maintenance status — MUST be before checkMaintenance middleware
 app.get('/api/maintenance', async (req, res) => {
@@ -99,10 +97,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/donate', donateRoutes);
-app.use('/api/nav-counts', navCountsRoutes);
-app.use('/api/music', musicRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/upload', uploadRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((err, req, res, next) => {
@@ -116,24 +112,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch36]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch34]`);
   scheduledCleanup();
   setInterval(scheduledCleanup, 30 * 60 * 1000);
-
-  // ─── Render cold-start prevention ───────────────────────────────────────────
-  // Render free tier spins down after 15min inactivity — ping self every 14min
-  // to stay warm and avoid 20-30s cold-start delays for users.
-  const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-  if (process.env.NODE_ENV === 'production') {
-    setInterval(async () => {
-      try {
-        const { default: https } = await import('https');
-        const url = new URL('/health', SELF_URL);
-        const mod = url.protocol === 'https:' ? https : (await import('http')).default;
-        mod.get(url.toString(), (res) => {
-          res.resume(); // drain response
-        }).on('error', () => {}); // silently ignore errors
-      } catch (_) {}
-    }, 14 * 60 * 1000); // every 14 minutes
-  }
 });
