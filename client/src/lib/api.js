@@ -52,6 +52,7 @@ export const categories = {
 
 // Admin
 export const admin = {
+  stats: () => request('/api/admin/stats'),
   users: () => request('/api/admin/users'),
   banUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned: true }) }),
   unbanUser: (id) => request(`/api/admin/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned: false }) }),
@@ -60,7 +61,14 @@ export const admin = {
   posts: () => request('/api/admin/posts'),
   setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   maintenance: () => request('/api/admin/maintenance'),
-  setMaintenance: (body) => request('/api/admin/maintenance', { method: 'POST', body: JSON.stringify(body) }),
+  setMaintenance: (enabled, message, estimated_end) =>
+    request('/api/admin/maintenance', { method: 'POST', body: JSON.stringify({ enabled, message, estimated_end }) }),
+  dbStatus: () => request('/api/admin/db-status'),
+  httpLogs: () => request('/api/admin/http-logs'),
+  anomalies: () => request('/api/admin/anomalies'),
+  donations: () => request('/api/admin/donations'),
+  settings: () => request('/api/admin/settings'),
+  updateSettings: (body) => request('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(body) }),
 };
 
 // Moderator
@@ -78,13 +86,13 @@ export const mod = {
   demoteSelf: () => request('/api/mod/demote-self', { method: 'PATCH' }),
 };
 
-// Legal pages (impressum, privacy)
+// Legal
 export const legal = {
   get: (key) => request(`/api/legal/${key}`),
   update: (key, content) => request(`/api/legal/${key}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
 };
 
-// Reports (user-submitted reports on posts/comments)
+// Reports
 export const reports = {
   submit: (type, targetId, reason) => request('/api/reports', { method: 'POST', body: JSON.stringify({ type, target_id: targetId, reason }) }),
 };
@@ -127,7 +135,7 @@ export const blocks = {
 export const messages = {
   conversations: () => request('/api/messages/conversations'),
   thread: (userId) => request(`/api/messages/${userId}`),
-  send: (userId, content) => request('/api/messages', { method: 'POST', body: JSON.stringify({ recipient_id: userId, content }) }),
+  send: (userId, content) => request(`/api/messages/${userId}`, { method: 'POST', body: JSON.stringify({ content }) }),
   unreadCount: () => request('/api/messages/unread-count'),
 };
 
@@ -135,6 +143,7 @@ export const messages = {
 export const notifications = {
   list: () => request('/api/notifications'),
   markRead: (id) => request(`/api/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllRead: () => request('/api/notifications/read-all', { method: 'PATCH' }),
   readAll: () => request('/api/notifications/read-all', { method: 'PATCH' }),
   delete: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
 };

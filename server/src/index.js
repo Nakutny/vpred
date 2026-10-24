@@ -21,6 +21,7 @@ import donateRoutes from './routes/donate.js';
 import imageRoutes from './routes/images.js';
 import uploadRoutes from './routes/upload.js';
 import navCountsRoutes from './routes/navCounts.js';
+import musicRoutes from './routes/music.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
 import { authLimiter, apiLimiter, donateLimiter } from './middleware/rateLimiter.js';
@@ -31,52 +32,26 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Trust Cloudflare / Render proxy — required for express-rate-limit
-app.set('trust proxy', 1);
-
-const ALLOWED_ORIGINS = [
-  'https://vpred.org',
-  'https://www.vpred.org',
-  'http://localhost:5173',
-  'http://localhost:4173',
-];
-if (process.env.CLIENT_URL) ALLOWED_ORIGINS.push(process.env.CLIENT_URL);
-
+// ─── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS: origin ${origin} not allowed`));
-  },
+  origin: [
+    'https://vpred.org',
+    'https://www.vpred.org',
+    /\.vpred\.org$/,
+    'http://localhost:5173',
+  ],
   credentials: true,
 }));
+
 app.use(express.json({ limit: '2mb' }));
 
-// Visitor log (before everything)
-visitorLogMiddleware(app);
-
-// ─── Always-available endpoints (before maintenance gate) ─────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch59', timestamp: new Date().toISOString() }));
-
-// Public maintenance status — MUST be before checkMaintenance middleware
-app.get('/api/maintenance', async (req, res) => {
-  try {
-    const result = await query('SELECT enabled, message, started_at, estimated_end FROM maintenance_mode WHERE id = 1');
-    const mode = result.rows[0] || { enabled: false };
-    res.json({
-      maintenance: mode.enabled || false,
-      message: mode.message || null,
-      started_at: mode.started_at || null,
-      estimated_end: mode.estimated_end || null,
-    });
-  } catch (_) {
-    res.json({ maintenance: false });
-  }
-});
+// ─── Visitor log ──────────────────────────────────────────────────────────────
+app.use(visitorLogMiddleware);
 
 // ─── Maintenance gate (blocks all /api routes for non-staff) ──────────────────
 app.use('/api', checkMaintenance);
 
-// ─── Rate Limiting ────────────────────────────────────────────────────────────
+// ─── Rate limiters ────────────────────────────────────────────────────────────
 app.use('/api', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
@@ -104,20 +79,15 @@ app.use('/api/donate', donateRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/nav-counts', navCountsRoutes);
+app.use('/api/music', musicRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  console.error(err);
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-// ─── Scheduled cleanup ────────────────────────────────────────────────────────
-async function scheduledCleanup() {
-  try { await runCleanup(); } catch (err) { console.error('[cleanup]', err.message); }
-}
+// ─── Scheduled cleanup every 24h ─────────────────────────────────────────────
+setInterval(runCleanup, 24 * 60 * 60 * 1000);
 
-app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch59]`);
-  scheduledCleanup();
-  setInterval(scheduledCleanup, 30 * 60 * 1000);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

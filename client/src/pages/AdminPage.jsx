@@ -8,9 +8,39 @@ export default function AdminPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('users');
+
+  // Users
   const [users, setUsers] = useState([]);
+  const [colorEdits, setColorEdits] = useState({});
+
+  // Posts
+  const [posts, setPosts] = useState([]);
+
+  // Categories
   const [categoryList, setCategoryList] = useState([]);
   const [newCategory, setNewCategory] = useState({ name: '', description: '' });
+
+  // Donations
+  const [donations, setDonations] = useState([]);
+
+  // DB Status
+  const [dbStatus, setDbStatus] = useState(null);
+
+  // HTTP Logs
+  const [httpLogs, setHttpLogs] = useState([]);
+
+  // Anomalies
+  const [anomalies, setAnomalies] = useState([]);
+
+  // Maintenance
+  const [maintenance, setMaintenance] = useState({ enabled: false, message: '', estimated_end: '' });
+  const [maintSaving, setMaintSaving] = useState(false);
+
+  // Settings
+  const [settings, setSettings] = useState({});
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
+  // General
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
 
@@ -22,8 +52,34 @@ export default function AdminPage() {
     ]).finally(() => setLoading(false));
   }, [isAdmin]);
 
-  function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 3000); }
+  // Lazy-load tabs on demand
+  useEffect(() => {
+    if (tab === 'posts') {
+      admin.posts().then(d => setPosts(d.posts || [])).catch(() => {});
+    } else if (tab === 'donations') {
+      admin.donations().then(d => setDonations(d.donations || [])).catch(() => {});
+    } else if (tab === 'db') {
+      admin.dbStatus().then(d => setDbStatus(d)).catch(() => setDbStatus({ error: 'Could not load.' }));
+    } else if (tab === 'logs') {
+      admin.httpLogs().then(d => setHttpLogs(d.logs || [])).catch(() => {});
+    } else if (tab === 'anomalies') {
+      admin.anomalies().then(d => setAnomalies(d.anomalies || [])).catch(() => {});
+    } else if (tab === 'maintenance') {
+      admin.maintenance().then(d => {
+        setMaintenance({
+          enabled: d.maintenance || false,
+          message: d.message || '',
+          estimated_end: d.estimated_end ? d.estimated_end.slice(0, 16) : '',
+        });
+      }).catch(() => {});
+    } else if (tab === 'settings') {
+      admin.settings().then(d => setSettings(d.settings || {})).catch(() => {});
+    }
+  }, [tab]);
 
+  function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 3500); }
+
+  // ── Users ───────────────────────────────────────────────────────────────────
   async function handleBan(id, isBanned) {
     try {
       isBanned ? await admin.unbanUser(id) : await admin.banUser(id);
@@ -41,6 +97,26 @@ export default function AdminPage() {
     } catch (err) { flash('Error: ' + err.message); }
   }
 
+  async function handleSetColor(id) {
+    const color = colorEdits[id] ?? '';
+    try {
+      await admin.setColor(id, color || null);
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, donator_color: color || null } : u));
+      setColorEdits(prev => { const n = { ...prev }; delete n[id]; return n; });
+      flash('Color updated.');
+    } catch (err) { flash('Error: ' + err.message); }
+  }
+
+  async function handleResetColor(id) {
+    try {
+      await admin.setColor(id, null);
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, donator_color: null } : u));
+      setColorEdits(prev => { const n = { ...prev }; delete n[id]; return n; });
+      flash('Color reset.');
+    } catch (err) { flash('Error: ' + err.message); }
+  }
+
+  // ── Categories ──────────────────────────────────────────────────────────────
   async function handleAddCategory(e) {
     e.preventDefault();
     if (!newCategory.name.trim()) return;
@@ -61,33 +137,84 @@ export default function AdminPage() {
     } catch (err) { flash('Error: ' + err.message); }
   }
 
-  async function handleSetColor(id, color) {
+  // ── Posts ───────────────────────────────────────────────────────────────────
+  async function handlePostStatus(id, currentStatus) {
+    const next = currentStatus === 'published' ? 'removed' : 'published';
     try {
-      await admin.setColor(id, color || null);
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, donator_color: color || null } : u));
-      flash(color ? `Color set to ${color}.` : 'Color reset to default.');
+      await admin.setPostStatus(id, next);
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, status: next } : p));
+      flash('Post status updated.');
     } catch (err) { flash('Error: ' + err.message); }
   }
 
+  // ── Maintenance ─────────────────────────────────────────────────────────────
+  async function handleSaveMaintenance() {
+    setMaintSaving(true);
+    try {
+      await admin.setMaintenance(
+        maintenance.enabled,
+        maintenance.message || null,
+        maintenance.estimated_end || null,
+      );
+      flash(maintenance.enabled ? 'Maintenance mode enabled.' : 'Maintenance mode disabled.');
+    } catch (err) { flash('Error: ' + err.message); }
+    setMaintSaving(false);
+  }
+
+  // ── Settings ─────────────────────────────────────────────────────────────────
+  async function handleSaveSettings() {
+    setSettingsSaving(true);
+    try {
+      await admin.updateSettings(settings);
+      flash('Settings saved.');
+    } catch (err) { flash('Error: ' + err.message); }
+    setSettingsSaving(false);
+  }
+
+  // ── UI helpers ──────────────────────────────────────────────────────────────
   function RoleBadge({ role }) {
     const colors = { admin: '#4f8ef7', moderator: '#4caf7d', user: '#7a8099' };
     return (
       <span style={{
         padding: '2px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600,
-        background: colors[role] + '22', color: colors[role],
+        background: (colors[role] || '#7a8099') + '22', color: colors[role] || '#7a8099',
       }}>
         {role}
       </span>
     );
   }
 
-  const tabs = [
-    { id: 'users', label: 'Users' },
-    { id: 'categories', label: 'Categories' },
+  function StatusBadge({ status }) {
+    const ok = status === 'published';
+    return (
+      <span style={{
+        padding: '2px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600,
+        background: (ok ? '#4caf7d' : '#e05252') + '22', color: ok ? '#4caf7d' : '#e05252',
+      }}>
+        {status}
+      </span>
+    );
+  }
+
+  const TABS = [
+    { id: 'users',       label: 'Users' },
+    { id: 'posts',       label: 'Posts' },
+    { id: 'categories',  label: 'Categories' },
+    { id: 'donations',   label: 'Donations' },
+    { id: 'db',          label: 'DB Status' },
+    { id: 'logs',        label: 'HTTP Log' },
+    { id: 'anomalies',   label: 'Anomalies' },
+    { id: 'maintenance', label: 'Maintenance' },
+    { id: 'settings',    label: 'Settings' },
   ];
 
+  const th = { padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
+  const td = { padding: '10px 14px', fontSize: 13, borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
+
+  if (loading) return <div style={{ textAlign: 'center', padding: 80, color: 'var(--muted)' }}>Loading…</div>;
+
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400 }}>Admin Panel</h1>
         <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Manage users, categories and platform settings.</p>
@@ -99,157 +226,332 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 28 }}>
-        {tabs.map(t => (
+      {/* Tab bar — scrollable on mobile */}
+      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 28, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer',
-            fontFamily: 'DM Sans, sans-serif', fontSize: 14, fontWeight: tab === t.id ? 600 : 400,
+            padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+            fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: tab === t.id ? 600 : 400,
             color: tab === t.id ? 'var(--text)' : 'var(--muted)',
             borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
-            marginBottom: -1, transition: 'all 0.15s',
+            marginBottom: -1,
           }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {loading ? (
-        <div style={{ color: 'var(--muted)' }}>Loading...</div>
-      ) : (
-        <>
-          {/* Users tab */}
-          {tab === 'users' && (
-            <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Username', 'Email', 'Role', 'Status', 'Color', 'Joined', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--muted)', fontFamily: 'DM Sans, sans-serif' }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map(u => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#fff' }}>
-                            {u.username[0].toUpperCase()}
-                          </div>
-                          <span style={{ fontSize: 14, fontWeight: 500 }}>{u.username}</span>
-                          {u.id === user.id && <span style={{ fontSize: 11, color: 'var(--muted)' }}>(you)</span>}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>{u.email}</td>
-                      <td style={{ padding: '12px 16px' }}><RoleBadge role={u.role} /></td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ fontSize: 12, color: u.is_banned ? 'var(--danger)' : 'var(--success)', fontWeight: 500 }}>
-                          {u.is_banned ? 'Banned' : 'Active'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input
-                            type="color"
-                            value={u.donator_color || '#888888'}
-                            onChange={e => handleSetColor(u.id, e.target.value)}
-                            title="Set username color"
-                            style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', padding: 1 }}
-                          />
-                          {u.donator_color && (
-                            <button
-                              onClick={() => handleSetColor(u.id, '')}
-                              className="btn btn-ghost btn-sm"
-                              style={{ fontSize: 11, color: 'var(--muted)', padding: '1px 6px' }}
-                              title="Reset color"
-                            >✕</button>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>
-                        {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        {u.id !== user.id && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => handleBan(u.id, u.is_banned)} className="btn btn-ghost btn-sm"
-                              style={{ color: u.is_banned ? 'var(--success)' : 'var(--danger)', fontSize: 12 }}>
-                              {u.is_banned ? 'Unban' : 'Ban'}
-                            </button>
-                            <button onClick={() => handleRole(u.id, u.role)} className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>
-                              → {u.role === 'admin' ? 'user' : u.role === 'moderator' ? 'admin' : 'mod'}
-                            </button>
-                          </div>
+      {/* ── USERS ── */}
+      {tab === 'users' && (
+        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+            <thead>
+              <tr>
+                {['Username', 'Email', 'Role', 'Status', 'Donator Color', 'Joined', 'Actions'].map(h => (
+                  <th key={h} style={th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => {
+                const editColor = colorEdits[u.id] !== undefined ? colorEdits[u.id] : (u.donator_color || '');
+                return (
+                  <tr key={u.id}>
+                    <td style={td}>
+                      <UsernameWithColor user={u} style={{ fontWeight: 600 }} />
+                    </td>
+                    <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{u.email}</td>
+                    <td style={td}><RoleBadge role={u.role} /></td>
+                    <td style={td}>
+                      {u.is_banned
+                        ? <span style={{ color: 'var(--danger)', fontSize: 12, fontWeight: 600 }}>Banned</span>
+                        : <span style={{ color: 'var(--success)', fontSize: 12 }}>Active</span>}
+                    </td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {/* Color preview swatch */}
+                        <input
+                          type="color"
+                          value={editColor || '#4f8ef7'}
+                          onChange={e => setColorEdits(prev => ({ ...prev, [u.id]: e.target.value }))}
+                          style={{ width: 28, height: 28, padding: 1, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'var(--surface)' }}
+                          title="Pick color"
+                        />
+                        <input
+                          type="text"
+                          value={editColor}
+                          onChange={e => setColorEdits(prev => ({ ...prev, [u.id]: e.target.value }))}
+                          placeholder="#RRGGBB"
+                          maxLength={7}
+                          style={{ width: 80, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 7px', color: 'var(--text)', fontSize: 12, fontFamily: 'monospace' }}
+                        />
+                        <button onClick={() => handleSetColor(u.id)} style={{ padding: '3px 9px', fontSize: 11, borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                          Set
+                        </button>
+                        {u.donator_color && (
+                          <button onClick={() => handleResetColor(u.id)} title="Reset to default" style={{ padding: '3px 7px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>
+                            ✕
+                          </button>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Categories tab */}
-          {tab === 'categories' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 28 }}>
-              {/* List */}
-              <div className="card" style={{ overflow: 'hidden', alignSelf: 'start' }}>
-                {categoryList.length === 0 ? (
-                  <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>No categories yet.</div>
-                ) : (
-                  categoryList.map((c, i) => (
-                    <div key={c.id} style={{ padding: '14px 20px', borderBottom: i < categoryList.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 500, fontSize: 14 }}>{c.name}</div>
-                        {c.description && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>{c.description}</div>}
-                        <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>{c.post_count} posts</div>
                       </div>
-                      <button onClick={() => handleDeleteCategory(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>
+                    </td>
+                    <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button onClick={() => handleBan(u.id, u.is_banned)} style={{
+                          padding: '4px 10px', fontSize: 11, borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 600,
+                          background: u.is_banned ? 'rgba(76,175,125,0.15)' : 'rgba(224,82,82,0.15)',
+                          color: u.is_banned ? 'var(--success)' : 'var(--danger)',
+                        }}>
+                          {u.is_banned ? 'Unban' : 'Ban'}
+                        </button>
+                        <button onClick={() => handleRole(u.id, u.role)} style={{
+                          padding: '4px 10px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', cursor: 'pointer',
+                          background: 'transparent', color: 'var(--muted)',
+                        }}>
+                          Role ↺
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── POSTS ── */}
+      {tab === 'posts' && (
+        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+            <thead>
+              <tr>{['Title', 'Author', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {posts.length === 0 && (
+                <tr><td colSpan={5} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No posts found.</td></tr>
+              )}
+              {posts.map(p => (
+                <tr key={p.id}>
+                  <td style={td}><span style={{ fontWeight: 500 }}>{p.title}</span></td>
+                  <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{p.author_username}</td>
+                  <td style={td}><StatusBadge status={p.status} /></td>
+                  <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{new Date(p.created_at).toLocaleDateString()}</td>
+                  <td style={td}>
+                    <button onClick={() => handlePostStatus(p.id, p.status)} style={{
+                      padding: '4px 10px', fontSize: 11, borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 600,
+                      background: p.status === 'published' ? 'rgba(224,82,82,0.15)' : 'rgba(76,175,125,0.15)',
+                      color: p.status === 'published' ? 'var(--danger)' : 'var(--success)',
+                    }}>
+                      {p.status === 'published' ? 'Remove' : 'Restore'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── CATEGORIES ── */}
+      {tab === 'categories' && (
+        <div style={{ display: 'grid', gap: 24 }}>
+          <div className="card" style={{ padding: 24 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Add Category</h3>
+            <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <input className="input" style={{ flex: '1 1 200px' }} placeholder="Name" value={newCategory.name} onChange={e => setNewCategory(p => ({ ...p, name: e.target.value }))} />
+              <input className="input" style={{ flex: '2 1 280px' }} placeholder="Description (optional)" value={newCategory.description} onChange={e => setNewCategory(p => ({ ...p, description: e.target.value }))} />
+              <button type="submit" className="btn btn-primary btn-sm">Add</button>
+            </form>
+          </div>
+          <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Name', 'Description', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {categoryList.map(c => (
+                  <tr key={c.id}>
+                    <td style={td}><span style={{ fontWeight: 500 }}>{c.name}</span></td>
+                    <td style={{ ...td, color: 'var(--muted)' }}>{c.description || '—'}</td>
+                    <td style={td}>
+                      <button onClick={() => handleDeleteCategory(c.id)} style={{ padding: '4px 10px', fontSize: 11, borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 600, background: 'rgba(224,82,82,0.15)', color: 'var(--danger)' }}>
                         Delete
                       </button>
-                    </div>
-                  ))
-                )}
-              </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-              {/* Add form */}
-              <div className="card" style={{ padding: '20px 22px', alignSelf: 'start' }}>
-                <h3 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.1rem', fontWeight: 400, marginBottom: 16 }}>Add Category</h3>
-                <form onSubmit={handleAddCategory}>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Name *</label>
-                    <input
-                      className="input"
-                      placeholder="e.g. Politics"
-                      value={newCategory.name}
-                      onChange={e => setNewCategory(p => ({ ...p, name: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div style={{ marginBottom: 18 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Description</label>
-                    <textarea
-                      className="input"
-                      style={{ minHeight: 70, resize: 'vertical' }}
-                      placeholder="Short description..."
-                      value={newCategory.description}
-                      onChange={e => setNewCategory(p => ({ ...p, description: e.target.value }))}
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                    Create category
-                  </button>
-                </form>
-              </div>
+      {/* ── DONATIONS ── */}
+      {tab === 'donations' && (
+        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+            <thead><tr>{['User', 'Amount', 'Currency', 'Status', 'Date'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {donations.length === 0 && (
+                <tr><td colSpan={5} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No donations found.</td></tr>
+              )}
+              {donations.map((d, i) => (
+                <tr key={d.id || i}>
+                  <td style={td}>{d.username || d.user_id || '—'}</td>
+                  <td style={td}>{d.amount}</td>
+                  <td style={{ ...td, color: 'var(--muted)' }}>{d.currency}</td>
+                  <td style={td}><StatusBadge status={d.status} /></td>
+                  <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{d.created_at ? new Date(d.created_at).toLocaleDateString() : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── DB STATUS ── */}
+      {tab === 'db' && (
+        <div className="card" style={{ padding: 28 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Database Status</h3>
+          {!dbStatus ? (
+            <p style={{ color: 'var(--muted)' }}>Loading…</p>
+          ) : dbStatus.error ? (
+            <p style={{ color: 'var(--danger)' }}>{dbStatus.error}</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
+              {Object.entries(dbStatus).map(([key, val]) => (
+                <div key={key} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{key.replace(/_/g, ' ')}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{String(val)}</div>
+                </div>
+              ))}
             </div>
           )}
-        </>
+        </div>
+      )}
+
+      {/* ── HTTP LOGS ── */}
+      {tab === 'logs' && (
+        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+            <thead><tr>{['Time', 'Method', 'Path', 'Status', 'IP', 'Duration'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {httpLogs.length === 0 && (
+                <tr><td colSpan={6} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No logs found.</td></tr>
+              )}
+              {httpLogs.map((l, i) => (
+                <tr key={l.id || i}>
+                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString() : '—'}</td>
+                  <td style={{ ...td, fontWeight: 600, fontSize: 12 }}>{l.method}</td>
+                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.path}</td>
+                  <td style={{ ...td, color: l.status >= 400 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{l.status}</td>
+                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)' }}>{l.ip || '—'}</td>
+                  <td style={{ ...td, fontSize: 12, color: 'var(--muted)' }}>{l.duration_ms != null ? `${l.duration_ms}ms` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── ANOMALIES ── */}
+      {tab === 'anomalies' && (
+        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+            <thead><tr>{['Time', 'Type', 'Details', 'IP'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {anomalies.length === 0 && (
+                <tr><td colSpan={4} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No anomalies detected.</td></tr>
+              )}
+              {anomalies.map((a, i) => (
+                <tr key={a.id || i}>
+                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
+                  <td style={{ ...td, color: 'var(--danger)', fontWeight: 600, fontSize: 12 }}>{a.type}</td>
+                  <td style={{ ...td, fontSize: 12, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.details || '—'}</td>
+                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)' }}>{a.ip || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── MAINTENANCE ── */}
+      {tab === 'maintenance' && (
+        <div className="card" style={{ padding: 28, maxWidth: 600 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Maintenance Mode</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+              <div
+                onClick={() => setMaintenance(p => ({ ...p, enabled: !p.enabled }))}
+                style={{
+                  width: 44, height: 24, borderRadius: 12, background: maintenance.enabled ? 'var(--danger)' : 'var(--border)',
+                  position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: 3, left: maintenance.enabled ? 23 : 3,
+                  width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                }} />
+              </div>
+              <span style={{ fontWeight: maintenance.enabled ? 600 : 400, color: maintenance.enabled ? 'var(--danger)' : 'var(--text)' }}>
+                {maintenance.enabled ? 'Maintenance ACTIVE' : 'Maintenance OFF'}
+              </span>
+            </label>
+
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Message (shown to users)</label>
+              <textarea
+                className="input"
+                rows={3}
+                value={maintenance.message}
+                onChange={e => setMaintenance(p => ({ ...p, message: e.target.value }))}
+                placeholder="We'll be back shortly…"
+                style={{ resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Estimated end (optional)</label>
+              <input
+                type="datetime-local"
+                className="input"
+                value={maintenance.estimated_end}
+                onChange={e => setMaintenance(p => ({ ...p, estimated_end: e.target.value }))}
+              />
+            </div>
+
+            <button onClick={handleSaveMaintenance} disabled={maintSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+              {maintSaving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── SETTINGS ── */}
+      {tab === 'settings' && (
+        <div className="card" style={{ padding: 28, maxWidth: 600 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Platform Settings</h3>
+          {Object.keys(settings).length === 0 ? (
+            <p style={{ color: 'var(--muted)', fontSize: 14 }}>No settings found or endpoint not available.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {Object.entries(settings).map(([key, val]) => (
+                <div key={key}>
+                  <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{key}</label>
+                  <input
+                    className="input"
+                    value={val}
+                    onChange={e => setSettings(p => ({ ...p, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+              <button onClick={handleSaveSettings} disabled={settingsSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                {settingsSaving ? 'Saving…' : 'Save Settings'}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
