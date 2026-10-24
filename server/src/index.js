@@ -20,6 +20,7 @@ import userRoutes from './routes/users.js';
 import donateRoutes from './routes/donate.js';
 import imageRoutes from './routes/images.js';
 import uploadRoutes from './routes/upload.js';
+import navCountsRoutes from './routes/navCounts.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
 import { authLimiter, apiLimiter, donateLimiter } from './middleware/rateLimiter.js';
@@ -28,8 +29,10 @@ import { query } from './db/client.js';
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
+
+// Trust Cloudflare / Render proxy — required for express-rate-limit
+app.set('trust proxy', 1);
 
 const ALLOWED_ORIGINS = [
   'https://vpred.org',
@@ -52,7 +55,7 @@ app.use(express.json({ limit: '2mb' }));
 visitorLogMiddleware(app);
 
 // ─── Always-available endpoints (before maintenance gate) ─────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch34', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: 'v6-patch59', timestamp: new Date().toISOString() }));
 
 // Public maintenance status — MUST be before checkMaintenance middleware
 app.get('/api/maintenance', async (req, res) => {
@@ -100,6 +103,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/donate', donateRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/nav-counts', navCountsRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((err, req, res, next) => {
@@ -113,7 +117,7 @@ async function scheduledCleanup() {
 }
 
 app.listen(PORT, () => {
-  console.log(`vpred.org server running on port ${PORT} [v6-patch34]`);
+  console.log(`vpred.org server running on port ${PORT} [v6-patch59]`);
   scheduledCleanup();
   setInterval(scheduledCleanup, 30 * 60 * 1000);
 });

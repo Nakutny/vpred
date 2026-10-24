@@ -43,7 +43,7 @@ router.post('/create-payment', optionalAuth, async (req, res) => {
 
     // Create payment at NowPayments
     const orderDesc = userId ? `Vpred donation by user ${userId}` : 'Vpred anonymous donation';
-    const ipnCallbackUrl = `${process.env.BACKEND_URL || 'https://vpred-oxfv.onrender.com'}/api/donate/webhook`;
+    const ipnCallbackUrl = `${process.env.BACKEND_URL || 'https://api.vpred.org'}/api/donate/webhook`;
 
     const npRes = await fetch(`${NOWPAYMENTS_API}/payment`, {
       method: 'POST',
@@ -189,14 +189,17 @@ router.post('/webhook', express.json(), async (req, res) => {
 });
 
 // ─── POST /api/donate/set-color ───────────────────────────────────────────────
-// Allows donators to set any hex color for their username
+// Allows donators to set (or reset to null) their username color
 router.post('/set-color', requireAuth, async (req, res) => {
   try {
     const { color } = req.body;
 
-    // Accept any valid 6-digit hex color
-    if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
-      return res.status(400).json({ error: 'Invalid color. Must be a valid hex color like #7B2FBE' });
+    // color = null / '' → reset to default
+    // color = '#RRGGBB' → set custom color
+    const finalColor = (!color || color === 'null') ? null : color;
+
+    if (finalColor !== null && !/^#[0-9A-Fa-f]{6}$/.test(finalColor)) {
+      return res.status(400).json({ error: 'Invalid color. Must be a valid hex color like #7B2FBE or null to reset.' });
     }
 
     // Only donators can change color
@@ -207,10 +210,10 @@ router.post('/set-color', requireAuth, async (req, res) => {
 
     await pool(
       'UPDATE users SET donator_color = $1 WHERE id = $2',
-      [color, req.user.id]
+      [finalColor, req.user.id]
     );
 
-    res.json({ ok: true, donator_color: color });
+    res.json({ ok: true, donator_color: finalColor });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

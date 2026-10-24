@@ -51,7 +51,7 @@ export default function ProfilePage() {
   const [socialLoading, setSocialLoading] = useState(false);
 
   // Donator settings
-  const [donatorColor, setDonatorColor] = useState('#7B2FBE');
+  const [donatorColor, setDonatorColor] = useState('');  // '' = default/reset, '#RRGGBB' = custom
   const [badgeVisible, setBadgeVisible] = useState(true);
   const [donatorMsg, setDonatorMsg] = useState('');
   const [donatorSaving, setDonatorSaving] = useState(false);
@@ -72,7 +72,7 @@ export default function ProfilePage() {
         setSavedAvatar(d.user.avatar_url || null);
         setSelectedAvatar(d.user.avatar_url || null);
         setProfileUserId(d.user.id);
-        if (d.user.donator_color) setDonatorColor(d.user.donator_color);
+        setDonatorColor(d.user.donator_color || '');
         setBadgeVisible(d.user.donator_badge_visible !== false);
       })
       .catch(err => setError(err.message || 'Failed to load profile.'))
@@ -272,7 +272,8 @@ export default function ProfilePage() {
     setDonatorSaving(true);
     setDonatorMsg('');
     try {
-      await donateApi.setColor(donatorColor);
+      // Send null to reset, or the hex color
+      await donateApi.setColor(donatorColor || null);
       await profileApi.update({ donator_badge_visible: badgeVisible });
       setDonatorMsg('Saved!');
       setTimeout(() => setDonatorMsg(''), 3000);
@@ -281,6 +282,10 @@ export default function ProfilePage() {
     } finally {
       setDonatorSaving(false);
     }
+  }
+
+  async function handleColorReset() {
+    setDonatorColor('');
   }
 
   const hasUnsavedAvatar = selectedAvatar !== savedAvatar;
@@ -547,10 +552,10 @@ export default function ProfilePage() {
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
               Username color
             </label>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 type="color"
-                value={donatorColor}
+                value={donatorColor || '#7B2FBE'}
                 onChange={e => setDonatorColor(e.target.value)}
                 style={{
                   width: 48, height: 48, border: '2px solid var(--border)',
@@ -558,16 +563,26 @@ export default function ProfilePage() {
                 }}
               />
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: donatorColor }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: donatorColor || 'var(--text)' }}>
                   {data.user.username}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                  Preview of your username color
+                  {donatorColor ? 'Custom color active' : 'Default color (no color set)'}
                 </div>
               </div>
+              {donatorColor && (
+                <button
+                  type="button"
+                  onClick={handleColorReset}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: 12, color: 'var(--muted)' }}
+                >
+                  Reset to default
+                </button>
+              )}
             </div>
             <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-              Click the color swatch to open the color picker. Choose any color you like.
+              Click the color swatch to pick a color. Click "Reset to default" to remove your custom color.
             </p>
           </div>
 
