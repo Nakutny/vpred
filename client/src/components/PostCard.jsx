@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import Avatar from './Avatar';
+import { UsernameWithColor } from './DonatorBadge';
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -49,23 +50,16 @@ export default function PostCard({ post }) {
               </Link>
             )}
             {/* Author with avatar */}
-            {post.author_username ? (
-              <Link
-                to={`/profile/${post.author_username}`}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}
-              >
-                <Avatar username={post.author_username} avatarUrl={post.author_avatar} size={20} />
-                <span
-                  style={{ color: 'var(--text)', fontWeight: 500, fontSize: 12 }}
-                  onMouseEnter={e => e.target.style.color = 'var(--accent)'}
-                  onMouseLeave={e => e.target.style.color = 'var(--text)'}
-                >
-                  {post.author_username}
-                </span>
-              </Link>
-            ) : (
-              <span style={{ color: 'var(--muted)', fontSize: 12 }}>[deleted]</span>
-            )}
+            <Link
+              to={`/profile/${post.author_username}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}
+            >
+              <Avatar username={post.author_username} avatarUrl={post.author_avatar} size={20} />
+              <UsernameWithColor
+                user={{ username: post.author_username, donator_color: post.author_donator_color }}
+                style={{ fontWeight: 500, fontSize: 12 }}
+              />
+            </Link>
             <span style={{ color: 'var(--border)', fontSize: 12 }}>·</span>
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>{timeAgo(post.created_at)}</span>
             {readTime(post.summary || post.content) && (

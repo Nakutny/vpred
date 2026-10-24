@@ -1,5 +1,4 @@
 import express from 'express';
-import { createNotification } from './notifications.js';
 import { query } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -14,7 +13,8 @@ router.get('/', async (req, res) => {
     const result = await query(
       `SELECT
         c.id, c.content, c.parent_id, c.is_removed, c.created_at,
-        u.username as author_username, u.id as author_id, u.avatar_url as author_avatar
+        u.username as author_username, u.id as author_id,
+        u.avatar_url as author_avatar, u.donator_color as author_donator_color
        FROM comments c
        LEFT JOIN users u ON c.author_id = u.id
        WHERE c.post_id = $1
@@ -58,7 +58,6 @@ router.post('/', requireAuth, async (req, res) => {
         ...result.rows[0],
         author_username: req.user.username,
         author_id: req.user.id,
-        author_avatar: req.user.avatar_url || null,
       }
     });
   } catch (err) {

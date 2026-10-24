@@ -4,6 +4,7 @@ import { posts, comments as commentsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import SEO from '../components/SEO';
 import Avatar from '../components/Avatar';
+import { UsernameWithColor } from '../components/DonatorBadge';
 
 const ErdEditor = lazy(() => import('../components/ErdEditor'));
 
@@ -127,11 +128,11 @@ export default function PostPage() {
             <Link to={`/profile/${comment.author_username}`} style={{ flexShrink: 0 }}>
               <Avatar username={comment.author_username} avatarUrl={comment.author_avatar} size={26} />
             </Link>
-            <Link to={`/profile/${comment.author_username}`} style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)' }}
-              onMouseEnter={e => e.target.style.color = 'var(--accent)'}
-              onMouseLeave={e => e.target.style.color = 'var(--text)'}
-            >
-              {comment.author_username || 'Unknown'}
+            <Link to={`/profile/${comment.author_username}`} style={{ textDecoration: 'none' }}>
+              <UsernameWithColor
+                user={{ username: comment.author_username, donator_color: comment.author_donator_color }}
+                style={{ fontWeight: 500, fontSize: 13 }}
+              />
             </Link>
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>{timeAgo(comment.created_at)}</span>
             {(isAdmin || user?.id === comment.author_id) && !comment.is_removed && (
@@ -279,12 +280,10 @@ export default function PostPage() {
           <Link to={`/profile/${post.author_username}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
             <Avatar username={post.author_username} avatarUrl={post.author_avatar} size={36} />
             <div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}
-                onMouseEnter={e => e.target.style.color = 'var(--accent)'}
-                onMouseLeave={e => e.target.style.color = 'var(--text)'}
-              >
-                {post.author_username}
-              </div>
+              <UsernameWithColor
+                user={{ username: post.author_username, donator_color: post.author_donator_color }}
+                style={{ fontSize: 14, fontWeight: 500 }}
+              />
               <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 6 }}>
                 <span>{timeAgo(post.created_at)}</span>
                 <span>·</span>

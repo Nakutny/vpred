@@ -3,8 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi, donate as donateApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
-import { uploadImage, looksLikeImage } from '../lib/uploadImage';
 import PostCard from '../components/PostCard';
+import { UsernameWithColor } from '../components/DonatorBadge';
 
 const PRESET_AVATARS = [
   { id: 'banknote', url: '/avatars/banknote.svg' },
@@ -40,8 +40,7 @@ export default function ProfilePage() {
 
   // Avatar
   const [savedAvatar, setSavedAvatar] = useState(null);
-  const [selectedAvatar, setSelectedAvatar] = useState(null); // local preview URL
-  const [pendingAvatarUrl, setPendingAvatarUrl] = useState(null); // R2 URL to save
+  const [selectedAvatar, setSelectedAvatar] = useState(null);
   const [avatarMsg, setAvatarMsg] = useState('');
   const [avatarSaving, setAvatarSaving] = useState(false);
   const fileInputRef = useRef(null);
@@ -134,17 +133,11 @@ export default function ProfilePage() {
   }
 
   async function handleSaveAvatar() {
-    // Use R2 URL if we uploaded a file, otherwise use selectedAvatar directly (presets / existing)
-    const urlToSave = pendingAvatarUrl || selectedAvatar;
     setAvatarSaving(true);
     try {
-      await profileApi.updateAvatar(urlToSave);
-      setSavedAvatar(urlToSave);
-      // Keep selectedAvatar as local preview (data URL) if we have one,
-      // so the header avatar doesn't go black while the R2 proxy is deploying
-      if (!pendingAvatarUrl) setSelectedAvatar(urlToSave);
-      setPendingAvatarUrl(null);
-      setData(d => ({ ...d, user: { ...d.user, avatar_url: urlToSave } }));
+      await profileApi.updateAvatar(selectedAvatar);
+      setSavedAvatar(selectedAvatar);
+      setData(d => ({ ...d, user: { ...d.user, avatar_url: selectedAvatar } }));
       flash(setAvatarMsg, 'Avatar saved!');
     } catch (err) {
       flash(setAvatarMsg, 'Error: ' + err.message);
@@ -156,26 +149,11 @@ export default function ProfilePage() {
   async function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-    // Max 5 MB (server will compress to JPEG)
-    if (file.size > 5 * 1024 * 1024) return flash(setAvatarMsg, 'Image too large. Max 5 MB.');
-    const ok = await looksLikeImage(file);
-    if (!ok) return flash(setAvatarMsg, 'Please select an image file.');
-
-    // Show local preview immediately — stays visible the whole time
+    if (!file.type.startsWith('image/')) return flash(setAvatarMsg, 'Please select an image file.');
+    if (file.size > 500 * 1024) return flash(setAvatarMsg, 'Image too large. Max 500KB.');
     const reader = new FileReader();
     reader.onload = (ev) => setSelectedAvatar(ev.target.result);
     reader.readAsDataURL(file);
-    setPendingAvatarUrl(null); // clear any previous pending
-
-    // Upload to R2 in background — store URL separately so preview doesn't break
-    try {
-      flash(setAvatarMsg, 'Uploading…');
-      const url = await uploadImage(file);
-      setPendingAvatarUrl(url); // R2 URL used when Save is clicked
-      flash(setAvatarMsg, 'Image ready — click Save to apply.');
-    } catch (err) {
-      flash(setAvatarMsg, 'Upload failed: ' + err.message);
-    }
     e.target.value = '';
   }
 
@@ -311,30 +289,18 @@ export default function ProfilePage() {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 36, paddingBottom: 32, borderBottom: '1px solid var(--border)' }}>
-        <Avatar avatarUrl={selectedAvatar || savedAvatar} username={data.user.username} size={72} clickable={true} />
+        <Avatar avatarUrl={savedAvatar} username={data.user.username} size={72} />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 4 }}>
-            {data.user.username}
+            <UsernameWithColor user={data.user} />
           </h1>
-          {/* Ban notice — shown on own profile when banned */}
-          {isOwn && data.user.is_banned && (
-            <div style={{
-              background: 'rgba(230,57,70,0.08)', border: '1px solid rgba(230,57,70,0.3)',
-              borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#E63946',
-            }}>
-              🚫 Your account is currently suspended.
-              {data.user.ban_expires_at
-                ? ` Your bio and profile picture will be restored after ${new Date(data.user.ban_expires_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.`
-                : ' Your bio and profile picture will be restored when the ban is lifted.'}
-            </div>
-          )}
           {data.user.bio ? (
             <p style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.6, maxWidth: 500, marginBottom: 10 }}>
               {data.user.bio}
             </p>
           ) : isOwn ? (
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 10, fontStyle: 'italic' }}>
-              {data.user.is_banned ? 'Bio hidden during suspension.' : 'No bio yet. Add one in "Edit Bio".'}
+              No bio yet. Add one in "Edit Bio".
             </p>
           ) : null}
           <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -488,7 +454,7 @@ export default function ProfilePage() {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              Upload image (max 5 MB)
+              Upload image (max 500KB)
             </button>
           </div>
 
@@ -520,7 +486,7 @@ export default function ProfilePage() {
               {avatarSaving ? 'Saving...' : 'Save avatar'}
             </button>
             {hasUnsavedAvatar && (
-              <button onClick={() => { setSelectedAvatar(savedAvatar); setPendingAvatarUrl(null); }} className="btn btn-ghost btn-sm">Cancel</button>
+              <button onClick={() => setSelectedAvatar(savedAvatar)} className="btn btn-ghost btn-sm">Cancel</button>
             )}
             {savedAvatar && (
               <button onClick={() => setSelectedAvatar(null)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>

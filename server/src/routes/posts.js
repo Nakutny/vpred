@@ -46,6 +46,7 @@ router.get('/', optionalAuth, async (req, res) => {
       `SELECT
         p.id, p.title, p.slug, p.summary, p.view_count, p.created_at,
         u.username as author_username, u.id as author_id, u.avatar_url as author_avatar,
+        u.donator_color as author_donator_color,
         c.name as category_name, c.slug as category_slug,
         COUNT(DISTINCT cm.id) as comment_count,
         COUNT(DISTINCT pv.user_id) as vote_count
@@ -88,6 +89,7 @@ router.get('/:slug', optionalAuth, async (req, res) => {
         p.id, p.title, p.slug, p.content, p.summary, p.view_count,
         p.created_at, p.updated_at, p.status,
         u.username as author_username, u.id as author_id, u.bio as author_bio, u.avatar_url as author_avatar,
+        u.donator_color as author_donator_color,
         c.name as category_name, c.slug as category_slug, c.id as category_id,
         COUNT(DISTINCT pv.user_id) as vote_count
        FROM posts p
