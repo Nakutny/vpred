@@ -41,3 +41,11 @@ function readFileAsDataURL(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// Returns true if the string looks like an image URL or data URL
+export function looksLikeImage(url) {
+  if (!url) return false;
+  if (url.startsWith('data:image')) return true;
+  const lower = url.split('?')[0].toLowerCase();
+  return /\.(jpg|jpeg|png|gif|webp|svg|avif)$/.test(lower) || lower.includes('/api/images/');
+}
