@@ -59,6 +59,23 @@ export const admin = {
   setColor: (id, color) => request(`/api/admin/users/${id}/color`, { method: 'PATCH', body: JSON.stringify({ color }) }),
   posts: () => request('/api/admin/posts'),
   setPostStatus: (id, status) => request(`/api/admin/posts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  maintenance: () => request('/api/admin/maintenance'),
+  setMaintenance: (body) => request('/api/admin/maintenance', { method: 'POST', body: JSON.stringify(body) }),
+};
+
+// Moderator
+export const mod = {
+  stats: () => request('/api/mod/stats'),
+  users: (search = '') => request(`/api/mod/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  posts: (search = '') => request(`/api/mod/posts${search ? '?search=' + encodeURIComponent(search) : ''}`),
+  reports: (status = 'open') => request(`/api/mod/reports?status=${status}`),
+  banUser: (id, banned, duration_days = 0) => request(`/api/mod/users/${id}/ban`, { method: 'PATCH', body: JSON.stringify({ banned, duration_days }) }),
+  warnUser: (id, reason) => request(`/api/mod/users/${id}/warn`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  editPost: (id, body) => request(`/api/mod/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deletePost: (id) => request(`/api/mod/posts/${id}`, { method: 'DELETE' }),
+  restorePost: (id) => request(`/api/mod/posts/${id}/restore`, { method: 'PATCH' }),
+  resolveReport: (id, status) => request(`/api/mod/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  demoteSelf: () => request('/api/mod/demote-self', { method: 'PATCH' }),
 };
 
 // Profile
@@ -75,7 +92,6 @@ export const donate = {
   currencies: () => request('/api/donate/currencies'),
   createPayment: (body) => request('/api/donate/create-payment', { method: 'POST', body: JSON.stringify(body) }),
   status: (paymentId) => request(`/api/donate/status/${paymentId}`),
-  // color = '#RRGGBB' to set, null to reset to default
   setColor: (color) => request('/api/donate/set-color', { method: 'POST', body: JSON.stringify({ color: color ?? null }) }),
 };
 
@@ -100,14 +116,16 @@ export const blocks = {
 export const messages = {
   conversations: () => request('/api/messages/conversations'),
   thread: (userId) => request(`/api/messages/${userId}`),
-  send: (userId, content) => request(`/api/messages/${userId}`, { method: 'POST', body: JSON.stringify({ content }) }),
+  send: (userId, content) => request('/api/messages', { method: 'POST', body: JSON.stringify({ recipient_id: userId, content }) }),
+  unreadCount: () => request('/api/messages/unread-count'),
 };
 
 // Notifications
 export const notifications = {
   list: () => request('/api/notifications'),
   markRead: (id) => request(`/api/notifications/${id}/read`, { method: 'PATCH' }),
-  markAllRead: () => request('/api/notifications/read-all', { method: 'PATCH' }),
+  readAll: () => request('/api/notifications/read-all', { method: 'PATCH' }),
+  delete: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
 };
 
 // Users
