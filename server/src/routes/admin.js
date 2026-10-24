@@ -115,4 +115,10 @@ router.patch('/posts/:id/status', async (req, res) => {
   }
 });
 
+// Exported for scheduled cleanup in index.js
+export async function runCleanup() {
+  // Placeholder — extend with actual cleanup logic if needed
+  // e.g. delete expired sessions, purge soft-deleted records older than X days
+}
+
 export default router;
