@@ -127,7 +127,7 @@ router.post('/', requireAuth, async (req, res) => {
       'friend_request',
       `${senderUsername} sent you a friend request`,
       null,
-      '/friends'
+      '/friends?tab=requests'
     );
 
     res.status(201).json({ friendship: result.rows[0] });

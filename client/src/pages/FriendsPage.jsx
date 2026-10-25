@@ -1,15 +1,33 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { friendships as friendshipsApi, messages as messagesApi } from '../lib/api';
 import Avatar from '../components/Avatar';
 
 export default function FriendsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState({ friends: [], incoming: [], outgoing: [] });
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState('');
-  const [tab, setTab] = useState('friends'); // friends | messages | requests
+
+  // Read tab from URL (?tab=requests) — default to 'friends'
+  const validTabs = ['friends', 'messages', 'requests'];
+  const tabParam = searchParams.get('tab');
+  const [tab, setTabState] = useState(validTabs.includes(tabParam) ? tabParam : 'friends');
+
+  // Sync tab when URL param changes (e.g. notification click navigates to /friends?tab=requests)
+  useEffect(() => {
+    if (validTabs.includes(tabParam) && tabParam !== tab) {
+      setTabState(tabParam);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
+
+  function setTab(key) {
+    setTabState(key);
+    setSearchParams(key !== 'friends' ? { tab: key } : {}, { replace: true });
+  }
 
   async function load() {
     try {

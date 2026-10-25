@@ -106,12 +106,10 @@ export const friendships = {
   list: () => request('/api/friendships'),
   status: (userId) => request(`/api/friendships/status/${userId}`),
   send: (userId) => request('/api/friendships', { method: 'POST', body: JSON.stringify({ addressee_id: userId }) }),
-  accept: (id) => request(`/api/friendships/${id}/accept`, { method: 'PATCH' }),
-  decline: (id) => request(`/api/friendships/${id}/decline`, { method: 'PATCH' }),
-  // respond() used by FriendsPage — routes to accept or decline based on status string
-  respond: (id, status) => status === 'accepted'
-    ? request(`/api/friendships/${id}/accept`, { method: 'PATCH' })
-    : request(`/api/friendships/${id}/decline`, { method: 'PATCH' }),
+  // Backend uses PATCH /api/friendships/:id with { status } in body (no /accept or /decline sub-routes)
+  accept: (id) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }),
+  decline: (id) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'declined' }) }),
+  respond: (id, status) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   remove: (id) => request(`/api/friendships/${id}`, { method: 'DELETE' }),
 };
 
