@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi, donate as donateApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
@@ -21,6 +21,7 @@ export default function ProfilePage() {
   const { username } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -80,12 +81,15 @@ export default function ProfilePage() {
   }
   loadProfileRef.current = loadProfile;
 
+  // location.key changes on every navigation event, even if username stays the same.
+  // This ensures we re-fetch when navigating back to the same profile (e.g. from Admin panel).
   useEffect(() => {
     setData(null);
     setFriendship({ status: 'none', friendshipId: null, iRequested: false });
     setBlocked(false);
     loadProfile();
-  }, [username]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username, location.key]);
 
   // Re-fetch profile when tab becomes visible again (e.g. after admin deleted a post in another tab)
   // Use ref so the listener always calls the latest loadProfile (correct username in closure)
@@ -93,8 +97,17 @@ export default function ProfilePage() {
     function onVisible() {
       if (document.visibilityState === 'visible') loadProfileRef.current?.();
     }
+    // visibilitychange: catches tab switches and browser-window focus changes
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    // focus: catches navigation back within the same SPA (e.g. Admin → Profile same tab)
+    window.addEventListener('focus', onVisible);
+    // Poll every 30 s so in-app navigation changes always reflect without user action
+    const pollTimer = setInterval(() => loadProfileRef.current?.(), 30000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      clearInterval(pollTimer);
+    };
   }, []); // intentionally empty — ref always points to latest version
 
   // Load friendship + block status once we have the profile user's id
