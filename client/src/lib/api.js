@@ -60,6 +60,8 @@ export const admin = {
   donations: () => request('/api/admin/donations'),
   settings: () => request('/api/admin/settings'),
   updateSettings: (body) => request('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  clearHttpLogs: () => request('/api/admin/http-logs', { method: 'DELETE' }),
+  clearAnomalies: () => request('/api/admin/anomalies', { method: 'DELETE' }),
 };
 
 export const mod = {

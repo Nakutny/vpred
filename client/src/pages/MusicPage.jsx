@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useMusicPlayer } from '../contexts/MusicContext';
 import { uploadImage, looksLikeImage } from '../lib/uploadImage';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -34,41 +35,51 @@ function readFileAsDataURL(file) {
   });
 }
 
-// Image helpers imported from ../lib/uploadImage
-
 export default function MusicPage() {
   const { user, isAdmin } = useAuth();
-  const [tracks, setTracks] = useState([]);
+
+  // ── MusicContext — shared audio state (persists across page navigation) ────
+  const {
+    tracks, setTracks,
+    currentTrack,
+    isPlaying,
+    playTrack,
+    bindAudio,
+    closePlayer,
+  } = useMusicPlayer();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [currentTrack, setCurrentTrack] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.8);
+
+  // Upload form
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [showUpload, setShowUpload] = useState(false);
   const [uploadForm, setUploadForm] = useState({ title: '', description: '' });
   const [uploadFile, setUploadFile] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
-  const [coverPreview, setCoverPreview] = useState(null); // local preview
-  const [pendingCoverUrl, setPendingCoverUrl] = useState(null); // R2 URL
-  // Edit modal state
-  const [editTrack, setEditTrack] = useState(null); // track being edited
+  const [coverPreview, setCoverPreview] = useState(null);
+  const [pendingCoverUrl, setPendingCoverUrl] = useState(null);
+
+  // Edit modal
+  const [editTrack, setEditTrack] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', description: '' });
   const [editCoverFile, setEditCoverFile] = useState(null);
   const [editCoverPreview, setEditCoverPreview] = useState(null);
-  const [editCoverUrl, setEditCoverUrl] = useState(null); // new R2 URL for cover
-  const [editCoverCleared, setEditCoverCleared] = useState(false); // user explicitly removed cover
-  const [editCoverUploading, setEditCoverUploading] = useState(false); // cover upload in progress
+  const [editCoverUrl, setEditCoverUrl] = useState(null);
+  const [editCoverCleared, setEditCoverCleared] = useState(false);
+  const [editCoverUploading, setEditCoverUploading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+
   // Lightbox
   const [lightboxUrl, setLightboxUrl] = useState(null);
   const [lightboxZoom, setLightboxZoom] = useState(1);
-  const audioRef = useRef(null);
-  const progressRef = useRef(null);
+
+  // Bind audio events once on mount so MiniPlayer state stays in sync
+  useEffect(() => {
+    bindAudio();
+  }, []);
 
   useEffect(() => {
     loadTracks();
@@ -80,118 +91,26 @@ export default function MusicPage() {
       const data = await apiRequest('/api/music');
       setTracks(data.tracks || []);
     } catch (err) {
+      setError('Could not load tracks.');
       setTracks([]);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onTimeUpdate = () => setProgress(audio.currentTime);
-    const onDurationChange = () => setDuration(audio.duration || 0);
-    const onEnded = () => {
-      setIsPlaying(false);
-      setProgress(0);
-      const idx = tracks.findIndex(t => t.id === currentTrack?.id);
-      if (idx >= 0 && idx < tracks.length - 1) {
-        playTrack(tracks[idx + 1]);
-      }
-    };
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('durationchange', onDurationChange);
-    audio.addEventListener('ended', onEnded);
-    return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('durationchange', onDurationChange);
-      audio.removeEventListener('ended', onEnded);
-    };
-  }, [currentTrack, tracks]);
-
-  function playTrack(track) {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (currentTrack?.id === track.id) {
-      if (isPlaying) {
-        audio.pause();
-        setIsPlaying(false);
-      } else {
-        audio.play();
-        setIsPlaying(true);
-      }
-      return;
-    }
-
-    setCurrentTrack(track);
-    setProgress(0);
-    setDuration(0);
-    audio.src = `${BASE}/api/music/${track.id}/stream`;
-    audio.volume = volume;
-    audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-  }
-
-  function togglePlay() {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack) return;
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
-    } else {
-      audio.play();
-      setIsPlaying(true);
-    }
-  }
-
-  function seekTo(e) {
-    const audio = audioRef.current;
-    if (!audio || !duration) return;
-    const rect = progressRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = Math.max(0, Math.min(1, x / rect.width));
-    audio.currentTime = pct * duration;
-    setProgress(pct * duration);
-  }
-
-  function changeVolume(e) {
-    const v = parseFloat(e.target.value);
-    setVolume(v);
-    if (audioRef.current) audioRef.current.volume = v;
-  }
-
-  function playNext() {
-    const idx = tracks.findIndex(t => t.id === currentTrack?.id);
-    if (idx >= 0 && idx < tracks.length - 1) playTrack(tracks[idx + 1]);
-  }
-
-  function playPrev() {
-    const audio = audioRef.current;
-    if (audio && audio.currentTime > 3) {
-      audio.currentTime = 0;
-      setProgress(0);
-      return;
-    }
-    const idx = tracks.findIndex(t => t.id === currentTrack?.id);
-    if (idx > 0) playTrack(tracks[idx - 1]);
-  }
-
+  // ── Cover upload (for new track form) ──────────────────────────────────────
   async function handleCoverSelect(e) {
     const file = e.target.files[0];
     if (!file) return;
     const ok = await looksLikeImage(file);
     if (!ok) { setUploadError('Cover must be an image file.'); e.target.value = ''; return; }
     if (file.size > 5 * 1024 * 1024) { setUploadError('Cover image too large. Max 5 MB.'); e.target.value = ''; return; }
-    // Show local preview immediately — stays visible the whole time
     const reader = new FileReader();
     reader.onload = ev => setCoverPreview(ev.target.result);
     reader.readAsDataURL(file);
     setCoverFile(file);
     setPendingCoverUrl(null);
     setUploadError('');
-    // Upload to R2 in background
     try {
       const url = await uploadImage(file);
       setPendingCoverUrl(url);
@@ -200,6 +119,7 @@ export default function MusicPage() {
     }
   }
 
+  // ── Upload new track ────────────────────────────────────────────────────────
   async function handleUpload(e) {
     e.preventDefault();
     if (!uploadFile) { setUploadError('Please select an MP3 file.'); return; }
@@ -209,12 +129,10 @@ export default function MusicPage() {
     setUploading(true);
     setUploadError('');
     try {
-      // Read audio as base64
       const audioDataUrl = await readFileAsDataURL(uploadFile);
       const base64 = audioDataUrl.split(',')[1];
       if (!base64) throw new Error('Could not read audio file.');
 
-      // Get duration via Audio element
       const duration_seconds = await new Promise((resolve) => {
         const audio = new Audio();
         audio.preload = 'metadata';
@@ -223,7 +141,6 @@ export default function MusicPage() {
         audio.src = URL.createObjectURL(uploadFile);
       });
 
-      // Cover image was already uploaded to R2 in handleCoverSelect
       const cover_url = pendingCoverUrl || null;
 
       await apiRequest('/api/music', {
@@ -252,7 +169,7 @@ export default function MusicPage() {
     }
   }
 
-  // ── Edit track helpers ──────────────────────────────────────────────────────
+  // ── Edit track ──────────────────────────────────────────────────────────────
   function openEdit(track) {
     setEditTrack(track);
     setEditForm({ title: track.title, description: track.description || '' });
@@ -288,7 +205,7 @@ export default function MusicPage() {
       setEditCoverUrl(url);
     } catch (err) {
       setEditError('Cover upload failed: ' + err.message);
-      setEditCoverPreview(editTrack?.cover_url || null); // revert preview on error
+      setEditCoverPreview(editTrack?.cover_url || null);
     } finally {
       setEditCoverUploading(false);
     }
@@ -305,19 +222,15 @@ export default function MusicPage() {
         description: editForm.description.trim() || null,
       };
       if (editCoverUrl) {
-        body.cover_url = editCoverUrl; // new cover uploaded
+        body.cover_url = editCoverUrl;
       } else if (editCoverCleared) {
-        body.cover_url = null; // explicitly removed
+        body.cover_url = null;
       }
-      // if neither, don't include cover_url key → backend keeps existing
       const data = await apiRequest(`/api/music/${editTrack.id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       });
       setTracks(prev => prev.map(t => t.id === editTrack.id ? { ...t, ...data.track } : t));
-      if (currentTrack?.id === editTrack.id) {
-        setCurrentTrack(prev => ({ ...prev, ...data.track }));
-      }
       closeEdit();
     } catch (err) {
       setEditError(err.message || 'Could not save changes.');
@@ -330,23 +243,16 @@ export default function MusicPage() {
     if (!confirm('Delete this track?')) return;
     try {
       await apiRequest(`/api/music/${id}`, { method: 'DELETE' });
-      if (currentTrack?.id === id) {
-        setCurrentTrack(null);
-        setIsPlaying(false);
-        if (audioRef.current) audioRef.current.src = '';
-      }
+      // If the deleted track is currently playing, close the MiniPlayer
+      if (currentTrack?.id === id) closePlayer();
       setTracks(prev => prev.filter(t => t.id !== id));
     } catch (err) {
       alert('Could not delete track: ' + err.message);
     }
   }
 
-  const progressPct = duration > 0 ? (progress / duration) * 100 : 0;
-
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px' }}>
-      <audio ref={audioRef} preload="metadata" />
-
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32 }}>
         <div>
@@ -411,10 +317,9 @@ export default function MusicPage() {
               />
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Max. 20 MB</div>
             </div>
-            {/* Cover image (optional) */}
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                Cover Image <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(optional, shown next to track title)</span>
+                Cover Image <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(optional)</span>
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {coverPreview && (
@@ -512,7 +417,7 @@ export default function MusicPage() {
                   )}
                 </div>
 
-                {/* Cover thumbnail (if available) */}
+                {/* Cover thumbnail */}
                 {track.cover_url && (
                   <img
                     src={track.cover_url.startsWith('/') ? `${BASE}${track.cover_url}` : track.cover_url}
@@ -557,7 +462,7 @@ export default function MusicPage() {
                   </div>
                 )}
 
-                {/* Download button */}
+                {/* Download */}
                 <a
                   href={`${BASE}/api/music/${track.id}/download`}
                   onClick={e => e.stopPropagation()}
@@ -578,7 +483,7 @@ export default function MusicPage() {
                   </svg>
                 </a>
 
-                {/* Edit + Delete (own track or admin) */}
+                {/* Edit + Delete */}
                 {user && (isAdmin || track.uploader_id === user.id) && (
                   <>
                     <button
@@ -610,117 +515,16 @@ export default function MusicPage() {
         </div>
       )}
 
-      {/* Player bar */}
-      {currentTrack && (
-        <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
-          background: 'var(--surface)',
-          borderTop: '1px solid var(--border)',
-          padding: '12px 24px',
-          zIndex: 200,
-          backdropFilter: 'blur(12px)',
-        }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Cover in player bar */}
-            {currentTrack.cover_url && (
-              <img
-                src={currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url}
-                alt=""
-                onClick={() => { setLightboxUrl(currentTrack.cover_url.startsWith('/') ? `${BASE}${currentTrack.cover_url}` : currentTrack.cover_url); setLightboxZoom(1); }}
-                onError={e => { e.currentTarget.style.display = 'none'; }}
-                style={{ width: 54, height: 54, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)', cursor: 'pointer' }}
-              />
-            )}
-            {/* Track name */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {currentTrack.title}
-              </div>
-              {currentTrack.uploader_username && (
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{currentTrack.uploader_username}</div>
-              )}
-            </div>
+      {/* Spacer so MiniPlayer doesn't cover last row */}
+      <div style={{ height: 80 }} />
 
-            {/* Controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <PlayerBtn onClick={playPrev} title="Previous">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="19,20 9,12 19,4"/><rect x="5" y="4" width="3" height="16"/>
-                </svg>
-              </PlayerBtn>
-              <button
-                onClick={togglePlay}
-                style={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  background: 'var(--accent)', border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#fff',
-                }}
-              >
-                {isPlaying ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="5,3 19,12 5,21"/>
-                  </svg>
-                )}
-              </button>
-              <PlayerBtn onClick={playNext} title="Next">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5,4 15,12 5,20"/><rect x="16" y="4" width="3" height="16"/>
-                </svg>
-              </PlayerBtn>
-            </div>
-
-            {/* Progress bar */}
-            <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>{formatTime(progress)}</span>
-              <div
-                ref={progressRef}
-                onClick={seekTo}
-                style={{
-                  flex: 1, height: 4, background: 'var(--border)',
-                  borderRadius: 2, cursor: 'pointer', position: 'relative',
-                }}
-              >
-                <div style={{
-                  width: `${progressPct}%`, height: '100%',
-                  background: 'var(--accent)', borderRadius: 2,
-                  transition: 'width 0.1s linear',
-                }} />
-              </div>
-              <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>{formatTime(duration)}</span>
-            </div>
-
-            {/* Volume */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2">
-                <polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/>
-                {volume > 0 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>}
-                {volume > 0.5 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>}
-              </svg>
-              <input
-                type="range" min="0" max="1" step="0.05"
-                value={volume} onChange={changeVolume}
-                style={{ width: 70, cursor: 'pointer' }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Spacer so player bar doesn't overlap last track */}
-      {currentTrack && <div style={{ height: 80 }} />}
-
-      {/* ── Edit Modal ───────────────────────────────────────────────────────── */}
+      {/* ── Edit Modal ── */}
       {editTrack && (
         <div
           onClick={closeEdit}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-            zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 24,
           }}
         >
@@ -769,8 +573,7 @@ export default function MusicPage() {
                     <div style={{
                       width: 48, height: 48, borderRadius: 6,
                       background: 'var(--surface2)', border: '1px solid var(--border)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     }}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5">
                         <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
@@ -789,9 +592,7 @@ export default function MusicPage() {
                   </div>
                 </div>
                 {editCoverUploading && (
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                    ⏳ Uploading cover…
-                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>⏳ Uploading cover…</div>
                 )}
                 {(editCoverPreview || editTrack.cover_url) && !editCoverCleared && (
                   <button
@@ -819,7 +620,7 @@ export default function MusicPage() {
         </div>
       )}
 
-      {/* Lightbox overlay */}
+      {/* Lightbox */}
       {lightboxUrl && (
         <div
           onClick={() => setLightboxUrl(null)}
@@ -839,8 +640,7 @@ export default function MusicPage() {
             alt=""
             onClick={e => e.stopPropagation()}
             style={{
-              maxWidth: '90vw', maxHeight: '90vh',
-              borderRadius: 12,
+              maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12,
               transform: `scale(${lightboxZoom})`,
               transformOrigin: 'center center',
               transition: 'transform 0.1s',
@@ -854,31 +654,11 @@ export default function MusicPage() {
             style={{
               position: 'absolute', top: 20, right: 24,
               background: 'none', border: 'none', color: '#fff',
-              fontSize: 28, cursor: 'pointer', lineHeight: 1,
-              opacity: 0.8,
+              fontSize: 28, cursor: 'pointer', lineHeight: 1, opacity: 0.8,
             }}
           >×</button>
         </div>
       )}
     </div>
-  );
-}
-
-function PlayerBtn({ onClick, title, children }) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        width: 32, height: 32, borderRadius: '50%',
-        background: 'none', border: 'none', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'var(--text)',
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-    >
-      {children}
-    </button>
   );
 }

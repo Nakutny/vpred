@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { navCounts as navCountsApi, messages as messagesApi, notifications as notificationsApi } from '../lib/api';
 import Avatar from './Avatar';
+import MiniPlayer from './MiniPlayer';
 
 export default function Layout({ children }) {
   const { user, logout, isAdmin } = useAuth();
@@ -460,9 +461,12 @@ export default function Layout({ children }) {
         </div>
       </div>
 
-      <main style={{ flex: 1 }}>
+      <main style={{ flex: 1, paddingBottom: 'var(--miniplayer-height, 0px)' }}>
         {children}
       </main>
+
+      {/* Global Mini Player — only visible when a track is playing */}
+      <MiniPlayer />
 
       <footer style={{ borderTop: '1px solid var(--border)', padding: '28px 24px', marginTop: 60 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>

@@ -119,7 +119,15 @@ router.patch('/posts/:id/status', async (req, res) => {
     if (!['published', 'removed'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status.' });
     }
-    await query('UPDATE posts SET status = $1 WHERE id = $2', [status, req.params.id]);
+    if (status === 'published') {
+      // Restore: clear deleted_at + deleted_by so public feed shows the post again
+      await query(
+        'UPDATE posts SET status = $1, deleted_at = NULL, deleted_by = NULL WHERE id = $2',
+        [status, req.params.id]
+      );
+    } else {
+      await query('UPDATE posts SET status = $1 WHERE id = $2', [status, req.params.id]);
+    }
     res.json({ message: 'Status updated.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update status.' });
@@ -190,6 +198,16 @@ router.get('/http-logs', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/http-logs  — clear all visitor_log entries
+router.delete('/http-logs', async (req, res) => {
+  try {
+    await query('DELETE FROM visitor_log');
+    res.json({ ok: true, message: 'HTTP logs cleared.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to clear HTTP logs.' });
+  }
+});
+
 // GET /api/admin/anomalies
 router.get('/anomalies', async (req, res) => {
   try {
@@ -200,6 +218,16 @@ router.get('/anomalies', async (req, res) => {
     res.json({ anomalies: result.rows });
   } catch (err) {
     res.json({ anomalies: [] });
+  }
+});
+
+// DELETE /api/admin/anomalies  — clear all anomaly_log entries
+router.delete('/anomalies', async (req, res) => {
+  try {
+    await query('DELETE FROM anomaly_log');
+    res.json({ ok: true, message: 'Anomalies cleared.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to clear anomalies.' });
   }
 });
 
