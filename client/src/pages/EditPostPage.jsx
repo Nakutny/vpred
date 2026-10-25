@@ -1,12 +1,16 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { posts, categories } from '../lib/api';
+import { uploadImage } from '../lib/uploadImage';
 import { useAuth } from '../contexts/AuthContext';
 
 const ErdEditor = lazy(() => import('../components/ErdEditor'));
+
+const MAX_IMAGES = 3;
+const MAX_SIZE_MB = 5;
 
 function ToolbarBtn({ onClick, active, title, children }) {
   return (
@@ -30,6 +34,7 @@ export default function EditPostPage() {
   const { slug } = useParams();
   const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [post, setPost] = useState(null);
   const [postType, setPostType] = useState('research');
@@ -37,6 +42,8 @@ export default function EditPostPage() {
   const [summary, setSummary] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [categoryList, setCategoryList] = useState([]);
+  const [images, setImages] = useState([]);
+  const [imageError, setImageError] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -48,7 +55,7 @@ export default function EditPostPage() {
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Placeholder.configure({ placeholder: 'Write your research here. Cite your sources.' }),
+      Placeholder.configure({ placeholder: 'Write your content here…' }),
     ],
     editorProps: {
       attributes: { class: 'tiptap-editor' },
@@ -68,7 +75,6 @@ export default function EditPostPage() {
       categories.list(),
     ]).then(([postData, catData]) => {
       const p = postData.post;
-      // Non-owner can only edit published posts via admin/mod; drafts belong to owner only
       if (!isAdmin && user.id !== p.author_id) {
         if (p.status === 'published') {
           navigate('/post/' + slug);
@@ -83,6 +89,11 @@ export default function EditPostPage() {
       setSummary(p.summary || '');
       setCategoryId(p.category_id || '');
       setCategoryList(catData.categories || []);
+      // Load existing images (stored as JSON array or plain array)
+      if (p.images) {
+        const imgs = typeof p.images === 'string' ? JSON.parse(p.images) : p.images;
+        setImages(Array.isArray(imgs) ? imgs : []);
+      }
       if (p.erd_data) { setErdData(p.erd_data); setShowErd(true); }
     }).catch(err => {
       console.error('[EditPostPage] load failed:', err);
@@ -99,17 +110,38 @@ export default function EditPostPage() {
     setTimeout(() => setErdFlash(''), 2500);
   }
 
+  async function handleImageUpload(e) {
+    setImageError('');
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    const remaining = MAX_IMAGES - images.length;
+    if (remaining <= 0) { setImageError(`Maximum ${MAX_IMAGES} images allowed.`); e.target.value = ''; return; }
+
+    for (const file of files.slice(0, remaining)) {
+      if (!file.type.startsWith('image/')) { setImageError('Only image files are allowed.'); continue; }
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) { setImageError(`Image too large — max ${MAX_SIZE_MB}MB per image.`); continue; }
+      try {
+        const url = await uploadImage(file);
+        setImages(prev => prev.length >= MAX_IMAGES ? prev : [...prev, url]);
+      } catch (err) {
+        setImageError('Upload failed: ' + err.message);
+      }
+    }
+    e.target.value = '';
+  }
+
   async function handlePublish() {
     if (!post) return;
     setPublishing(true); setError('');
     try {
-      // Save current edits first, then publish
       const content = editor?.getHTML() || '';
       await posts.update(post.id, {
         title: title.trim(),
         content,
         summary: summary.trim() || undefined,
         category_id: categoryId || undefined,
+        images,
         erd_data: erdData || null,
       });
       const result = await posts.publish(post.id);
@@ -125,7 +157,10 @@ export default function EditPostPage() {
     e.preventDefault();
     const content = editor?.getHTML() || '';
     if (!title.trim()) return setError('Title is required.');
-    if (!content || content === '<p></p>') return setError('Content is required.');
+    // For published posts, require content; drafts can be saved empty
+    if (post?.status === 'published' && (!content || content === '<p></p>')) {
+      return setError('Content is required.');
+    }
 
     setSubmitting(true);
     setError('');
@@ -135,9 +170,18 @@ export default function EditPostPage() {
         content,
         summary: summary.trim() || undefined,
         category_id: categoryId || undefined,
+        images,
         erd_data: erdData || null,
       });
-      navigate('/post/' + post.slug);
+      if (post.status === 'draft') {
+        // Stay on edit page after saving draft — show success flash
+        setError('');
+        // Small visual feedback
+        const btn = document.activeElement;
+        if (btn) btn.blur();
+      } else {
+        navigate('/post/' + post.slug);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -149,18 +193,22 @@ export default function EditPostPage() {
     <div style={{ maxWidth: 820, margin: '60px auto', padding: '0 24px', color: 'var(--muted)' }}>Loading...</div>
   );
 
+  const isDraft = post?.status === 'draft';
+
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px' }}>
-      <Link to={'/post/' + slug} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Back to post
-      </Link>
+      {!isDraft && (
+        <Link to={'/post/' + slug} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back to post
+        </Link>
+      )}
 
       <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 8 }}>
-        {post?.status === 'draft' ? 'Continue Draft' : 'Edit Post'}
+        {isDraft ? 'Continue Draft' : 'Edit Post'}
       </h1>
 
-      {post?.status === 'draft' && (
+      {isDraft && (
         <div style={{
           background: 'rgba(var(--accent-rgb, 99,102,241), 0.08)',
           border: '1px solid var(--accent)',
@@ -168,7 +216,7 @@ export default function EditPostPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         }}>
           <span style={{ fontSize: 13, color: 'var(--text)' }}>
-            📝 <strong>Draft</strong> — This post is not yet published. Save your changes and publish when ready.
+            📝 <strong>Draft</strong> — Not yet published. Save changes, then publish when ready.
           </span>
           <button
             type="button"
@@ -187,8 +235,8 @@ export default function EditPostPage() {
       )}
 
       <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 32 }}>
-        {post?.status === 'draft'
-          ? 'Write freely — your draft is only visible to you.'
+        {isDraft
+          ? 'Your draft is only visible to you.'
           : 'All content must be based on publicly available information.'}
       </p>
 
@@ -199,7 +247,7 @@ export default function EditPostPage() {
           <input
             className="input"
             style={{ fontSize: 16 }}
-            placeholder="A clear, specific title..."
+            placeholder="Your title…"
             value={title}
             onChange={e => setTitle(e.target.value)}
             maxLength={300}
@@ -214,7 +262,7 @@ export default function EditPostPage() {
           <textarea
             className="input"
             style={{ minHeight: 70, resize: 'vertical' }}
-            placeholder="Brief summary shown in the feed..."
+            placeholder="Brief summary shown in the feed…"
             value={summary}
             onChange={e => setSummary(e.target.value)}
             maxLength={500}
@@ -239,9 +287,76 @@ export default function EditPostPage() {
           </div>
         )}
 
+        {/* Images — only for text/essay posts */}
+        {postType !== 'research' && (
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+              Images <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — up to {MAX_IMAGES}, max {MAX_SIZE_MB}MB each)</span>
+            </label>
+
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+              {images.map((src, i) => (
+                <div key={i} style={{ position: 'relative', width: 120, height: 90, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button
+                    type="button"
+                    onClick={() => setImages(prev => prev.filter((_, j) => j !== i))}
+                    style={{
+                      position: 'absolute', top: 4, right: 4,
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer',
+                      color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >✕</button>
+                  {i === 0 && (
+                    <span style={{
+                      position: 'absolute', bottom: 4, left: 4,
+                      fontSize: 9, background: 'rgba(0,0,0,0.6)', color: '#fff',
+                      padding: '2px 6px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '0.05em',
+                    }}>Cover</span>
+                  )}
+                </div>
+              ))}
+
+              {images.length < MAX_IMAGES && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    width: 120, height: 90, borderRadius: 8,
+                    border: '2px dashed var(--border)', background: 'var(--surface)',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: 4,
+                    color: 'var(--muted)', fontSize: 11,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Add image
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageUpload}
+              style={{ display: 'none' }}
+            />
+
+            {imageError && (
+              <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{imageError}</div>
+            )}
+          </div>
+        )}
+
         {/* Editor */}
         <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Content *</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Content {!isDraft && '*'}</label>
           {editor && (
             <div style={{
               display: 'flex', gap: 2, padding: '6px 10px',
@@ -267,48 +382,50 @@ export default function EditPostPage() {
         </div>
 
         {/* ERD Section — only for research posts */}
-        {postType === 'research' && <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <label style={{ fontSize: 13, fontWeight: 500 }}>
-              Entity-Relationship Diagram{' '}
-              <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowErd(v => !v)}
-              style={{
-                padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
-                background: showErd ? 'var(--accent)' : 'transparent',
-                color: showErd ? '#fff' : 'var(--muted)',
-                fontSize: 12, cursor: 'pointer', fontWeight: 500,
-              }}
-            >
-              {showErd ? 'Hide ERD' : (erdData ? 'Edit ERD' : 'Add ERD')}
-            </button>
-            {erdData && !showErd && (
-              <span style={{ fontSize: 12, color: 'var(--success)' }}>
-                ERD saved ({erdData.nodes?.length || 0} entities)
-              </span>
+        {postType === 'research' && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              <label style={{ fontSize: 13, fontWeight: 500 }}>
+                Entity-Relationship Diagram{' '}
+                <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowErd(v => !v)}
+                style={{
+                  padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                  background: showErd ? 'var(--accent)' : 'transparent',
+                  color: showErd ? '#fff' : 'var(--muted)',
+                  fontSize: 12, cursor: 'pointer', fontWeight: 500,
+                }}
+              >
+                {showErd ? 'Hide ERD' : (erdData ? 'Edit ERD' : 'Add ERD')}
+              </button>
+              {erdData && !showErd && (
+                <span style={{ fontSize: 12, color: 'var(--success)' }}>
+                  ERD saved ({erdData.nodes?.length || 0} entities)
+                </span>
+              )}
+            </div>
+            {showErd && (
+              <Suspense fallback={<div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading diagram editor...</div>}>
+                <ErdEditor
+                  value={erdData}
+                  onChange={setErdData}
+                  onSave={() => showErdFlash('Diagram state captured — click "Save changes" to persist to server.')}
+                />
+              </Suspense>
+            )}
+            {erdFlash && (
+              <div style={{
+                marginTop: 8, padding: '8px 14px', borderRadius: 7, fontSize: 13,
+                background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)',
+              }}>
+                {erdFlash}
+              </div>
             )}
           </div>
-          {showErd && (
-            <Suspense fallback={<div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading diagram editor...</div>}>
-              <ErdEditor
-                value={erdData}
-                onChange={setErdData}
-                onSave={() => showErdFlash('Diagram state captured — click “Save changes” to persist to server.')}
-              />
-            </Suspense>
-          )}
-          {erdFlash && (
-            <div style={{
-              marginTop: 8, padding: '8px 14px', borderRadius: 7, fontSize: 13,
-              background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)',
-            }}>
-              {erdFlash}
-            </div>
-          )}
-        </div>}
+        )}
 
         {error && (
           <div style={{ background: 'rgba(224,82,82,0.1)', border: '1px solid var(--danger)', borderRadius: 7, padding: '10px 14px', marginBottom: 16, color: 'var(--danger)', fontSize: 14 }}>
@@ -318,9 +435,9 @@ export default function EditPostPage() {
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="submit" disabled={submitting} className="btn btn-primary">
-            {submitting ? 'Saving...' : 'Save changes'}
+            {submitting ? 'Saving…' : 'Save changes'}
           </button>
-          <Link to={'/post/' + slug} className="btn btn-ghost">Cancel</Link>
+          {!isDraft && <Link to={'/post/' + slug} className="btn btn-ghost">Cancel</Link>}
         </div>
       </form>
     </div>
