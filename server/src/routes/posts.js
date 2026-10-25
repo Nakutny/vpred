@@ -90,6 +90,24 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
+// GET /api/posts/drafts — own drafts (requires auth)
+// MUST be before /:slug to avoid Express matching "drafts" as a slug value
+router.get('/drafts', requireAuth, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT p.id, p.title, p.slug, p.summary, p.type, p.created_at, p.updated_at
+       FROM posts p
+       WHERE p.author_id = $1 AND p.status = 'draft' AND p.deleted_at IS NULL
+       ORDER BY p.updated_at DESC`,
+      [req.user.id]
+    );
+    res.json({ drafts: result.rows });
+  } catch (err) {
+    console.error('Get drafts error:', err);
+    res.status(500).json({ error: 'Failed to load drafts.' });
+  }
+});
+
 // GET /api/posts/:slug
 router.get('/:slug', optionalAuth, async (req, res) => {
   try {
@@ -108,9 +126,9 @@ router.get('/:slug', optionalAuth, async (req, res) => {
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN post_votes pv ON pv.post_id = p.id
        LEFT JOIN posts pp ON pp.id = p.parent_post_id
-       WHERE p.slug = $1 AND p.status = 'published' AND p.deleted_at IS NULL
+       WHERE p.slug = $1 AND (p.status = 'published' OR (p.status = 'draft' AND p.author_id = $2)) AND p.deleted_at IS NULL
        GROUP BY p.id, u.username, u.id, u.bio, u.avatar_url, u.donator_color, c.name, c.slug, c.id, pp.title, pp.slug`,
-      [req.params.slug]
+      [req.params.slug, req.user?.id || null]
     );
 
     if (!result.rows[0]) {
@@ -317,6 +335,25 @@ router.post('/:id/vote', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Vote error:', err);
     res.status(500).json({ error: 'Failed to register vote.' });
+  }
+});
+
+// PATCH /api/posts/:id/publish — publish a draft (requires auth + ownership)
+router.patch('/:id/publish', requireAuth, async (req, res) => {
+  try {
+    const result = await query(
+      `UPDATE posts SET status = 'published', created_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND author_id = $2 AND status = 'draft'
+       RETURNING id, slug`,
+      [req.params.id, req.user.id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Draft not found.' });
+    }
+    res.json({ post: result.rows[0] });
+  } catch (err) {
+    console.error('Publish draft error:', err);
+    res.status(500).json({ error: 'Failed to publish draft.' });
   }
 });
 

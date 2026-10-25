@@ -39,6 +39,7 @@ export default function NewPostPage() {
   const [showErd, setShowErd]       = useState(false);
   const [erdData, setErdData]       = useState(null);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [serverDraftSaving, setServerDraftSaving] = useState(false);
   const autoSaveTimer = useRef(null);
 
   // Load saved draft on mount
@@ -98,6 +99,28 @@ export default function NewPostPage() {
 
   function clearDraft() {
     try { localStorage.removeItem(DRAFT_KEY); } catch {}
+  }
+
+  async function saveServerDraft() {
+    const content = editor?.getHTML() || '';
+    if (!title.trim()) { setError('A title is required to save a draft.'); return; }
+    setServerDraftSaving(true); setError('');
+    try {
+      const d = await posts.create({
+        title: title.trim(), content,
+        summary: summary.trim() || undefined,
+        category_id: categoryId || undefined,
+        status: 'draft',
+        parent_post_id: parentPostId || undefined,
+        erd_data: erdData || undefined,
+      });
+      clearDraft();
+      navigate('/post/' + d.post.slug + '/edit');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setServerDraftSaving(false);
+    }
   }
 
   async function handleSubmit(e) {
@@ -245,19 +268,19 @@ export default function NewPostPage() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button type="submit" disabled={submitting} className="btn btn-primary">
             {submitting ? 'Publishing...' : (parentPostId ? 'Publish follow-up' : 'Publish post')}
           </button>
-          <button type="button" onClick={() => { saveDraft(); navigate(-1); }} className="btn btn-ghost">
-            Save & exit
+          <button type="button" onClick={saveServerDraft} disabled={serverDraftSaving} className="btn btn-ghost">
+            {serverDraftSaving ? 'Saving…' : 'Save as draft'}
           </button>
           <button type="button" onClick={() => { clearDraft(); navigate(-1); }} className="btn btn-ghost" style={{ color: 'var(--muted)' }}>
             Discard
           </button>
         </div>
         <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>
-          Your draft is saved automatically every 10 seconds and restored if you close this page.
+          Your draft is auto-saved locally every 10 seconds. "Save as draft" stores it to your profile permanently.
         </p>
       </form>
     </div>

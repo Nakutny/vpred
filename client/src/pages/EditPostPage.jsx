@@ -32,6 +32,7 @@ export default function EditPostPage() {
   const navigate = useNavigate();
 
   const [post, setPost] = useState(null);
+  const [postType, setPostType] = useState('research');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -42,6 +43,7 @@ export default function EditPostPage() {
   const [showErd, setShowErd] = useState(false);
   const [erdData, setErdData] = useState(null);
   const [erdFlash, setErdFlash] = useState('');
+  const [publishing, setPublishing] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -67,6 +69,7 @@ export default function EditPostPage() {
         return;
       }
       setPost(p);
+      setPostType(p.type || 'research');
       setTitle(p.title);
       setSummary(p.summary || '');
       setCategoryId(p.category_id || '');
@@ -84,6 +87,28 @@ export default function EditPostPage() {
   function showErdFlash(msg) {
     setErdFlash(msg);
     setTimeout(() => setErdFlash(''), 2500);
+  }
+
+  async function handlePublish() {
+    if (!post) return;
+    setPublishing(true); setError('');
+    try {
+      // Save current edits first, then publish
+      const content = editor?.getHTML() || '';
+      await posts.update(post.id, {
+        title: title.trim(),
+        content,
+        summary: summary.trim() || undefined,
+        category_id: categoryId || undefined,
+        erd_data: erdData || null,
+      });
+      const result = await posts.publish(post.id);
+      navigate('/post/' + result.post.slug);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPublishing(false);
+    }
   }
 
   async function handleSubmit(e) {
@@ -122,10 +147,39 @@ export default function EditPostPage() {
       </Link>
 
       <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 8 }}>
-        Edit Post
+        {post?.status === 'draft' ? 'Continue Draft' : 'Edit Post'}
       </h1>
+
+      {post?.status === 'draft' && (
+        <div style={{
+          background: 'rgba(var(--accent-rgb, 99,102,241), 0.08)',
+          border: '1px solid var(--accent)',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>
+            📝 <strong>Draft</strong> — This post is not yet published. Save your changes and publish when ready.
+          </span>
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={publishing}
+            style={{
+              padding: '6px 16px', borderRadius: 7,
+              background: 'var(--accent)', color: '#fff',
+              border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            {publishing ? 'Publishing…' : 'Publish now'}
+          </button>
+        </div>
+      )}
+
       <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 32 }}>
-        All content must be based on publicly available information.
+        {post?.status === 'draft'
+          ? 'Write freely — your draft is only visible to you.'
+          : 'All content must be based on publicly available information.'}
       </p>
 
       <form onSubmit={handleSubmit}>
@@ -157,21 +211,23 @@ export default function EditPostPage() {
           />
         </div>
 
-        {/* Category */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Category</label>
-          <select
-            className="input"
-            value={categoryId}
-            onChange={e => setCategoryId(e.target.value)}
-            style={{ cursor: 'pointer' }}
-          >
-            <option value="">— Select category —</option>
-            {categoryList.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+        {/* Category — only for research posts */}
+        {postType === 'research' && (
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Category</label>
+            <select
+              className="input"
+              value={categoryId}
+              onChange={e => setCategoryId(e.target.value)}
+              style={{ cursor: 'pointer' }}
+            >
+              <option value="">— Select category —</option>
+              {categoryList.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Editor */}
         <div style={{ marginBottom: 24 }}>
@@ -200,8 +256,8 @@ export default function EditPostPage() {
           <EditorContent editor={editor} style={{ borderRadius: editor ? '0 0 8px 8px' : '8px' }} />
         </div>
 
-        {/* ERD Section */}
-        <div style={{ marginBottom: 24 }}>
+        {/* ERD Section — only for research posts */}
+        {postType === 'research' && <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
             <label style={{ fontSize: 13, fontWeight: 500 }}>
               Entity-Relationship Diagram{' '}
@@ -242,7 +298,7 @@ export default function EditPostPage() {
               {erdFlash}
             </div>
           )}
-        </div>
+        </div>}
 
         {error && (
           <div style={{ background: 'rgba(224,82,82,0.1)', border: '1px solid var(--danger)', borderRadius: 7, padding: '10px 14px', marginBottom: 16, color: 'var(--danger)', fontSize: 14 }}>

@@ -3,6 +3,15 @@ import { requireAuth } from '../middleware/auth.js';
 import { uploadToR2 } from '../lib/r2.js';
 import crypto from 'crypto';
 
+// sharp is optional — if not installed, images are stored as-is
+let sharp;
+try {
+  const sharpModule = await import('sharp');
+  sharp = sharpModule.default;
+} catch {
+  console.warn('[upload] sharp not available — images stored without conversion');
+}
+
 const router = express.Router();
 
 // POST /api/upload/image
@@ -18,24 +27,38 @@ router.post('/image', requireAuth, async (req, res) => {
     // Parse base64 data URL
     const matches = data.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
     if (!matches) return res.status(400).json({ error: 'Invalid image format.' });
-    const mimeType = matches[1];
     const base64Data = matches[2];
-    const buffer = Buffer.from(base64Data, 'base64');
+    let buffer = Buffer.from(base64Data, 'base64');
 
-    // Limit: 5MB
+    // Limit before conversion: 5MB
     if (buffer.byteLength > 5 * 1024 * 1024) {
       return res.status(400).json({ error: 'Image too large. Max 5MB.' });
     }
 
-    // Build R2 key
-    const ext = mimeType.split('/')[1]?.replace('+xml', '') || 'jpg';
+    // Auto-convert to PNG via sharp (if available)
+    let finalMime = 'image/png';
+    if (sharp) {
+      try {
+        buffer = await sharp(buffer).png({ compressionLevel: 8 }).toBuffer();
+      } catch (sharpErr) {
+        console.warn('[upload] sharp conversion failed, storing original:', sharpErr.message);
+        // fall back: store whatever came in
+        finalMime = matches[1];
+      }
+    } else {
+      // sharp not available — store as received
+      finalMime = matches[1];
+    }
+
+    // Build R2 key — always .png when converted
+    const ext = finalMime === 'image/png' ? 'png' : (finalMime.split('/')[1]?.replace('+xml', '') || 'jpg');
     const uid = crypto.randomBytes(12).toString('hex');
     const safeName = filename
-      ? filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60)
+      ? filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60).replace(/\.[^.]+$/, '') + '.png'
       : `img_${uid}.${ext}`;
     const key = `images/${uid}_${safeName}`;
 
-    await uploadToR2(key, buffer, mimeType);
+    await uploadToR2(key, buffer, finalMime);
 
     // If R2_PUBLIC_URL is configured, return a direct CDN link
     const publicBase = process.env.R2_PUBLIC_URL;

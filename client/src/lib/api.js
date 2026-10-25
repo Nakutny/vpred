@@ -29,6 +29,8 @@ export const posts = {
   update: (id, body) => request(`/api/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (id) => request(`/api/posts/${id}`, { method: 'DELETE' }),
   vote: (id) => request(`/api/posts/${id}/vote`, { method: 'POST' }),
+  drafts: () => request('/api/posts/drafts'),
+  publish: (id) => request(`/api/posts/${id}/publish`, { method: 'PATCH' }),
 };
 
 export const comments = {

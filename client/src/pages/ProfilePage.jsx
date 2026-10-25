@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi, donate as donateApi } from '../lib/api';
+import { profile as profileApi, friendships as friendshipsApi, blocks as blocksApi, donate as donateApi, posts as postsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
 import PostCard from '../components/PostCard';
@@ -51,6 +51,10 @@ export default function ProfilePage() {
   const [blocked, setBlocked] = useState(false); // I blocked them
   const [socialLoading, setSocialLoading] = useState(false);
 
+  // Drafts
+  const [drafts, setDrafts] = useState([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+
   // Donator settings
   const [donatorColor, setDonatorColor] = useState('');  // '' = default/reset, '#RRGGBB' = custom
   const [badgeVisible, setBadgeVisible] = useState(true);
@@ -59,6 +63,16 @@ export default function ProfilePage() {
   const [profileUserId, setProfileUserId] = useState(null);
 
   const isOwn = user?.username?.toLowerCase() === username?.toLowerCase();
+
+  // Load own drafts whenever the drafts tab is active
+  useEffect(() => {
+    if (!isOwn || tab !== 'drafts') return;
+    setDraftsLoading(true);
+    postsApi.drafts()
+      .then(d => setDrafts(d.drafts || []))
+      .catch(() => setDrafts([]))
+      .finally(() => setDraftsLoading(false));
+  }, [isOwn, tab]);
 
   // useRef so visibilitychange listener always calls the latest version (correct username)
   const loadProfileRef = useRef(null);
@@ -297,6 +311,7 @@ export default function ProfilePage() {
   const tabs = [
     { id: 'posts', label: `Posts (${data.posts.length})` },
     ...(isOwn ? [
+      { id: 'drafts', label: 'Drafts' },
       { id: 'avatar', label: 'Avatar' },
       { id: 'edit', label: 'Edit Bio' },
       { id: 'password', label: 'Change password' },
@@ -437,6 +452,67 @@ export default function ProfilePage() {
           ) : (
             <div className="card" style={{ overflow: 'hidden' }}>
               {data.posts.map(p => <PostCard key={p.id} post={p} />)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Drafts tab — only visible to owner */}
+      {tab === 'drafts' && isOwn && (
+        <div>
+          <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.3rem', fontWeight: 400, marginBottom: 6 }}>
+            Your Drafts
+          </h2>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>
+            Drafts are only visible to you. Continue editing and publish when ready.
+          </p>
+          {draftsLoading ? (
+            <p style={{ color: 'var(--muted)', fontSize: 14 }}>Loading drafts…</p>
+          ) : drafts.length === 0 ? (
+            <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
+              <p style={{ marginBottom: 16 }}>No drafts yet.</p>
+              <Link to="/new" className="btn btn-ghost btn-sm">Write a post</Link>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {drafts.map(d => (
+                <div key={d.id} style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 10, padding: '16px 20px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+                        padding: '2px 6px', borderRadius: 4,
+                        background: 'rgba(99,102,241,0.12)', color: 'var(--accent)',
+                        textTransform: 'uppercase',
+                      }}>
+                        {d.type || 'draft'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.title}
+                    </div>
+                    {d.summary && (
+                      <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.summary}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      Last edited: {new Date(d.updated_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </div>
+                  </div>
+                  <Link
+                    to={`/post/${d.slug}/edit`}
+                    className="btn btn-ghost btn-sm"
+                    style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    Continue →
+                  </Link>
+                </div>
+              ))}
             </div>
           )}
         </div>

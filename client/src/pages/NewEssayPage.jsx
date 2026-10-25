@@ -26,7 +26,7 @@ function ToolbarBtn({ onClick, active, title, children }) {
 }
 
 const MAX_IMAGES = 3;
-const MAX_SIZE_KB = 500;
+const MAX_SIZE_MB = 5;
 
 export default function NewEssayPage() {
   const { user } = useAuth();
@@ -39,6 +39,8 @@ export default function NewEssayPage() {
   const [imageError, setImageError] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftMsg, setDraftMsg] = useState('');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -74,8 +76,8 @@ export default function NewEssayPage() {
         setImageError('Only image files are allowed.');
         continue;
       }
-      if (file.size > MAX_SIZE_KB * 1024) {
-        setImageError(`Image too large — max ${MAX_SIZE_KB}KB per image.`);
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        setImageError(`Image too large — max ${MAX_SIZE_MB}MB per image.`);
         continue;
       }
       try {
@@ -94,6 +96,30 @@ export default function NewEssayPage() {
 
   function removeImage(idx) {
     setImages(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  async function saveDraft() {
+    const content = editor?.getHTML() || '';
+    if (!title.trim()) { setError('A title is required to save a draft.'); return; }
+    setDraftSaving(true); setError('');
+    try {
+      const d = await posts.create({
+        title: title.trim(),
+        content,
+        summary: summary.trim() || undefined,
+        type: 'essay',
+        topic: topic.trim() || undefined,
+        images,
+        status: 'draft',
+      });
+      setDraftMsg('Draft saved!');
+      setTimeout(() => setDraftMsg(''), 2500);
+      navigate(`/post/${d.post.slug}/edit`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDraftSaving(false);
+    }
   }
 
   async function handleSubmit(e) {
@@ -180,7 +206,7 @@ export default function NewEssayPage() {
         {/* Images */}
         <div style={{ marginBottom: 24 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-            Images <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — up to {MAX_IMAGES}, max {MAX_SIZE_KB}KB each)</span>
+            Images <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — up to {MAX_IMAGES}, max {MAX_SIZE_MB}MB each)</span>
           </label>
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -277,11 +303,15 @@ export default function NewEssayPage() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10 }}>
+        {draftMsg && <p style={{ fontSize: 12, color: 'var(--success)', marginBottom: 8 }}>{draftMsg}</p>}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button type="submit" disabled={submitting} className="btn btn-primary">
             {submitting ? 'Publishing…' : 'Publish essay'}
           </button>
-          <button type="button" onClick={() => navigate('/essays')} className="btn btn-ghost">
+          <button type="button" onClick={saveDraft} disabled={draftSaving} className="btn btn-ghost">
+            {draftSaving ? 'Saving…' : 'Save as draft'}
+          </button>
+          <button type="button" onClick={() => navigate('/essays')} className="btn btn-ghost" style={{ color: 'var(--muted)' }}>
             Cancel
           </button>
         </div>
