@@ -153,8 +153,8 @@ export default function Layout({ children }) {
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 60, gap: 24 }}>
 
-          {/* Logo + Hamburger side-by-side (hamburger only visible on mobile) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {/* Logo only (no hamburger here — it lives at the right edge) */}
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                 <path d="M12 2L3 20h18L12 2z" fill="var(--accent)" opacity="0.9"/>
@@ -164,29 +164,6 @@ export default function Layout({ children }) {
                 vpred<span style={{ color: 'var(--muted)', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 400 }}>.org</span>
               </span>
             </Link>
-
-            {/* Hamburger button — directly next to logo, shown on mobile only */}
-            <button
-              className="mobile-hamburger"
-              onClick={() => setMobileNavOpen(v => !v)}
-              aria-label="Open navigation menu"
-            >
-              <span style={{
-                display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
-                transition: 'all 0.22s',
-                transform: mobileNavOpen ? 'rotate(45deg) translate(5px,5px)' : 'none',
-              }} />
-              <span style={{
-                display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
-                transition: 'all 0.22s',
-                opacity: mobileNavOpen ? 0 : 1,
-              }} />
-              <span style={{
-                display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
-                transition: 'all 0.22s',
-                transform: mobileNavOpen ? 'rotate(-45deg) translate(5px,-5px)' : 'none',
-              }} />
-            </button>
           </div>
 
           {/* Desktop nav */}
@@ -393,6 +370,30 @@ export default function Layout({ children }) {
               </>
             )}
           </div>
+
+          {/* Hamburger — at the very right edge of header, only visible on mobile */}
+          <button
+            className="mobile-hamburger"
+            onClick={() => setMobileNavOpen(v => !v)}
+            aria-label="Open navigation menu"
+            style={{ marginLeft: 'auto' }}
+          >
+            <span style={{
+              display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
+              transition: 'all 0.22s',
+              transform: mobileNavOpen ? 'rotate(45deg) translate(5px,5px)' : 'none',
+            }} />
+            <span style={{
+              display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
+              transition: 'all 0.22s',
+              opacity: mobileNavOpen ? 0 : 1,
+            }} />
+            <span style={{
+              display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
+              transition: 'all 0.22s',
+              transform: mobileNavOpen ? 'rotate(-45deg) translate(5px,-5px)' : 'none',
+            }} />
+          </button>
         </div>
       </header>
 

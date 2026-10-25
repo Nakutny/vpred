@@ -5,23 +5,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { UsernameWithColor } from '../components/DonatorBadge';
 
 // ── Visitor-category detection based on User-Agent string ──────────────────
+// IMPORTANT: Check real browsers FIRST — admins use browsers to call /api/* routes,
+// so we must never flag a browser UA as a bot, regardless of the request path.
 function detectCategory(log) {
   const ua = (log.user_agent || '').toLowerCase();
-  const path = (log.path || '').toLowerCase();
 
-  // Known bots / crawlers
+  // 1. Real browsers → Person  (check this BEFORE bot keywords)
   if (
-    ua.includes('bot') || ua.includes('crawler') || ua.includes('spider') ||
-    ua.includes('scrapy') || ua.includes('curl') || ua.includes('wget') ||
-    ua.includes('python') || ua.includes('java/') || ua.includes('go-http') ||
-    ua.includes('libwww') || ua.includes('httpclient') || ua.includes('axios') ||
-    ua.includes('node-fetch') || ua.includes('okhttp') || ua.includes('ruby') ||
-    ua.includes('php') || ua.includes('perl') || ua.includes('mechanize') ||
-    path.includes('/api/') && !path.includes('/api/auth')
+    ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') ||
+    ua.includes('firefox') || ua.includes('edge') || ua.includes('opera') ||
+    ua.includes('opr/')
   ) {
-    return { label: '🤖 Bot', color: '#e05252' };
+    return { label: '👤 Person', color: '#4caf7d' };
   }
-  // Search engines
+
+  // 2. Known search engine crawlers
   if (
     ua.includes('googlebot') || ua.includes('bingbot') || ua.includes('yandexbot') ||
     ua.includes('duckduckbot') || ua.includes('baiduspider') || ua.includes('ahrefsbot') ||
@@ -29,7 +27,8 @@ function detectCategory(log) {
   ) {
     return { label: '🔍 Search Engine', color: '#f59e0b' };
   }
-  // Social media preview
+
+  // 3. Social media link-preview bots
   if (
     ua.includes('facebookexternalhit') || ua.includes('twitterbot') ||
     ua.includes('linkedinbot') || ua.includes('whatsapp') || ua.includes('telegram') ||
@@ -37,20 +36,28 @@ function detectCategory(log) {
   ) {
     return { label: '📱 Social Preview', color: '#8b5cf6' };
   }
-  // Monitoring / uptime services
+
+  // 4. Monitoring / uptime services
   if (
     ua.includes('uptimerobot') || ua.includes('pingdom') || ua.includes('statuscake') ||
     ua.includes('newrelic') || ua.includes('datadog') || ua.includes('synthetics')
   ) {
     return { label: '📡 Monitor', color: '#06b6d4' };
   }
-  // Regular browsers → person
+
+  // 5. Generic bots / automation tools / scripted clients
   if (
-    ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') ||
-    ua.includes('firefox') || ua.includes('edge') || ua.includes('opera')
+    ua.includes('bot') || ua.includes('crawler') || ua.includes('spider') ||
+    ua.includes('scrapy') || ua.includes('curl') || ua.includes('wget') ||
+    ua.includes('python') || ua.includes('java/') || ua.includes('go-http') ||
+    ua.includes('libwww') || ua.includes('httpclient') || ua.includes('axios') ||
+    ua.includes('node-fetch') || ua.includes('okhttp') || ua.includes('ruby') ||
+    ua.includes('php') || ua.includes('perl') || ua.includes('mechanize')
   ) {
-    return { label: '👤 Person', color: '#4caf7d' };
+    return { label: '🤖 Bot', color: '#e05252' };
   }
+
+  // 6. Truly unknown UA
   return { label: '❓ Unknown', color: '#7a8099' };
 }
 
@@ -58,7 +65,6 @@ function detectCategory(log) {
 function countryFlag(countryCode) {
   if (!countryCode || countryCode.length !== 2) return '';
   const code = countryCode.toUpperCase();
-  // Convert to regional indicator symbols (flag emoji)
   const base = 0x1F1E6 - 65; // 'A'
   return String.fromCodePoint(base + code.charCodeAt(0)) +
          String.fromCodePoint(base + code.charCodeAt(1));
@@ -80,7 +86,6 @@ function groupLogsByIp(logs) {
         last_seen: log.created_at,
         first_seen: log.created_at,
         user_agent: log.user_agent || '',
-        // keep first log for category detection
         _firstLog: log,
       });
     }
@@ -88,56 +93,101 @@ function groupLogsByIp(logs) {
     entry.count += 1;
     if (log.path && !entry.paths.includes(log.path)) entry.paths.push(log.path);
     if (log.method) entry.methods.add(log.method);
-    // track latest/earliest timestamps
     if (new Date(log.created_at) > new Date(entry.last_seen)) entry.last_seen = log.created_at;
     if (new Date(log.created_at) < new Date(entry.first_seen)) entry.first_seen = log.created_at;
-    // prefer a non-empty user_agent
     if (!entry.user_agent && log.user_agent) entry.user_agent = log.user_agent;
   }
-  // Sort by count desc
   return Array.from(map.values()).sort((a, b) => b.count - a.count);
 }
+
+// ── Default settings structure ─────────────────────────────────────────────
+// Used to render controls even when the DB returns empty {}
+const SETTING_DEFS = [
+  {
+    key: 'site_name',
+    label: 'Site Name',
+    type: 'text',
+    placeholder: 'vpred.org',
+    description: 'Display name shown in the browser title and footer.',
+  },
+  {
+    key: 'site_tagline',
+    label: 'Site Tagline',
+    type: 'text',
+    placeholder: 'Open Research Collective',
+    description: 'Short description shown in the sidebar.',
+  },
+  {
+    key: 'admin_name_color',
+    label: 'Admin Name Color',
+    type: 'color',
+    placeholder: '#4f8ef7',
+    description: 'Color used for your username across the platform.',
+  },
+  {
+    key: 'registration_open',
+    label: 'Registration Open',
+    type: 'toggle',
+    description: 'Allow new users to register. Disable to close the platform.',
+  },
+  {
+    key: 'posts_require_approval',
+    label: 'Posts Require Approval',
+    type: 'toggle',
+    description: 'New posts stay hidden until an admin approves them.',
+  },
+  {
+    key: 'max_post_length',
+    label: 'Max Post Length (chars)',
+    type: 'number',
+    placeholder: '50000',
+    description: 'Maximum character count allowed per post.',
+  },
+  {
+    key: 'contact_email',
+    label: 'Contact Email',
+    type: 'text',
+    placeholder: 'admin@vpred.org',
+    description: 'Email shown on the About / Support pages.',
+  },
+  {
+    key: 'donations_enabled',
+    label: 'Donations Enabled',
+    type: 'toggle',
+    description: 'Show the Donate page and donation features.',
+  },
+  {
+    key: 'music_section_enabled',
+    label: 'Music Section Enabled',
+    type: 'toggle',
+    description: 'Show the Selfmade Music section in the nav.',
+  },
+];
 
 export default function AdminPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('users');
 
-  // Users
   const [users, setUsers] = useState([]);
   const [colorEdits, setColorEdits] = useState({});
-
-  // Posts
   const [posts, setPosts] = useState([]);
-
-  // Categories
   const [categoryList, setCategoryList] = useState([]);
   const [newCategory, setNewCategory] = useState({ name: '', description: '' });
-
-  // Donations
   const [donations, setDonations] = useState([]);
-
-  // DB Status
   const [dbStatus, setDbStatus] = useState(null);
-
-  // HTTP Logs
   const [httpLogs, setHttpLogs] = useState([]);
   const [clearingLogs, setClearingLogs] = useState(false);
-  const [logView, setLogView] = useState('grouped'); // 'grouped' | 'raw'
-
-  // Anomalies
+  const [logView, setLogView] = useState('grouped');
   const [anomalies, setAnomalies] = useState([]);
   const [clearingAnomalies, setClearingAnomalies] = useState(false);
-
-  // Maintenance
   const [maintenance, setMaintenance] = useState({ enabled: false, message: '', estimated_end: '' });
   const [maintSaving, setMaintSaving] = useState(false);
 
-  // Settings
+  // Settings: use SETTING_DEFS as source-of-truth for UI; DB values fill in values
   const [settings, setSettings] = useState({});
   const [settingsSaving, setSettingsSaving] = useState(false);
 
-  // General
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
   const [tabError, setTabError] = useState('');
@@ -187,7 +237,6 @@ export default function AdminPage() {
     setTabLoading(false);
   }, []);
 
-  // Initial load — categories only (users load on first tab render via useEffect below)
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
     categories.list()
@@ -196,7 +245,6 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   }, [isAdmin]);
 
-  // Load data whenever tab changes — including 'users'
   useEffect(() => {
     if (!isAdmin || loading) return;
     if (tab !== 'categories') {
@@ -204,7 +252,7 @@ export default function AdminPage() {
     }
   }, [tab, isAdmin, loading]);
 
-  // ── Users ────────────────────────────────────────────────────────────────────
+  // ── Users ──────────────────────────────────────────────────────────────────
   async function handleBan(id, isBanned) {
     try {
       isBanned ? await admin.unbanUser(id) : await admin.banUser(id);
@@ -241,7 +289,7 @@ export default function AdminPage() {
     } catch (err) { flash('Error: ' + err.message); }
   }
 
-  // ── Categories ──────────────────────────────────────────────────────────────
+  // ── Categories ─────────────────────────────────────────────────────────────
   async function handleAddCategory(e) {
     e.preventDefault();
     if (!newCategory.name.trim()) return;
@@ -262,7 +310,7 @@ export default function AdminPage() {
     } catch (err) { flash('Error: ' + err.message); }
   }
 
-  // ── Posts ───────────────────────────────────────────────────────────────────
+  // ── Posts ──────────────────────────────────────────────────────────────────
   async function handlePostStatus(id, currentStatus) {
     const next = currentStatus === 'published' ? 'removed' : 'published';
     try {
@@ -272,7 +320,7 @@ export default function AdminPage() {
     } catch (err) { flash('Error: ' + err.message); }
   }
 
-  // ── HTTP Logs — Clear ────────────────────────────────────────────────────────
+  // ── HTTP Logs ──────────────────────────────────────────────────────────────
   async function handleClearLogs() {
     if (!confirm('Clear all HTTP logs? This cannot be undone.')) return;
     setClearingLogs(true);
@@ -284,7 +332,7 @@ export default function AdminPage() {
     setClearingLogs(false);
   }
 
-  // ── Anomalies — Clear ────────────────────────────────────────────────────────
+  // ── Anomalies ──────────────────────────────────────────────────────────────
   async function handleClearAnomalies() {
     if (!confirm('Clear all anomaly logs? This cannot be undone.')) return;
     setClearingAnomalies(true);
@@ -296,7 +344,7 @@ export default function AdminPage() {
     setClearingAnomalies(false);
   }
 
-  // ── Maintenance ─────────────────────────────────────────────────────────────
+  // ── Maintenance ────────────────────────────────────────────────────────────
   async function handleSaveMaintenance() {
     setMaintSaving(true);
     try {
@@ -310,17 +358,26 @@ export default function AdminPage() {
     setMaintSaving(false);
   }
 
-  // ── Settings ─────────────────────────────────────────────────────────────────
+  // ── Settings ───────────────────────────────────────────────────────────────
+  function getSettingVal(key, def) {
+    if (settings[key] !== undefined) return settings[key];
+    return def.placeholder || '';
+  }
+
+  function setSettingVal(key, value) {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  }
+
   async function handleSaveSettings() {
     setSettingsSaving(true);
     try {
       await admin.updateSettings(settings);
-      flash('Settings saved.');
+      flash('Settings saved successfully.');
     } catch (err) { flash('Error: ' + err.message); }
     setSettingsSaving(false);
   }
 
-  // ── UI helpers ──────────────────────────────────────────────────────────────
+  // ── UI helpers ─────────────────────────────────────────────────────────────
   function RoleBadge({ role }) {
     const colors = { admin: '#4f8ef7', moderator: '#4caf7d', user: '#7a8099' };
     return (
@@ -404,7 +461,6 @@ export default function AdminPage() {
 
   if (loading) return <div style={{ textAlign: 'center', padding: 80, color: 'var(--muted)' }}>Loading…</div>;
 
-  // ── Grouped log data ──────────────────────────────────────────────────────
   const groupedLogs = groupLogsByIp(httpLogs);
 
   return (
@@ -420,7 +476,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Tab bar — scrollable on mobile */}
+      {/* Tab bar */}
       <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 28, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -435,7 +491,6 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* Error banner */}
       {tabError && (
         <div style={{
           background: 'rgba(224,82,82,0.1)', border: '1px solid rgba(224,82,82,0.3)',
@@ -447,7 +502,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Loading overlay per tab */}
       {tabLoading && (
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>Loading…</div>
       )}
@@ -702,7 +756,6 @@ export default function AdminPage() {
               />
 
               {logView === 'grouped' ? (
-                /* ── Grouped view — one row per IP ── */
                 <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
                     <thead>
@@ -719,13 +772,13 @@ export default function AdminPage() {
                       {groupedLogs.map((entry) => {
                         const cat = detectCategory(entry._firstLog);
                         const flag = countryFlag(entry.country);
-                        const location = [entry.city, entry.country].filter(Boolean).join(', ') || '—';
+                        const loc = [entry.city, entry.country].filter(Boolean).join(', ') || '—';
                         const pathList = entry.paths.slice(0, 3).join(', ') + (entry.paths.length > 3 ? ` +${entry.paths.length - 3}` : '');
                         return (
                           <tr key={entry.ip}>
                             <td style={{ ...td, fontSize: 20, lineHeight: 1, width: 40 }}>{flag || '🌐'}</td>
                             <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>{entry.ip}</td>
-                            <td style={{ ...td, fontSize: 12, color: 'var(--muted)' }}>{location}</td>
+                            <td style={{ ...td, fontSize: 12, color: 'var(--muted)' }}>{loc}</td>
                             <td style={{ ...td, fontWeight: 700, color: 'var(--accent)' }}>{entry.count}</td>
                             <td style={{ ...td, fontSize: 11, color: 'var(--muted)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.paths.join('\n')}>
                               {pathList || '—'}
@@ -743,7 +796,6 @@ export default function AdminPage() {
                   </table>
                 </div>
               ) : (
-                /* ── Raw view — every request ── */
                 <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
                     <thead>
@@ -767,7 +819,7 @@ export default function AdminPage() {
                             <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.path}</td>
                             <td style={{ ...td, fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{l.ip || '—'}</td>
                             <td style={{ ...td, fontSize: 18, lineHeight: 1 }}>{flag || '🌐'}</td>
-                            <td style={{ ...td }}>
+                            <td style={td}>
                               <span style={{ fontSize: 12, fontWeight: 600, color: cat.color }}>{cat.label}</span>
                             </td>
                           </tr>
@@ -858,30 +910,149 @@ export default function AdminPage() {
           {tab === 'settings' && (
             <>
               <TabHeader title="Platform Settings" onRefresh={() => loadTab('settings')} />
-              <div className="card" style={{ padding: 28, maxWidth: 540 }}>
-                {Object.keys(settings).length === 0 ? (
-                  <p style={{ color: 'var(--muted)', fontSize: 14 }}>No settings found.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {Object.entries(settings).map(([key, val]) => (
-                      <div key={key}>
-                        <label style={{ fontSize: 13, display: 'block', marginBottom: 6, color: 'var(--muted)' }}>{key}</label>
-                        <input
-                          className="input"
-                          value={val}
-                          onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
-                        />
-                      </div>
+              <div style={{ display: 'grid', gap: 20, maxWidth: 620 }}>
+                {/* Section: Appearance */}
+                <div className="card" style={{ padding: 24 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 18, color: 'var(--text)' }}>
+                    🎨 Appearance
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {SETTING_DEFS.filter(d => ['site_name', 'site_tagline', 'admin_name_color'].includes(d.key)).map(def => (
+                      <SettingRow key={def.key} def={def} val={settings[def.key]} onChange={v => setSettingVal(def.key, v)} />
                     ))}
-                    <button className="btn btn-primary btn-sm" onClick={handleSaveSettings} disabled={settingsSaving} style={{ alignSelf: 'flex-start' }}>
-                      {settingsSaving ? 'Saving…' : 'Save Settings'}
-                    </button>
                   </div>
-                )}
+                </div>
+
+                {/* Section: Access & Registration */}
+                <div className="card" style={{ padding: 24 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 18, color: 'var(--text)' }}>
+                    🔐 Access & Registration
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {SETTING_DEFS.filter(d => ['registration_open', 'posts_require_approval'].includes(d.key)).map(def => (
+                      <SettingRow key={def.key} def={def} val={settings[def.key]} onChange={v => setSettingVal(def.key, v)} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section: Content */}
+                <div className="card" style={{ padding: 24 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 18, color: 'var(--text)' }}>
+                    📝 Content
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {SETTING_DEFS.filter(d => ['max_post_length', 'contact_email'].includes(d.key)).map(def => (
+                      <SettingRow key={def.key} def={def} val={settings[def.key]} onChange={v => setSettingVal(def.key, v)} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section: Features */}
+                <div className="card" style={{ padding: 24 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 18, color: 'var(--text)' }}>
+                    ⚡ Features
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {SETTING_DEFS.filter(d => ['donations_enabled', 'music_section_enabled'].includes(d.key)).map(def => (
+                      <SettingRow key={def.key} def={def} val={settings[def.key]} onChange={v => setSettingVal(def.key, v)} />
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveSettings}
+                  disabled={settingsSaving}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  {settingsSaving ? 'Saving…' : 'Save All Settings'}
+                </button>
+
+                <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: -8 }}>
+                  Note: Some settings (like colors or feature toggles) may require a page reload to take effect across the platform.
+                </p>
               </div>
             </>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+// ── Settings row component ─────────────────────────────────────────────────
+function SettingRow({ def, val, onChange }) {
+  const currentVal = val !== undefined ? val : '';
+
+  return (
+    <div>
+      <label style={{ fontSize: 13, display: 'block', marginBottom: 4, fontWeight: 500 }}>
+        {def.label}
+      </label>
+      {def.description && (
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.5 }}>
+          {def.description}
+        </p>
+      )}
+      {def.type === 'toggle' ? (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <div
+            onClick={() => onChange(currentVal === 'true' || currentVal === true ? 'false' : 'true')}
+            style={{
+              width: 44, height: 24, borderRadius: 12,
+              background: (currentVal === 'true' || currentVal === true) ? 'var(--accent)' : 'var(--surface2)',
+              border: '1px solid var(--border)',
+              position: 'relative', cursor: 'pointer',
+              transition: 'background 0.2s',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 2,
+              left: (currentVal === 'true' || currentVal === true) ? 22 : 2,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#fff',
+              transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }} />
+          </div>
+          <span style={{ fontSize: 13, color: (currentVal === 'true' || currentVal === true) ? 'var(--success)' : 'var(--muted)' }}>
+            {(currentVal === 'true' || currentVal === true) ? 'Enabled' : 'Disabled'}
+          </span>
+        </label>
+      ) : def.type === 'color' ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="color"
+            value={currentVal || '#4f8ef7'}
+            onChange={e => onChange(e.target.value)}
+            style={{ width: 40, height: 36, padding: 2, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', background: 'var(--surface)' }}
+          />
+          <input
+            type="text"
+            className="input"
+            value={currentVal}
+            onChange={e => onChange(e.target.value)}
+            placeholder={def.placeholder || '#4f8ef7'}
+            maxLength={7}
+            style={{ flex: 1, fontFamily: 'monospace' }}
+          />
+          {currentVal && (
+            <span style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: currentVal, border: '2px solid var(--border)',
+              flexShrink: 0, display: 'inline-block',
+            }} title="Preview" />
+          )}
+        </div>
+      ) : (
+        <input
+          type={def.type === 'number' ? 'number' : 'text'}
+          className="input"
+          value={currentVal}
+          onChange={e => onChange(e.target.value)}
+          placeholder={def.placeholder || ''}
+        />
       )}
     </div>
   );

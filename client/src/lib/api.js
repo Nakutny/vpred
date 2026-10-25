@@ -56,12 +56,12 @@ export const admin = {
   setMaintenance: (enabled, message, estimated_end) => request('/api/admin/maintenance', { method: 'POST', body: JSON.stringify({ enabled, message, estimated_end }) }),
   dbStatus: () => request('/api/admin/db-status'),
   httpLogs: () => request('/api/admin/http-logs'),
+  clearHttpLogs: () => request('/api/admin/http-logs', { method: 'DELETE' }),
   anomalies: () => request('/api/admin/anomalies'),
+  clearAnomalies: () => request('/api/admin/anomalies', { method: 'DELETE' }),
   donations: () => request('/api/admin/donations'),
   settings: () => request('/api/admin/settings'),
   updateSettings: (body) => request('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(body) }),
-  clearHttpLogs: () => request('/api/admin/http-logs', { method: 'DELETE' }),
-  clearAnomalies: () => request('/api/admin/anomalies', { method: 'DELETE' }),
 };
 
 export const mod = {
@@ -133,6 +133,8 @@ export const notifications = {
 };
 
 export const users = {
+  // Public list — used by UsersPage (/users)
+  list: (search = '') => request(`/api/users${search ? '?search=' + encodeURIComponent(search) : ''}`),
   search: (q) => request(`/api/users/search?q=${encodeURIComponent(q)}`),
   get: (username) => request(`/api/users/${username}`),
 };
