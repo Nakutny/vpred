@@ -88,7 +88,8 @@ export const reports = {
 };
 
 export const profile = {
-  get: (username) => request(`/api/profile/${username}`),
+  // Cache-bust: append _t= so Cloudflare/CDN never serves a stale profile
+  get: (username) => request(`/api/profile/${username}?_t=${Date.now()}`),
   updateBio: (bio) => request('/api/profile/me/bio', { method: 'PATCH', body: JSON.stringify({ bio }) }),
   changePassword: (body) => request('/api/profile/me/password', { method: 'PATCH', body: JSON.stringify(body) }),
   update: (body) => request('/api/profile', { method: 'PATCH', body: JSON.stringify(body) }),
@@ -106,10 +107,8 @@ export const friendships = {
   list: () => request('/api/friendships'),
   status: (userId) => request(`/api/friendships/status/${userId}`),
   send: (userId) => request('/api/friendships', { method: 'POST', body: JSON.stringify({ addressee_id: userId }) }),
-  // Backend uses PATCH /api/friendships/:id with { status } in body (no /accept or /decline sub-routes)
-  accept: (id) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }),
-  decline: (id) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'declined' }) }),
-  respond: (id, status) => request(`/api/friendships/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  accept: (id) => request(`/api/friendships/${id}/accept`, { method: 'PATCH' }),
+  decline: (id) => request(`/api/friendships/${id}/decline`, { method: 'PATCH' }),
   remove: (id) => request(`/api/friendships/${id}`, { method: 'DELETE' }),
 };
 
