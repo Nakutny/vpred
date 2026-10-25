@@ -122,7 +122,8 @@ export const blocks = {
 export const messages = {
   conversations: () => request('/api/messages/conversations'),
   thread: (userId) => request(`/api/messages/${userId}`),
-  send: (userId, content) => request(`/api/messages/${userId}`, { method: 'POST', body: JSON.stringify({ content }) }),
+  // Backend: POST /api/messages with { receiver_id, content } (no userId in URL)
+  send: (userId, content) => request('/api/messages', { method: 'POST', body: JSON.stringify({ receiver_id: userId, content }) }),
   unreadCount: () => request('/api/messages/unread-count'),
 };
 
