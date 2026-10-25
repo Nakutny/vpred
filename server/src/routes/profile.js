@@ -84,6 +84,8 @@ router.patch('/me/password', requireAuth, async (req, res) => {
 
 // GET /api/profile/:username — now includes donator_color
 router.get('/:username', async (req, res) => {
+  // Prevent CDN/proxy caching so admin status changes appear immediately
+  res.set('Cache-Control', 'no-store');
   try {
     const result = await query(
       `SELECT id, username, bio, avatar_url, created_at, donator_color, is_donator, donator_badge_visible
