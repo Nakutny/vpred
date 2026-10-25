@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { MusicProvider } from './contexts/MusicContext';
 import Layout from './components/Layout';
@@ -29,6 +29,46 @@ import MaintenanceGate from './components/MaintenanceGate';
 import DonatePage from './pages/DonatePage';
 import MusicPage from './pages/MusicPage';
 
+// Inner component so useLocation works inside BrowserRouter
+function AppRoutes() {
+  const location = useLocation();
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/post/:slug" element={<PostPage />} />
+      <Route path="/post/:slug/edit" element={<EditPostPage />} />
+      <Route path="/new" element={<NewPostPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/admin" element={<AdminPage />} />
+      <Route path="/mod" element={<ModPage />} />
+      <Route path="/category/:slug" element={<CategoryPage />} />
+      <Route path="/categories" element={<CategoriesPage />} />
+      {/* key=location.key forces ProfilePage to fully remount on every navigation,
+          even when username stays the same (e.g. navigating back from Admin). */}
+      <Route path="/profile/:username" element={<ProfilePage key={location.key} />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/legal-notice" element={<LegalNoticePage />} />
+      <Route path="/impressum" element={<LegalNoticePage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/support" element={<SupportPage />} />
+      <Route path="/friends" element={<FriendsPage />} />
+      <Route path="/chat/:userId" element={<ChatPage />} />
+      <Route path="/essays" element={<EssaysPage />} />
+      <Route path="/essays/new" element={<NewEssayPage />} />
+      <Route path="/texts" element={<StoriesPage />} />
+      <Route path="/texts/new" element={<NewStoryPage />} />
+      {/* Legacy URLs — keep old /stories links working */}
+      <Route path="/stories" element={<StoriesPage />} />
+      <Route path="/stories/new" element={<NewStoryPage />} />
+      <Route path="/users" element={<UsersPage />} />
+      <Route path="/donate" element={<DonatePage />} />
+      <Route path="/music" element={<MusicPage />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -36,37 +76,7 @@ export default function App() {
         <MusicProvider>
           <MaintenanceGate>
             <Layout>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/post/:slug" element={<PostPage />} />
-                <Route path="/post/:slug/edit" element={<EditPostPage />} />
-                <Route path="/new" element={<NewPostPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/admin" element={<AdminPage />} />
-                <Route path="/mod" element={<ModPage />} />
-                <Route path="/category/:slug" element={<CategoryPage />} />
-                <Route path="/categories" element={<CategoriesPage />} />
-                <Route path="/profile/:username" element={<ProfilePage />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/legal-notice" element={<LegalNoticePage />} />
-                <Route path="/impressum" element={<LegalNoticePage />} />
-                <Route path="/privacy" element={<PrivacyPage />} />
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/support" element={<SupportPage />} />
-                <Route path="/friends" element={<FriendsPage />} />
-                <Route path="/chat/:userId" element={<ChatPage />} />
-                <Route path="/essays" element={<EssaysPage />} />
-                <Route path="/essays/new" element={<NewEssayPage />} />
-                <Route path="/texts" element={<StoriesPage />} />
-                <Route path="/texts/new" element={<NewStoryPage />} />
-                {/* Legacy URLs — keep old /stories links working */}
-                <Route path="/stories" element={<StoriesPage />} />
-                <Route path="/stories/new" element={<NewStoryPage />} />
-                <Route path="/users" element={<UsersPage />} />
-                <Route path="/donate" element={<DonatePage />} />
-                <Route path="/music" element={<MusicPage />} />
-              </Routes>
+              <AppRoutes />
             </Layout>
           </MaintenanceGate>
         </MusicProvider>

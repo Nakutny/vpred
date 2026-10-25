@@ -97,15 +97,20 @@ export default function ProfilePage() {
     function onVisible() {
       if (document.visibilityState === 'visible') loadProfileRef.current?.();
     }
-    // visibilitychange: catches tab switches and browser-window focus changes
+    // pageshow with persisted=true: fires when browser restores page from BFCache
+    // (Back-button after navigating away — React does NOT remount in this case)
+    function onPageShow(e) {
+      if (e.persisted) loadProfileRef.current?.();
+    }
+    // visibilitychange: catches tab switches
     document.addEventListener('visibilitychange', onVisible);
-    // focus: catches navigation back within the same SPA (e.g. Admin → Profile same tab)
-    window.addEventListener('focus', onVisible);
-    // Poll every 30 s so in-app navigation changes always reflect without user action
+    // pageshow: catches browser Back/Forward cache restore
+    window.addEventListener('pageshow', onPageShow);
+    // Poll every 30 s as fallback
     const pollTimer = setInterval(() => loadProfileRef.current?.(), 30000);
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', onVisible);
+      window.removeEventListener('pageshow', onPageShow);
       clearInterval(pollTimer);
     };
   }, []); // intentionally empty — ref always points to latest version
