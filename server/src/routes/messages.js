@@ -224,6 +224,17 @@ router.post('/', requireAuth, async (req, res) => {
       [req.user.id, receiver_id, content.trim()]
     );
 
+    // Notify receiver about the new message
+    const senderRes = await query('SELECT username FROM users WHERE id = $1', [req.user.id]);
+    const senderUsername = senderRes.rows[0]?.username || 'Someone';
+    await createNotification(
+      receiver_id,
+      'new_message',
+      '💬 New Message',
+      `${senderUsername} sent you a message`,
+      `/chat/${req.user.id}`
+    );
+
     res.status(201).json({ message: result.rows[0] });
   } catch (err) {
     console.error('Send message error:', err);
