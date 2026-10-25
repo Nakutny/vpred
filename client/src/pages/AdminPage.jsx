@@ -4,6 +4,100 @@ import { admin, categories } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { UsernameWithColor } from '../components/DonatorBadge';
 
+// ── Visitor-category detection based on User-Agent string ──────────────────
+function detectCategory(log) {
+  const ua = (log.user_agent || '').toLowerCase();
+  const path = (log.path || '').toLowerCase();
+
+  // Known bots / crawlers
+  if (
+    ua.includes('bot') || ua.includes('crawler') || ua.includes('spider') ||
+    ua.includes('scrapy') || ua.includes('curl') || ua.includes('wget') ||
+    ua.includes('python') || ua.includes('java/') || ua.includes('go-http') ||
+    ua.includes('libwww') || ua.includes('httpclient') || ua.includes('axios') ||
+    ua.includes('node-fetch') || ua.includes('okhttp') || ua.includes('ruby') ||
+    ua.includes('php') || ua.includes('perl') || ua.includes('mechanize') ||
+    path.includes('/api/') && !path.includes('/api/auth')
+  ) {
+    return { label: '🤖 Bot', color: '#e05252' };
+  }
+  // Search engines
+  if (
+    ua.includes('googlebot') || ua.includes('bingbot') || ua.includes('yandexbot') ||
+    ua.includes('duckduckbot') || ua.includes('baiduspider') || ua.includes('ahrefsbot') ||
+    ua.includes('semrushbot') || ua.includes('mj12bot')
+  ) {
+    return { label: '🔍 Search Engine', color: '#f59e0b' };
+  }
+  // Social media preview
+  if (
+    ua.includes('facebookexternalhit') || ua.includes('twitterbot') ||
+    ua.includes('linkedinbot') || ua.includes('whatsapp') || ua.includes('telegram') ||
+    ua.includes('slurp') || ua.includes('discordbot') || ua.includes('applebot')
+  ) {
+    return { label: '📱 Social Preview', color: '#8b5cf6' };
+  }
+  // Monitoring / uptime services
+  if (
+    ua.includes('uptimerobot') || ua.includes('pingdom') || ua.includes('statuscake') ||
+    ua.includes('newrelic') || ua.includes('datadog') || ua.includes('synthetics')
+  ) {
+    return { label: '📡 Monitor', color: '#06b6d4' };
+  }
+  // Regular browsers → person
+  if (
+    ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') ||
+    ua.includes('firefox') || ua.includes('edge') || ua.includes('opera')
+  ) {
+    return { label: '👤 Person', color: '#4caf7d' };
+  }
+  return { label: '❓ Unknown', color: '#7a8099' };
+}
+
+// ── Country flag from ISO 3166-1 alpha-2 code ──────────────────────────────
+function countryFlag(countryCode) {
+  if (!countryCode || countryCode.length !== 2) return '';
+  const code = countryCode.toUpperCase();
+  // Convert to regional indicator symbols (flag emoji)
+  const base = 0x1F1E6 - 65; // 'A'
+  return String.fromCodePoint(base + code.charCodeAt(0)) +
+         String.fromCodePoint(base + code.charCodeAt(1));
+}
+
+// ── Group HTTP logs by IP ───────────────────────────────────────────────────
+function groupLogsByIp(logs) {
+  const map = new Map();
+  for (const log of logs) {
+    const ip = log.ip || 'unknown';
+    if (!map.has(ip)) {
+      map.set(ip, {
+        ip,
+        country: log.country || null,
+        city: log.city || null,
+        count: 0,
+        paths: [],
+        methods: new Set(),
+        last_seen: log.created_at,
+        first_seen: log.created_at,
+        user_agent: log.user_agent || '',
+        // keep first log for category detection
+        _firstLog: log,
+      });
+    }
+    const entry = map.get(ip);
+    entry.count += 1;
+    if (log.path && !entry.paths.includes(log.path)) entry.paths.push(log.path);
+    if (log.method) entry.methods.add(log.method);
+    // track latest/earliest timestamps
+    if (new Date(log.created_at) > new Date(entry.last_seen)) entry.last_seen = log.created_at;
+    if (new Date(log.created_at) < new Date(entry.first_seen)) entry.first_seen = log.created_at;
+    // prefer a non-empty user_agent
+    if (!entry.user_agent && log.user_agent) entry.user_agent = log.user_agent;
+  }
+  // Sort by count desc
+  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+}
+
 export default function AdminPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -29,6 +123,7 @@ export default function AdminPage() {
   // HTTP Logs
   const [httpLogs, setHttpLogs] = useState([]);
   const [clearingLogs, setClearingLogs] = useState(false);
+  const [logView, setLogView] = useState('grouped'); // 'grouped' | 'raw'
 
   // Anomalies
   const [anomalies, setAnomalies] = useState([]);
@@ -92,22 +187,24 @@ export default function AdminPage() {
     setTabLoading(false);
   }, []);
 
+  // Initial load — categories only (users load on first tab render via useEffect below)
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
-    Promise.all([
-      admin.users().then(d => setUsers(d.users || [])).catch(() => {}),
-      categories.list().then(d => setCategoryList(d.categories || [])).catch(() => {}),
-    ]).finally(() => setLoading(false));
+    categories.list()
+      .then(d => setCategoryList(d.categories || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [isAdmin]);
 
+  // Load data whenever tab changes — including 'users'
   useEffect(() => {
-    if (!isAdmin) return;
-    if (tab !== 'users' && tab !== 'categories') {
+    if (!isAdmin || loading) return;
+    if (tab !== 'categories') {
       loadTab(tab);
     }
-  }, [tab, isAdmin]);
+  }, [tab, isAdmin, loading]);
 
-  // ── Users ───────────────────────────────────────────────────────────────────
+  // ── Users ────────────────────────────────────────────────────────────────────
   async function handleBan(id, isBanned) {
     try {
       isBanned ? await admin.unbanUser(id) : await admin.banUser(id);
@@ -266,11 +363,12 @@ export default function AdminPage() {
     );
   }
 
-  function TabHeader({ title, onRefresh, onClear, clearLabel, clearDisabled }) {
+  function TabHeader({ title, onRefresh, onClear, clearLabel, clearDisabled, extra }) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 8, flexWrap: 'wrap' }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)', margin: 0 }}>{title}</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {extra}
           {onClear && (
             <button onClick={onClear} disabled={clearDisabled} style={{
               background: 'rgba(224,82,82,0.12)', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 6,
@@ -305,6 +403,9 @@ export default function AdminPage() {
   const td = { padding: '10px 14px', fontSize: 13, borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 80, color: 'var(--muted)' }}>Loading…</div>;
+
+  // ── Grouped log data ──────────────────────────────────────────────────────
+  const groupedLogs = groupLogsByIp(httpLogs);
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
@@ -357,7 +458,7 @@ export default function AdminPage() {
           {tab === 'users' && (
             <>
               <TabHeader
-                title={`${users.length} user${users.length !== 1 ? 's' : ''}`}
+                title={users.length > 0 ? `${users.length} user${users.length !== 1 ? 's' : ''}` : 'Users'}
                 onRefresh={() => loadTab('users')}
               />
               <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
@@ -370,10 +471,14 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.length === 0 && (
+                    {users.length === 0 && !tabLoading && (
                       <tr>
                         <td colSpan={7} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 40 }}>
-                          No users found. Try refreshing.
+                          {tabError ? 'Failed to load users.' : 'No users found.'}
+                          {' '}
+                          <button onClick={() => loadTab('users')} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>
+                            Try refreshing
+                          </button>
                         </td>
                       </tr>
                     )}
@@ -572,32 +677,106 @@ export default function AdminPage() {
           {tab === 'logs' && (
             <>
               <TabHeader
-                title={`${httpLogs.length} log entr${httpLogs.length !== 1 ? 'ies' : 'y'}`}
+                title={logView === 'grouped'
+                  ? `${groupedLogs.length} unique IP${groupedLogs.length !== 1 ? 's' : ''} (${httpLogs.length} requests total)`
+                  : `${httpLogs.length} request${httpLogs.length !== 1 ? 's' : ''}`
+                }
                 onRefresh={() => loadTab('logs')}
                 onClear={handleClearLogs}
                 clearLabel="Clear Logs"
                 clearDisabled={clearingLogs || httpLogs.length === 0}
+                extra={
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => setLogView('grouped')} style={{
+                      padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)',
+                      background: logView === 'grouped' ? 'var(--accent)' : 'transparent',
+                      color: logView === 'grouped' ? '#fff' : 'var(--muted)', cursor: 'pointer',
+                    }}>Grouped</button>
+                    <button onClick={() => setLogView('raw')} style={{
+                      padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)',
+                      background: logView === 'raw' ? 'var(--accent)' : 'transparent',
+                      color: logView === 'raw' ? '#fff' : 'var(--muted)', cursor: 'pointer',
+                    }}>Raw</button>
+                  </div>
+                }
               />
-              <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
-                  <thead><tr>{['Time', 'Method', 'Path', 'Status', 'IP', 'Duration'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-                  <tbody>
-                    {httpLogs.length === 0 && (
-                      <tr><td colSpan={6} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No logs found.</td></tr>
-                    )}
-                    {httpLogs.map((l, i) => (
-                      <tr key={l.id || i}>
-                        <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString() : '—'}</td>
-                        <td style={{ ...td, fontWeight: 600, fontSize: 12 }}>{l.method}</td>
-                        <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.path}</td>
-                        <td style={{ ...td, color: l.status >= 400 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{l.status}</td>
-                        <td style={{ ...td, fontSize: 11, color: 'var(--muted)' }}>{l.ip || '—'}</td>
-                        <td style={{ ...td, fontSize: 12, color: 'var(--muted)' }}>{l.duration_ms != null ? `${l.duration_ms}ms` : '—'}</td>
+
+              {logView === 'grouped' ? (
+                /* ── Grouped view — one row per IP ── */
+                <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+                    <thead>
+                      <tr>
+                        {['Flag', 'IP', 'Country / City', 'Requests', 'Paths', 'Category', 'Last Seen'].map(h => (
+                          <th key={h} style={th}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {groupedLogs.length === 0 && (
+                        <tr><td colSpan={7} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No logs found.</td></tr>
+                      )}
+                      {groupedLogs.map((entry) => {
+                        const cat = detectCategory(entry._firstLog);
+                        const flag = countryFlag(entry.country);
+                        const location = [entry.city, entry.country].filter(Boolean).join(', ') || '—';
+                        const pathList = entry.paths.slice(0, 3).join(', ') + (entry.paths.length > 3 ? ` +${entry.paths.length - 3}` : '');
+                        return (
+                          <tr key={entry.ip}>
+                            <td style={{ ...td, fontSize: 20, lineHeight: 1, width: 40 }}>{flag || '🌐'}</td>
+                            <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>{entry.ip}</td>
+                            <td style={{ ...td, fontSize: 12, color: 'var(--muted)' }}>{location}</td>
+                            <td style={{ ...td, fontWeight: 700, color: 'var(--accent)' }}>{entry.count}</td>
+                            <td style={{ ...td, fontSize: 11, color: 'var(--muted)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.paths.join('\n')}>
+                              {pathList || '—'}
+                            </td>
+                            <td style={td}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: cat.color }}>{cat.label}</span>
+                            </td>
+                            <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                              {entry.last_seen ? new Date(entry.last_seen).toLocaleString() : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                /* ── Raw view — every request ── */
+                <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+                    <thead>
+                      <tr>
+                        {['Time', 'Method', 'Path', 'IP', 'Flag', 'Category'].map(h => (
+                          <th key={h} style={th}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {httpLogs.length === 0 && (
+                        <tr><td colSpan={6} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No logs found.</td></tr>
+                      )}
+                      {httpLogs.map((l, i) => {
+                        const cat = detectCategory(l);
+                        const flag = countryFlag(l.country);
+                        return (
+                          <tr key={l.id || i}>
+                            <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString() : '—'}</td>
+                            <td style={{ ...td, fontWeight: 600, fontSize: 12 }}>{l.method}</td>
+                            <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.path}</td>
+                            <td style={{ ...td, fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{l.ip || '—'}</td>
+                            <td style={{ ...td, fontSize: 18, lineHeight: 1 }}>{flag || '🌐'}</td>
+                            <td style={{ ...td }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: cat.color }}>{cat.label}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
 
@@ -636,49 +815,38 @@ export default function AdminPage() {
           {tab === 'maintenance' && (
             <>
               <TabHeader title="Maintenance Mode" onRefresh={() => loadTab('maintenance')} />
-              <div className="card" style={{ padding: 28, maxWidth: 600 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-                    <div
-                      onClick={() => setMaintenance(p => ({ ...p, enabled: !p.enabled }))}
-                      style={{
-                        width: 44, height: 24, borderRadius: 12, background: maintenance.enabled ? 'var(--danger)' : 'var(--border)',
-                        position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
-                      }}
-                    >
-                      <div style={{
-                        position: 'absolute', top: 3, left: maintenance.enabled ? 23 : 3,
-                        width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
-                      }} />
-                    </div>
-                    <span style={{ fontWeight: maintenance.enabled ? 600 : 400, color: maintenance.enabled ? 'var(--danger)' : 'var(--text)' }}>
-                      {maintenance.enabled ? 'Maintenance ACTIVE' : 'Maintenance OFF'}
-                    </span>
-                  </label>
-
+              <div className="card" style={{ padding: 28, maxWidth: 540 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={maintenance.enabled}
+                    onChange={e => setMaintenance(m => ({ ...m, enabled: e.target.checked }))}
+                    style={{ width: 18, height: 18, accentColor: 'var(--accent)' }}
+                  />
+                  <span style={{ fontWeight: 600 }}>Enable Maintenance Mode</span>
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div>
-                    <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Message (shown to users)</label>
+                    <label style={{ fontSize: 13, display: 'block', marginBottom: 6, color: 'var(--muted)' }}>Message shown to visitors</label>
                     <textarea
                       className="input"
-                      rows={3}
                       value={maintenance.message}
-                      onChange={e => setMaintenance(p => ({ ...p, message: e.target.value }))}
+                      onChange={e => setMaintenance(m => ({ ...m, message: e.target.value }))}
                       placeholder="We'll be back shortly…"
-                      style={{ resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }}
+                      rows={3}
+                      style={{ resize: 'vertical' }}
                     />
                   </div>
-
                   <div>
-                    <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Estimated end (optional)</label>
+                    <label style={{ fontSize: 13, display: 'block', marginBottom: 6, color: 'var(--muted)' }}>Estimated end (optional)</label>
                     <input
                       type="datetime-local"
                       className="input"
                       value={maintenance.estimated_end}
-                      onChange={e => setMaintenance(p => ({ ...p, estimated_end: e.target.value }))}
+                      onChange={e => setMaintenance(m => ({ ...m, estimated_end: e.target.value }))}
                     />
                   </div>
-
-                  <button onClick={handleSaveMaintenance} disabled={maintSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                  <button className="btn btn-primary btn-sm" onClick={handleSaveMaintenance} disabled={maintSaving} style={{ alignSelf: 'flex-start' }}>
                     {maintSaving ? 'Saving…' : 'Save'}
                   </button>
                 </div>
@@ -690,22 +858,22 @@ export default function AdminPage() {
           {tab === 'settings' && (
             <>
               <TabHeader title="Platform Settings" onRefresh={() => loadTab('settings')} />
-              <div className="card" style={{ padding: 28, maxWidth: 600 }}>
+              <div className="card" style={{ padding: 28, maxWidth: 540 }}>
                 {Object.keys(settings).length === 0 ? (
-                  <p style={{ color: 'var(--muted)', fontSize: 14 }}>No settings found or endpoint not available.</p>
+                  <p style={{ color: 'var(--muted)', fontSize: 14 }}>No settings found.</p>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {Object.entries(settings).map(([key, val]) => (
                       <div key={key}>
-                        <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{key}</label>
+                        <label style={{ fontSize: 13, display: 'block', marginBottom: 6, color: 'var(--muted)' }}>{key}</label>
                         <input
                           className="input"
                           value={val}
-                          onChange={e => setSettings(p => ({ ...p, [key]: e.target.value }))}
+                          onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
                         />
                       </div>
                     ))}
-                    <button onClick={handleSaveSettings} disabled={settingsSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                    <button className="btn btn-primary btn-sm" onClick={handleSaveSettings} disabled={settingsSaving} style={{ alignSelf: 'flex-start' }}>
                       {settingsSaving ? 'Saving…' : 'Save Settings'}
                     </button>
                   </div>

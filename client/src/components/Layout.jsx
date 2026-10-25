@@ -25,8 +25,17 @@ export default function Layout({ children }) {
     setMobileNavOpen(false);
   }, [location.pathname]);
 
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileNavOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileNavOpen]);
+
   // Poll for nav counts + unread messages + notifications
-  // Only re-run when user changes, not on every route change (performance)
   useEffect(() => {
     if (!user) {
       setNavCts({ feed: null, essays: null, texts: null, categories: null, users: null, friends: null });
@@ -62,13 +71,12 @@ export default function Layout({ children }) {
 
     fetchAll();
     fetchNotifications();
-    // Poll every 60 seconds (was 30s) to reduce load
     const interval = setInterval(() => {
       fetchAll();
       fetchNotifications();
     }, 60000);
     return () => clearInterval(interval);
-  }, [user]); // only re-run when user changes, not on every pathname change
+  }, [user]);
 
   // Close notification dropdown on outside click
   useEffect(() => {
@@ -144,15 +152,42 @@ export default function Layout({ children }) {
         zIndex: 100,
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 60, gap: 24 }}>
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L3 20h18L12 2z" fill="var(--accent)" opacity="0.9"/>
-              <path d="M12 7L6.5 18h11L12 7z" fill="var(--bg)"/>
-            </svg>
-            <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-              vpred<span style={{ color: 'var(--muted)', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 400 }}>.org</span>
-            </span>
-          </Link>
+
+          {/* Logo + Hamburger side-by-side (hamburger only visible on mobile) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L3 20h18L12 2z" fill="var(--accent)" opacity="0.9"/>
+                <path d="M12 7L6.5 18h11L12 7z" fill="var(--bg)"/>
+              </svg>
+              <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+                vpred<span style={{ color: 'var(--muted)', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 400 }}>.org</span>
+              </span>
+            </Link>
+
+            {/* Hamburger button — directly next to logo, shown on mobile only */}
+            <button
+              className="mobile-hamburger"
+              onClick={() => setMobileNavOpen(v => !v)}
+              aria-label="Open navigation menu"
+            >
+              <span style={{
+                display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
+                transition: 'all 0.22s',
+                transform: mobileNavOpen ? 'rotate(45deg) translate(5px,5px)' : 'none',
+              }} />
+              <span style={{
+                display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
+                transition: 'all 0.22s',
+                opacity: mobileNavOpen ? 0 : 1,
+              }} />
+              <span style={{
+                display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
+                transition: 'all 0.22s',
+                transform: mobileNavOpen ? 'rotate(-45deg) translate(5px,-5px)' : 'none',
+              }} />
+            </button>
+          </div>
 
           {/* Desktop nav */}
           <nav className="desktop-nav" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -192,11 +227,12 @@ export default function Layout({ children }) {
             </div>
           </form>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+          {/* Desktop right side: user icons */}
+          <div className="desktop-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
             {user ? (
               <>
-                {/* Messages icon — desktop only */}
-                <Link to="/friends" title="Messages" className="desktop-nav" style={{ position: 'relative', display: 'flex', alignItems: 'center', color: 'var(--muted)' }}>
+                {/* Messages icon */}
+                <Link to="/friends" title="Messages" style={{ position: 'relative', display: 'flex', alignItems: 'center', color: 'var(--muted)' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                   </svg>
@@ -296,12 +332,12 @@ export default function Layout({ children }) {
                   )}
                 </div>
 
-                <Link to="/new" className="btn btn-primary btn-sm desktop-nav">
+                <Link to="/new" className="btn btn-primary btn-sm">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
                   Write
                 </Link>
 
-                <div style={{ position: 'relative' }} className="desktop-nav">
+                <div style={{ position: 'relative' }}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
                     style={{
@@ -352,55 +388,39 @@ export default function Layout({ children }) {
               </>
             ) : (
               <>
-                <Link to="/login" className="btn btn-ghost btn-sm desktop-nav">Sign in</Link>
-                <Link to="/register" className="btn btn-primary btn-sm desktop-nav">Join</Link>
+                <Link to="/login" className="btn btn-ghost btn-sm">Sign in</Link>
+                <Link to="/register" className="btn btn-primary btn-sm">Join</Link>
               </>
             )}
-
-            {/* Hamburger button — mobile only */}
-            <button
-              className="mobile-hamburger"
-              onClick={() => setMobileNavOpen(v => !v)}
-              aria-label="Open menu"
-              style={{
-                display: 'none', // hidden by default; CSS shows on mobile
-                flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
-                gap: 5, width: 36, height: 36, background: 'none', border: 'none',
-                cursor: 'pointer', padding: 4, borderRadius: 6,
-              }}
-            >
-              <span style={{ display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2, transition: 'all 0.2s', transform: mobileNavOpen ? 'rotate(45deg) translate(5px,5px)' : 'none' }} />
-              <span style={{ display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2, transition: 'all 0.2s', opacity: mobileNavOpen ? 0 : 1 }} />
-              <span style={{ display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2, transition: 'all 0.2s', transform: mobileNavOpen ? 'rotate(-45deg) translate(5px,-5px)' : 'none' }} />
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile nav drawer overlay */}
+      {/* Mobile nav overlay */}
       {mobileNavOpen && (
         <div
           onClick={() => setMobileNavOpen(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 90,
-            background: 'rgba(0,0,0,0.4)',
+            position: 'fixed', inset: 0, zIndex: 390,
+            background: 'rgba(0,0,0,0.55)',
           }}
         />
       )}
 
-      {/* Mobile nav drawer */}
+      {/* Mobile nav drawer — slides in from the RIGHT */}
       <div
-        className="mobile-drawer"
         style={{
-          position: 'fixed', top: 60, left: 0, bottom: 0,
-          width: 280, background: 'var(--surface)', borderRight: '1px solid var(--border)',
-          zIndex: 95, overflowY: 'auto',
-          transform: mobileNavOpen ? 'translateX(0)' : 'translateX(-100%)',
+          position: 'fixed', top: 60, right: 0, bottom: 0,
+          width: 'min(300px, 85vw)',
+          background: 'var(--surface)', borderLeft: '1px solid var(--border)',
+          zIndex: 400, overflowY: 'auto',
+          transform: mobileNavOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.25s ease',
           padding: '16px 0',
+          boxShadow: mobileNavOpen ? '-8px 0 40px rgba(0,0,0,0.35)' : 'none',
         }}
       >
-        {/* Search */}
+        {/* Search inside drawer */}
         <div style={{ padding: '0 16px 16px' }}>
           <form onSubmit={handleSearch}>
             <div style={{ position: 'relative' }}>
@@ -418,6 +438,7 @@ export default function Layout({ children }) {
           </form>
         </div>
 
+        {/* Nav links — available to everyone (logged in and out) */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
           <MobileNavLink to="/" label="Research" count={navCts.feed} active={location.pathname === '/'} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/essays" label="Essays" count={navCts.essays} active={location.pathname.startsWith('/essays')} onClose={() => setMobileNavOpen(false)} />
@@ -465,7 +486,7 @@ export default function Layout({ children }) {
         {children}
       </main>
 
-      {/* Global Mini Player — only visible when a track is playing */}
+      {/* Global Mini Player */}
       <MiniPlayer />
 
       <footer style={{ borderTop: '1px solid var(--border)', padding: '28px 24px', marginTop: 60 }}>

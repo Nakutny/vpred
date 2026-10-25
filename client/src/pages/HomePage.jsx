@@ -22,8 +22,6 @@ export default function HomePage() {
     if (search) params.search = search;
     if (category) params.category = category;
 
-    // Load posts + categories in parallel on first render;
-    // on subsequent filter/page changes only posts change so categories are already cached.
     Promise.all([
       posts.list(params),
       categoryList.length === 0 ? categories.list() : Promise.resolve(null),
@@ -104,8 +102,8 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Sidebar */}
-      <aside style={{ width: 260, flexShrink: 0 }}>
+      {/* Sidebar — hidden on mobile via .home-sidebar CSS class */}
+      <aside className="home-sidebar" style={{ width: 260, flexShrink: 0 }}>
         <div className="card" style={{ padding: '18px 20px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">

@@ -214,38 +214,46 @@ body.has-miniplayer { --miniplayer-height: 72px; }
 }
 
 /* ── Mobile Navigation ──────────────────────────────────────────────────── */
+
+/* Hamburger button: hidden by default, shown via @media below */
 .mobile-hamburger {
-  display: none; background: none; border: none; cursor: pointer;
-  color: var(--muted); padding: 6px; border-radius: 6px;
-  align-items: center; justify-content: center;
-  transition: color 0.15s, background 0.15s; flex-shrink: 0;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  color: var(--text);
+  flex-shrink: 0;
+  transition: background 0.15s;
 }
-.mobile-hamburger:hover { color: var(--text); background: var(--surface2); }
+.mobile-hamburger:hover {
+  background: var(--surface2);
+}
 
-.mobile-nav-drawer { display: none; position: fixed; inset: 0; z-index: 400; }
-.mobile-nav-drawer.open { display: block; }
-.mobile-nav-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); }
-.mobile-nav-panel {
-  position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 85vw);
-  background: var(--surface); border-left: 1px solid var(--border);
-  display: flex; flex-direction: column; overflow-y: auto;
-  box-shadow: -8px 0 40px rgba(0,0,0,0.4);
+/* ── HomePage sidebar — hidden on mobile ────────────────────────────────── */
+/* The sidebar with the "Join the collective" box is a desktop-only element  */
+@media (max-width: 768px) {
+  .home-sidebar {
+    display: none !important;
+  }
 }
-.mobile-nav-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 20px; border-bottom: 1px solid var(--border);
-}
-.mobile-nav-links { display: flex; flex-direction: column; padding: 12px 0; flex: 1; }
-.mobile-nav-link {
-  display: flex; align-items: center; gap: 12px; padding: 13px 20px;
-  color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: none;
-  transition: color 0.15s, background 0.15s; border: none; background: none;
-  cursor: pointer; width: 100%; text-align: left;
-}
-.mobile-nav-link:hover, .mobile-nav-link.active { color: var(--text); background: var(--surface2); }
-.mobile-nav-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
 
+/* ── Responsive breakpoints ─────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .desktop-nav { display: none !important; }
-  .mobile-hamburger { display: flex; }
+  /* Hide desktop-only nav elements */
+  .desktop-nav {
+    display: none !important;
+  }
+
+  /* Show hamburger */
+  .mobile-hamburger {
+    display: flex;
+  }
 }
