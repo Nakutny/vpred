@@ -237,6 +237,17 @@ body.has-miniplayer { --miniplayer-height: 72px; }
   background: var(--surface2);
 }
 
+/* Mobile bell: hidden by default, shown on mobile */
+.mobile-bell {
+  display: none;
+  flex-shrink: 0;
+}
+
+/* MiniPlayer time display: hidden on very small screens */
+.miniplayer-time {
+  display: inline;
+}
+
 /* ── HomePage sidebar — hidden on mobile ────────────────────────────────── */
 /* The sidebar with the "Join the collective" box is a desktop-only element  */
 @media (max-width: 768px) {
@@ -252,8 +263,21 @@ body.has-miniplayer { --miniplayer-height: 72px; }
     display: none !important;
   }
 
-  /* Show hamburger */
+  /* Show hamburger and mobile bell */
   .mobile-hamburger {
     display: flex;
+  }
+  .mobile-bell {
+    display: block;
+  }
+}
+
+/* On very small screens, hide the time display in MiniPlayer to save space */
+@media (max-width: 480px) {
+  .miniplayer-time {
+    display: none;
+  }
+  .miniplayer-volume {
+    display: none;
   }
 }

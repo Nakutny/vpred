@@ -108,6 +108,10 @@ export const friendships = {
   send: (userId) => request('/api/friendships', { method: 'POST', body: JSON.stringify({ addressee_id: userId }) }),
   accept: (id) => request(`/api/friendships/${id}/accept`, { method: 'PATCH' }),
   decline: (id) => request(`/api/friendships/${id}/decline`, { method: 'PATCH' }),
+  // respond() used by FriendsPage — routes to accept or decline based on status string
+  respond: (id, status) => status === 'accepted'
+    ? request(`/api/friendships/${id}/accept`, { method: 'PATCH' })
+    : request(`/api/friendships/${id}/decline`, { method: 'PATCH' }),
   remove: (id) => request(`/api/friendships/${id}`, { method: 'DELETE' }),
 };
 

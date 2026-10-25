@@ -371,12 +371,118 @@ export default function Layout({ children }) {
             )}
           </div>
 
+          {/* Mobile Bell — only visible on mobile, left of hamburger; marginLeft:auto pushes both to the right */}
+          {user && (
+            <div className="mobile-bell" style={{ position: 'relative', flexShrink: 0, marginLeft: 'auto' }}>
+              <button
+                onClick={() => {
+                  const opening = !notifOpen;
+                  setNotifOpen(opening);
+                  setMobileNavOpen(false);
+                  if (opening && unreadNotifCount > 0) markAllRead();
+                }}
+                title="Notifications"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--muted)', padding: 4,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative',
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                {totalBell > 0 && (
+                  <span style={{
+                    position: 'absolute', top: 0, right: 0,
+                    background: 'var(--danger)', color: '#fff',
+                    borderRadius: 9999, fontSize: 9, fontWeight: 700,
+                    minWidth: 14, height: 14,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 3px',
+                  }}>
+                    {totalBell > 9 ? '9+' : totalBell}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification dropdown — mobile */}
+              {notifOpen && (
+                <>
+                  <div
+                    onClick={() => setNotifOpen(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 390 }}
+                  />
+                  <div style={{
+                    position: 'fixed', top: 60, right: 0, left: 0,
+                    background: 'var(--surface)', borderBottom: '1px solid var(--border)',
+                    zIndex: 400, maxHeight: '70vh', overflowY: 'auto',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px', borderBottom: '1px solid var(--border)',
+                    }}>
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>Notifications</span>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        {unreadNotifCount > 0 && (
+                          <button onClick={markAllRead} style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            Mark all read
+                          </button>
+                        )}
+                        <button onClick={() => setNotifOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
+                      </div>
+                    </div>
+                    {notifications.length === 0 ? (
+                      <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                        No notifications yet
+                      </div>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '12px 16px',
+                          background: n.is_read ? 'transparent' : 'rgba(79,142,247,0.06)',
+                          borderBottom: '1px solid var(--border)',
+                        }}>
+                          <div style={{ flexShrink: 0, marginTop: 1 }}>
+                            {n.type === 'friend_request' && <span style={{ fontSize: 16 }}>👤</span>}
+                            {n.type === 'friend_accepted' && <span style={{ fontSize: 16 }}>🤝</span>}
+                            {(n.type !== 'friend_request' && n.type !== 'friend_accepted') && <span style={{ fontSize: 16 }}>🔔</span>}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {n.link ? (
+                              <Link to={n.link} onClick={() => setNotifOpen(false)} style={{ display: 'block', color: 'var(--text)', textDecoration: 'none' }}>
+                                <div style={{ fontWeight: n.is_read ? 400 : 600, fontSize: 13, marginBottom: 2 }}>{n.title}</div>
+                                {n.body && <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
+                              </Link>
+                            ) : (
+                              <>
+                                <div style={{ fontWeight: n.is_read ? 400 : 600, fontSize: 13, marginBottom: 2 }}>{n.title}</div>
+                                {n.body && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{n.body}</div>}
+                              </>
+                            )}
+                            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{timeAgo(n.created_at)}</div>
+                          </div>
+                          <button onClick={() => deleteNotif(n.id)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--muted)', lineHeight: 1, padding: '2px 4px' }}>×</button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Hamburger — at the very right edge of header, only visible on mobile */}
+          {/* marginLeft:auto only needed when no user (bell handles it when logged in) */}
           <button
             className="mobile-hamburger"
             onClick={() => setMobileNavOpen(v => !v)}
             aria-label="Open navigation menu"
-            style={{ marginLeft: 'auto' }}
+            style={!user ? { marginLeft: 'auto' } : {}}
           >
             <span style={{
               display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2,
