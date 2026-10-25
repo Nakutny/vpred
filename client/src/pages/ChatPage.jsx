@@ -22,7 +22,7 @@ export default function ChatPage() {
 
   async function load(scrollToBottom = false) {
     try {
-      const res = await messagesApi.getThread(userId);
+      const res = await messagesApi.thread(userId);
       setMsgs(res.messages || []);
       if (res.otherUser) setOtherUser(res.otherUser);
       setError('');

@@ -59,12 +59,9 @@ export default function ProfilePage() {
 
   const isOwn = user?.username?.toLowerCase() === username?.toLowerCase();
 
-  useEffect(() => {
+  function loadProfile() {
     setLoading(true);
     setError('');
-    setData(null);
-    setFriendship({ status: 'none', friendshipId: null, iRequested: false });
-    setBlocked(false);
     profileApi.get(username)
       .then(d => {
         setData(d);
@@ -77,6 +74,23 @@ export default function ProfilePage() {
       })
       .catch(err => setError(err.message || 'Failed to load profile.'))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    setData(null);
+    setFriendship({ status: 'none', friendshipId: null, iRequested: false });
+    setBlocked(false);
+    loadProfile();
+  }, [username]);
+
+  // Re-fetch posts when tab becomes visible again (e.g. after admin deleted a post in another tab)
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') loadProfile();
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username]);
 
   // Load friendship + block status once we have the profile user's id
@@ -294,7 +308,7 @@ export default function ProfilePage() {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 36, paddingBottom: 32, borderBottom: '1px solid var(--border)' }}>
-        <Avatar avatarUrl={savedAvatar} username={data.user.username} size={72} />
+        <Avatar avatarUrl={savedAvatar} username={data.user.username} size={72} clickable />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400, marginBottom: 4 }}>
             <UsernameWithColor user={data.user} />
