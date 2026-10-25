@@ -9,6 +9,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const [navCts, setNavCts] = useState({ feed: null, essays: null, texts: null, categories: null, users: null, music: null, friends: null });
@@ -18,7 +19,13 @@ export default function Layout({ children }) {
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const notifRef = useRef(null);
 
+  // Close mobile nav on route change
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
   // Poll for nav counts + unread messages + notifications
+  // Only re-run when user changes, not on every route change (performance)
   useEffect(() => {
     if (!user) {
       setNavCts({ feed: null, essays: null, texts: null, categories: null, users: null, friends: null });
@@ -30,16 +37,12 @@ export default function Layout({ children }) {
 
     async function fetchAll() {
       try {
-        // nav-counts covers ALL nav badge numbers in one request
-        // messages unread + notifications run in parallel alongside
         const [counts, msgRes] = await Promise.all([
           navCountsApi.get(),
           user ? messagesApi.unreadCount() : Promise.resolve({ count: 0 }),
         ]);
         setNavCts(counts);
         setUnreadMsgCount(msgRes.count || 0);
-        // pending friend requests is inferred from navCounts only when logged in
-        // (friends count is total accepted, not pending — keep existing pending poll via notifications)
       } catch {}
     }
 
@@ -49,7 +52,6 @@ export default function Layout({ children }) {
         const res = await notificationsApi.list();
         setNotifications(res.notifications || []);
         setUnreadNotifCount(res.unread || 0);
-        // Derive pending friend requests count from notifications list
         const pending = (res.notifications || []).filter(
           n => n.type === 'friend_request' && !n.is_read
         ).length;
@@ -59,12 +61,13 @@ export default function Layout({ children }) {
 
     fetchAll();
     fetchNotifications();
+    // Poll every 60 seconds (was 30s) to reduce load
     const interval = setInterval(() => {
       fetchAll();
       fetchNotifications();
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
-  }, [user, location.pathname]);
+  }, [user]); // only re-run when user changes, not on every pathname change
 
   // Close notification dropdown on outside click
   useEffect(() => {
@@ -108,6 +111,7 @@ export default function Layout({ children }) {
     if (searchVal.trim()) {
       navigate(`/?search=${encodeURIComponent(searchVal.trim())}`);
       setSearchVal('');
+      setMobileNavOpen(false);
     }
   }
 
@@ -149,7 +153,8 @@ export default function Layout({ children }) {
             </span>
           </Link>
 
-          <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {/* Desktop nav */}
+          <nav className="desktop-nav" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <NavCount to="/" label="Research"    active={location.pathname === '/'}                    count={navCts.feed} />
             <NavCount to="/essays" label="Essays"    active={location.pathname.startsWith('/essays')}     count={navCts.essays} />
             <NavCount to="/texts"  label="Texts"     active={location.pathname.startsWith('/texts') || location.pathname.startsWith('/stories')} count={navCts.texts} />
@@ -170,7 +175,8 @@ export default function Layout({ children }) {
             {isAdmin && <NavLink to="/admin" label="Admin" active={location.pathname.startsWith('/admin')} accent />}
           </nav>
 
-          <form onSubmit={handleSearch} style={{ flex: 1, maxWidth: 340 }}>
+          {/* Desktop search */}
+          <form onSubmit={handleSearch} className="desktop-nav" style={{ flex: 1, maxWidth: 340 }}>
             <div style={{ position: 'relative' }}>
               <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -188,8 +194,8 @@ export default function Layout({ children }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
             {user ? (
               <>
-                {/* Messages icon */}
-                <Link to="/friends" title="Messages" style={{ position: 'relative', display: 'flex', alignItems: 'center', color: 'var(--muted)' }}>
+                {/* Messages icon — desktop only */}
+                <Link to="/friends" title="Messages" className="desktop-nav" style={{ position: 'relative', display: 'flex', alignItems: 'center', color: 'var(--muted)' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                   </svg>
@@ -212,7 +218,6 @@ export default function Layout({ children }) {
                     onClick={() => {
                       const opening = !notifOpen;
                       setNotifOpen(opening);
-                      // Auto-mark all as read when opening the dropdown
                       if (opening && unreadNotifCount > 0) markAllRead();
                     }}
                     title="Notifications"
@@ -290,12 +295,12 @@ export default function Layout({ children }) {
                   )}
                 </div>
 
-                <Link to="/new" className="btn btn-primary btn-sm">
+                <Link to="/new" className="btn btn-primary btn-sm desktop-nav">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
                   Write
                 </Link>
 
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative' }} className="desktop-nav">
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
                     style={{
@@ -346,13 +351,114 @@ export default function Layout({ children }) {
               </>
             ) : (
               <>
-                <Link to="/login" className="btn btn-ghost btn-sm">Sign in</Link>
-                <Link to="/register" className="btn btn-primary btn-sm">Join</Link>
+                <Link to="/login" className="btn btn-ghost btn-sm desktop-nav">Sign in</Link>
+                <Link to="/register" className="btn btn-primary btn-sm desktop-nav">Join</Link>
               </>
             )}
+
+            {/* Hamburger button — mobile only */}
+            <button
+              className="mobile-hamburger"
+              onClick={() => setMobileNavOpen(v => !v)}
+              aria-label="Open menu"
+              style={{
+                display: 'none', // hidden by default; CSS shows on mobile
+                flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+                gap: 5, width: 36, height: 36, background: 'none', border: 'none',
+                cursor: 'pointer', padding: 4, borderRadius: 6,
+              }}
+            >
+              <span style={{ display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2, transition: 'all 0.2s', transform: mobileNavOpen ? 'rotate(45deg) translate(5px,5px)' : 'none' }} />
+              <span style={{ display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2, transition: 'all 0.2s', opacity: mobileNavOpen ? 0 : 1 }} />
+              <span style={{ display: 'block', width: 20, height: 2, background: 'var(--text)', borderRadius: 2, transition: 'all 0.2s', transform: mobileNavOpen ? 'rotate(-45deg) translate(5px,-5px)' : 'none' }} />
+            </button>
           </div>
         </div>
       </header>
+
+      {/* Mobile nav drawer overlay */}
+      {mobileNavOpen && (
+        <div
+          onClick={() => setMobileNavOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 90,
+            background: 'rgba(0,0,0,0.4)',
+          }}
+        />
+      )}
+
+      {/* Mobile nav drawer */}
+      <div
+        className="mobile-drawer"
+        style={{
+          position: 'fixed', top: 60, left: 0, bottom: 0,
+          width: 280, background: 'var(--surface)', borderRight: '1px solid var(--border)',
+          zIndex: 95, overflowY: 'auto',
+          transform: mobileNavOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s ease',
+          padding: '16px 0',
+        }}
+      >
+        {/* Search */}
+        <div style={{ padding: '0 16px 16px' }}>
+          <form onSubmit={handleSearch}>
+            <div style={{ position: 'relative' }}>
+              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input
+                className="input"
+                style={{ paddingLeft: 34, height: 36, fontSize: 13, width: '100%' }}
+                placeholder="Search posts..."
+                value={searchVal}
+                onChange={e => setSearchVal(e.target.value)}
+              />
+            </div>
+          </form>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <MobileNavLink to="/" label="Research" count={navCts.feed} active={location.pathname === '/'} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/essays" label="Essays" count={navCts.essays} active={location.pathname.startsWith('/essays')} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/texts" label="Texts" count={navCts.texts} active={location.pathname.startsWith('/texts')} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/categories" label="Categories" count={navCts.categories} active={location.pathname === '/categories'} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/users" label="Users" count={navCts.users} active={location.pathname === '/users'} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/music" label="Selfmade Music" count={navCts.music} active={location.pathname === '/music'} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/support" label="Support me" active={location.pathname === '/support'} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/donate" label="Donate" active={location.pathname === '/donate'} onClose={() => setMobileNavOpen(false)} />
+          {user && <MobileNavLink to="/friends" label="Friends" count={navCts.friends} badge={pendingCount} active={location.pathname === '/friends'} onClose={() => setMobileNavOpen(false)} />}
+          {isAdmin && <MobileNavLink to="/admin" label="Admin Panel" active={location.pathname.startsWith('/admin')} onClose={() => setMobileNavOpen(false)} accent />}
+        </div>
+
+        {/* Auth section */}
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, padding: '12px 16px' }}>
+          {user ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <Avatar username={user.username} avatarUrl={user.avatar_url} size={32} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 11 }}>{user.email}</div>
+                </div>
+              </div>
+              <Link to="/new" className="btn btn-primary btn-sm" onClick={() => setMobileNavOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, justifyContent: 'center' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                Write
+              </Link>
+              <Link to={`/profile/${user.username}`} onClick={() => setMobileNavOpen(false)} style={{ display: 'block', padding: '8px 0', fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}>My profile</Link>
+              <Link to="/dashboard" onClick={() => setMobileNavOpen(false)} style={{ display: 'block', padding: '8px 0', fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}>Dashboard</Link>
+              <button onClick={() => { handleLogout(); setMobileNavOpen(false); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', fontSize: 14, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Link to="/login" className="btn btn-ghost btn-sm" onClick={() => setMobileNavOpen(false)} style={{ flex: 1, textAlign: 'center' }}>Sign in</Link>
+              <Link to="/register" className="btn btn-primary btn-sm" onClick={() => setMobileNavOpen(false)} style={{ flex: 1, textAlign: 'center' }}>Join</Link>
+            </div>
+          )}
+        </div>
+      </div>
 
       <main style={{ flex: 1 }}>
         {children}
@@ -383,7 +489,7 @@ export default function Layout({ children }) {
   );
 }
 
-// Nav link with optional count badge (grey, small) + optional pending badge (accent)
+// ── Desktop nav components ──────────────────────────────────────────────────
 function NavCount({ to, label, active, count, badge }) {
   return (
     <Link to={to} style={{
@@ -398,12 +504,7 @@ function NavCount({ to, label, active, count, badge }) {
     }}>
       {label}
       {count !== null && count !== undefined && (
-        <span style={{
-          fontSize: 10, fontWeight: 500,
-          color: active ? 'var(--muted)' : 'var(--muted)',
-          opacity: 0.7,
-          lineHeight: 1,
-        }}>
+        <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', opacity: 0.7, lineHeight: 1 }}>
           {count > 9999 ? '9999+' : count}
         </span>
       )}
@@ -434,6 +535,43 @@ function NavLink({ to, label, active, accent }) {
       whiteSpace: 'nowrap',
     }}>
       {label}
+    </Link>
+  );
+}
+
+// ── Mobile nav link ─────────────────────────────────────────────────────────
+function MobileNavLink({ to, label, active, accent, count, badge, onClose }) {
+  return (
+    <Link
+      to={to}
+      onClick={onClose}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '11px 20px', fontSize: 15,
+        color: accent ? 'var(--accent)' : active ? 'var(--text)' : 'var(--muted)',
+        fontWeight: active ? 600 : 400,
+        background: active ? 'rgba(79,142,247,0.07)' : 'transparent',
+        textDecoration: 'none',
+        borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent',
+        transition: 'all 0.1s',
+      }}
+    >
+      <span>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {count !== null && count !== undefined && (
+          <span style={{ fontSize: 11, color: 'var(--muted)', opacity: 0.7 }}>{count > 9999 ? '9999+' : count}</span>
+        )}
+        {badge > 0 && (
+          <span style={{
+            background: 'var(--accent)', color: '#fff',
+            borderRadius: 9999, fontSize: 10, fontWeight: 700,
+            minWidth: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 5px',
+          }}>
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </div>
     </Link>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { admin, categories } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,38 +42,83 @@ export default function AdminPage() {
 
   // General
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [tabError, setTabError] = useState('');
   const [msg, setMsg] = useState('');
 
+  // ── Initial load: users + categories ────────────────────────────────────────
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
-    Promise.all([
-      admin.users().then(d => setUsers(d.users || [])),
-      categories.list().then(d => setCategoryList(d.categories || [])),
-    ]).finally(() => setLoading(false));
+    loadUsersAndCats();
   }, [isAdmin]);
 
-  // Lazy-load tabs on demand
-  useEffect(() => {
-    if (tab === 'posts') {
-      admin.posts().then(d => setPosts(d.posts || [])).catch(() => {});
-    } else if (tab === 'donations') {
-      admin.donations().then(d => setDonations(d.donations || [])).catch(() => {});
-    } else if (tab === 'db') {
-      admin.dbStatus().then(d => setDbStatus(d)).catch(() => setDbStatus({ error: 'Could not load.' }));
-    } else if (tab === 'logs') {
-      admin.httpLogs().then(d => setHttpLogs(d.logs || [])).catch(() => {});
-    } else if (tab === 'anomalies') {
-      admin.anomalies().then(d => setAnomalies(d.anomalies || [])).catch(() => {});
-    } else if (tab === 'maintenance') {
-      admin.maintenance().then(d => {
+  async function loadUsersAndCats() {
+    setLoading(true);
+    try {
+      const [usersRes, catsRes] = await Promise.all([
+        admin.users(),
+        categories.list(),
+      ]);
+      setUsers(usersRes.users || []);
+      setCategoryList(catsRes.categories || []);
+    } catch (err) {
+      setTabError('Failed to load initial data: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Tab data loader ──────────────────────────────────────────────────────────
+  const loadTab = useCallback(async (t) => {
+    setTabLoading(true);
+    setTabError('');
+    try {
+      if (t === 'users') {
+        const d = await admin.users();
+        setUsers(d.users || []);
+        const d2 = await categories.list();
+        setCategoryList(d2.categories || []);
+      } else if (t === 'posts') {
+        const d = await admin.posts();
+        setPosts(d.posts || []);
+      } else if (t === 'categories') {
+        const d = await categories.list();
+        setCategoryList(d.categories || []);
+      } else if (t === 'donations') {
+        const d = await admin.donations();
+        setDonations(d.donations || []);
+      } else if (t === 'db') {
+        const d = await admin.dbStatus();
+        setDbStatus(d);
+      } else if (t === 'logs') {
+        const d = await admin.httpLogs();
+        setHttpLogs(d.logs || []);
+      } else if (t === 'anomalies') {
+        const d = await admin.anomalies();
+        setAnomalies(d.anomalies || []);
+      } else if (t === 'maintenance') {
+        const d = await admin.maintenance();
         setMaintenance({
           enabled: d.maintenance || false,
           message: d.message || '',
           estimated_end: d.estimated_end ? d.estimated_end.slice(0, 16) : '',
         });
-      }).catch(() => {});
-    } else if (tab === 'settings') {
-      admin.settings().then(d => setSettings(d.settings || {})).catch(() => {});
+      } else if (t === 'settings') {
+        const d = await admin.settings();
+        setSettings(d.settings || {});
+      }
+    } catch (err) {
+      setTabError('Error loading data: ' + err.message);
+    } finally {
+      setTabLoading(false);
+    }
+  }, []);
+
+  // ── Lazy-load on tab switch ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (loading) return; // don't double-load during initial mount
+    if (tab !== 'users' && tab !== 'categories') {
+      loadTab(tab);
     }
   }, [tab]);
 
@@ -213,8 +258,36 @@ export default function AdminPage() {
 
   if (loading) return <div style={{ textAlign: 'center', padding: 80, color: 'var(--muted)' }}>Loading…</div>;
 
+  // Refresh button (shown top-right of each tab)
+  function RefreshBtn() {
+    return (
+      <button
+        onClick={() => loadTab(tab)}
+        disabled={tabLoading}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 14px', borderRadius: 7, fontSize: 13, fontWeight: 500,
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          color: 'var(--muted)', cursor: tabLoading ? 'not-allowed' : 'pointer',
+          opacity: tabLoading ? 0.6 : 1,
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+          style={{ animation: tabLoading ? 'admin-spin 0.8s linear infinite' : 'none' }}>
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        {tabLoading ? 'Loading…' : 'Refresh'}
+      </button>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+      <style>{`
+        @keyframes admin-spin { to { transform: rotate(360deg); } }
+      `}</style>
+
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.8rem', fontWeight: 400 }}>Admin Panel</h1>
         <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Manage users, categories and platform settings.</p>
@@ -223,6 +296,13 @@ export default function AdminPage() {
       {msg && (
         <div style={{ background: 'rgba(76,175,125,0.15)', border: '1px solid var(--success)', borderRadius: 7, padding: '10px 16px', marginBottom: 20, color: 'var(--success)', fontSize: 14 }}>
           {msg}
+        </div>
+      )}
+
+      {tabError && (
+        <div style={{ background: 'rgba(224,82,82,0.12)', border: '1px solid var(--danger)', borderRadius: 7, padding: '10px 16px', marginBottom: 20, color: 'var(--danger)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>⚠ {tabError}</span>
+          <button onClick={() => setTabError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 16, padding: '0 4px' }}>×</button>
         </div>
       )}
 
@@ -243,120 +323,141 @@ export default function AdminPage() {
 
       {/* ── USERS ── */}
       {tab === 'users' && (
-        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
-            <thead>
-              <tr>
-                {['Username', 'Email', 'Role', 'Status', 'Donator Color', 'Joined', 'Actions'].map(h => (
-                  <th key={h} style={th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(u => {
-                const editColor = colorEdits[u.id] !== undefined ? colorEdits[u.id] : (u.donator_color || '');
-                return (
-                  <tr key={u.id}>
-                    <td style={td}>
-                      <UsernameWithColor user={u} style={{ fontWeight: 600 }} />
-                    </td>
-                    <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{u.email}</td>
-                    <td style={td}><RoleBadge role={u.role} /></td>
-                    <td style={td}>
-                      {u.is_banned
-                        ? <span style={{ color: 'var(--danger)', fontSize: 12, fontWeight: 600 }}>Banned</span>
-                        : <span style={{ color: 'var(--success)', fontSize: 12 }}>Active</span>}
-                    </td>
-                    <td style={td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {/* Color preview swatch */}
-                        <input
-                          type="color"
-                          value={editColor || '#4f8ef7'}
-                          onChange={e => setColorEdits(prev => ({ ...prev, [u.id]: e.target.value }))}
-                          style={{ width: 28, height: 28, padding: 1, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'var(--surface)' }}
-                          title="Pick color"
-                        />
-                        <input
-                          type="text"
-                          value={editColor}
-                          onChange={e => setColorEdits(prev => ({ ...prev, [u.id]: e.target.value }))}
-                          placeholder="#RRGGBB"
-                          maxLength={7}
-                          style={{ width: 80, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 7px', color: 'var(--text)', fontSize: 12, fontFamily: 'monospace' }}
-                        />
-                        <button onClick={() => handleSetColor(u.id)} style={{ padding: '3px 9px', fontSize: 11, borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                          Set
-                        </button>
-                        {u.donator_color && (
-                          <button onClick={() => handleResetColor(u.id)} title="Reset to default" style={{ padding: '3px 7px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString()}</td>
-                    <td style={td}>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <button onClick={() => handleBan(u.id, u.is_banned)} style={{
-                          padding: '4px 10px', fontSize: 11, borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 600,
-                          background: u.is_banned ? 'rgba(76,175,125,0.15)' : 'rgba(224,82,82,0.15)',
-                          color: u.is_banned ? 'var(--success)' : 'var(--danger)',
-                        }}>
-                          {u.is_banned ? 'Unban' : 'Ban'}
-                        </button>
-                        <button onClick={() => handleRole(u.id, u.role)} style={{
-                          padding: '4px 10px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', cursor: 'pointer',
-                          background: 'transparent', color: 'var(--muted)',
-                        }}>
-                          Role ↺
-                        </button>
-                      </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+              <thead>
+                <tr>
+                  {['Username', 'Email', 'Role', 'Status', 'Donator Color', 'Joined', 'Actions'].map(h => (
+                    <th key={h} style={th}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 40 }}>
+                      {tabLoading ? 'Loading users…' : 'No users found. Try refreshing.'}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                )}
+                {users.map(u => {
+                  const editColor = colorEdits[u.id] !== undefined ? colorEdits[u.id] : (u.donator_color || '');
+                  return (
+                    <tr key={u.id}>
+                      <td style={td}>
+                        <UsernameWithColor user={u} style={{ fontWeight: 600 }} />
+                      </td>
+                      <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{u.email}</td>
+                      <td style={td}><RoleBadge role={u.role} /></td>
+                      <td style={td}>
+                        {u.is_banned
+                          ? <span style={{ color: 'var(--danger)', fontSize: 12, fontWeight: 600 }}>Banned</span>
+                          : <span style={{ color: 'var(--success)', fontSize: 12 }}>Active</span>}
+                      </td>
+                      <td style={td}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            type="color"
+                            value={editColor || '#4f8ef7'}
+                            onChange={e => setColorEdits(prev => ({ ...prev, [u.id]: e.target.value }))}
+                            style={{ width: 28, height: 28, padding: 1, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'var(--surface)' }}
+                            title="Pick color"
+                          />
+                          <input
+                            type="text"
+                            value={editColor}
+                            onChange={e => setColorEdits(prev => ({ ...prev, [u.id]: e.target.value }))}
+                            placeholder="#RRGGBB"
+                            maxLength={7}
+                            style={{ width: 80, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 7px', color: 'var(--text)', fontSize: 12, fontFamily: 'monospace' }}
+                          />
+                          <button onClick={() => handleSetColor(u.id)} style={{ padding: '3px 9px', fontSize: 11, borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                            Set
+                          </button>
+                          {u.donator_color && (
+                            <button onClick={() => handleResetColor(u.id)} title="Reset to default" style={{ padding: '3px 7px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                      <td style={td}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button onClick={() => handleBan(u.id, u.is_banned)} style={{
+                            padding: '4px 10px', fontSize: 11, borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 600,
+                            background: u.is_banned ? 'rgba(76,175,125,0.15)' : 'rgba(224,82,82,0.15)',
+                            color: u.is_banned ? 'var(--success)' : 'var(--danger)',
+                          }}>
+                            {u.is_banned ? 'Unban' : 'Ban'}
+                          </button>
+                          <button onClick={() => handleRole(u.id, u.role)} style={{
+                            padding: '4px 10px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', cursor: 'pointer',
+                            background: 'transparent', color: 'var(--muted)',
+                          }}>
+                            Role ↺
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ── POSTS ── */}
       {tab === 'posts' && (
-        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
-            <thead>
-              <tr>{['Title', 'Author', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {posts.length === 0 && (
-                <tr><td colSpan={5} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No posts found.</td></tr>
-              )}
-              {posts.map(p => (
-                <tr key={p.id}>
-                  <td style={td}><span style={{ fontWeight: 500 }}>{p.title}</span></td>
-                  <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{p.author_username}</td>
-                  <td style={td}><StatusBadge status={p.status} /></td>
-                  <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{new Date(p.created_at).toLocaleDateString()}</td>
-                  <td style={td}>
-                    <button onClick={() => handlePostStatus(p.id, p.status)} style={{
-                      padding: '4px 10px', fontSize: 11, borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 600,
-                      background: p.status === 'published' ? 'rgba(224,82,82,0.15)' : 'rgba(76,175,125,0.15)',
-                      color: p.status === 'published' ? 'var(--danger)' : 'var(--success)',
-                    }}>
-                      {p.status === 'published' ? 'Remove' : 'Restore'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+              <thead>
+                <tr>{['Title', 'Author', 'Status', 'Created', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {posts.length === 0 && (
+                  <tr><td colSpan={5} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>
+                    {tabLoading ? 'Loading posts…' : 'No posts found.'}
+                  </td></tr>
+                )}
+                {posts.map(p => (
+                  <tr key={p.id}>
+                    <td style={td}><span style={{ fontWeight: 500 }}>{p.title}</span></td>
+                    <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{p.author_username}</td>
+                    <td style={td}><StatusBadge status={p.status} /></td>
+                    <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{new Date(p.created_at).toLocaleDateString()}</td>
+                    <td style={td}>
+                      <button onClick={() => handlePostStatus(p.id, p.status)} style={{
+                        padding: '4px 10px', fontSize: 11, borderRadius: 5, border: 'none', cursor: 'pointer', fontWeight: 600,
+                        background: p.status === 'published' ? 'rgba(224,82,82,0.15)' : 'rgba(76,175,125,0.15)',
+                        color: p.status === 'published' ? 'var(--danger)' : 'var(--success)',
+                      }}>
+                        {p.status === 'published' ? 'Remove' : 'Restore'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ── CATEGORIES ── */}
       {tab === 'categories' && (
         <div style={{ display: 'grid', gap: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <RefreshBtn />
+          </div>
           <div className="card" style={{ padding: 24 }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Add Category</h3>
             <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -369,6 +470,11 @@ export default function AdminPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{['Name', 'Description', 'Actions'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
+                {categoryList.length === 0 && (
+                  <tr><td colSpan={3} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>
+                    {tabLoading ? 'Loading…' : 'No categories yet.'}
+                  </td></tr>
+                )}
                 {categoryList.map(c => (
                   <tr key={c.id}>
                     <td style={td}><span style={{ fontWeight: 500 }}>{c.name}</span></td>
@@ -388,169 +494,209 @@ export default function AdminPage() {
 
       {/* ── DONATIONS ── */}
       {tab === 'donations' && (
-        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
-            <thead><tr>{['User', 'Amount', 'Currency', 'Status', 'Date'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-            <tbody>
-              {donations.length === 0 && (
-                <tr><td colSpan={5} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No donations found.</td></tr>
-              )}
-              {donations.map((d, i) => (
-                <tr key={d.id || i}>
-                  <td style={td}>{d.username || d.user_id || '—'}</td>
-                  <td style={td}>{d.amount}</td>
-                  <td style={{ ...td, color: 'var(--muted)' }}>{d.currency}</td>
-                  <td style={td}><StatusBadge status={d.status} /></td>
-                  <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{d.created_at ? new Date(d.created_at).toLocaleDateString() : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+              <thead><tr>{['User', 'Amount', 'Currency', 'Status', 'Date'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {donations.length === 0 && (
+                  <tr><td colSpan={5} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>
+                    {tabLoading ? 'Loading…' : 'No donations found.'}
+                  </td></tr>
+                )}
+                {donations.map((d, i) => (
+                  <tr key={d.id || i}>
+                    <td style={td}>{d.username || d.user_id || '—'}</td>
+                    <td style={td}>{d.amount}</td>
+                    <td style={{ ...td, color: 'var(--muted)' }}>{d.currency}</td>
+                    <td style={td}><StatusBadge status={d.status} /></td>
+                    <td style={{ ...td, color: 'var(--muted)', fontSize: 12 }}>{d.created_at ? new Date(d.created_at).toLocaleDateString() : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ── DB STATUS ── */}
       {tab === 'db' && (
-        <div className="card" style={{ padding: 28 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Database Status</h3>
-          {!dbStatus ? (
-            <p style={{ color: 'var(--muted)' }}>Loading…</p>
-          ) : dbStatus.error ? (
-            <p style={{ color: 'var(--danger)' }}>{dbStatus.error}</p>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
-              {Object.entries(dbStatus).map(([key, val]) => (
-                <div key={key} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '14px 18px' }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{key.replace(/_/g, ' ')}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{String(val)}</div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card" style={{ padding: 28 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Database Status</h3>
+            {tabLoading ? (
+              <p style={{ color: 'var(--muted)' }}>Loading…</p>
+            ) : !dbStatus ? (
+              <p style={{ color: 'var(--muted)' }}>Click Refresh to load.</p>
+            ) : dbStatus.error ? (
+              <p style={{ color: 'var(--danger)' }}>{dbStatus.error}</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
+                {Object.entries(dbStatus).map(([key, val]) => (
+                  <div key={key} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '14px 18px' }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{key.replace(/_/g, ' ')}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{String(val)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* ── HTTP LOGS ── */}
       {tab === 'logs' && (
-        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
-            <thead><tr>{['Time', 'Method', 'Path', 'Status', 'IP', 'Duration'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-            <tbody>
-              {httpLogs.length === 0 && (
-                <tr><td colSpan={6} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No logs found.</td></tr>
-              )}
-              {httpLogs.map((l, i) => (
-                <tr key={l.id || i}>
-                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString() : '—'}</td>
-                  <td style={{ ...td, fontWeight: 600, fontSize: 12 }}>{l.method}</td>
-                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.path}</td>
-                  <td style={{ ...td, color: l.status >= 400 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{l.status}</td>
-                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)' }}>{l.ip || '—'}</td>
-                  <td style={{ ...td, fontSize: 12, color: 'var(--muted)' }}>{l.duration_ms != null ? `${l.duration_ms}ms` : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+              <thead><tr>{['Time', 'Method', 'Path', 'Status', 'IP', 'Duration'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {httpLogs.length === 0 && (
+                  <tr><td colSpan={6} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>
+                    {tabLoading ? 'Loading…' : 'No logs found.'}
+                  </td></tr>
+                )}
+                {httpLogs.map((l, i) => (
+                  <tr key={l.id || i}>
+                    <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString() : '—'}</td>
+                    <td style={{ ...td, fontWeight: 600, fontSize: 12 }}>{l.method}</td>
+                    <td style={{ ...td, fontFamily: 'monospace', fontSize: 12, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.path}</td>
+                    <td style={{ ...td, color: l.status >= 400 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{l.status || '—'}</td>
+                    <td style={{ ...td, fontSize: 11, color: 'var(--muted)' }}>{l.ip || '—'}</td>
+                    <td style={{ ...td, fontSize: 12, color: 'var(--muted)' }}>{l.duration_ms != null ? `${l.duration_ms}ms` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ── ANOMALIES ── */}
       {tab === 'anomalies' && (
-        <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
-            <thead><tr>{['Time', 'Type', 'Details', 'IP'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-            <tbody>
-              {anomalies.length === 0 && (
-                <tr><td colSpan={4} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No anomalies detected.</td></tr>
-              )}
-              {anomalies.map((a, i) => (
-                <tr key={a.id || i}>
-                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
-                  <td style={{ ...td, color: 'var(--danger)', fontWeight: 600, fontSize: 12 }}>{a.type}</td>
-                  <td style={{ ...td, fontSize: 12, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.details || '—'}</td>
-                  <td style={{ ...td, fontSize: 11, color: 'var(--muted)' }}>{a.ip || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card admin-table-wrap" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+              <thead><tr>{['Time', 'Type', 'Details', 'IP'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {anomalies.length === 0 && (
+                  <tr><td colSpan={4} style={{ ...td, color: 'var(--muted)', textAlign: 'center', padding: 32 }}>
+                    {tabLoading ? 'Loading…' : 'No anomalies detected.'}
+                  </td></tr>
+                )}
+                {anomalies.map((a, i) => (
+                  <tr key={a.id || i}>
+                    <td style={{ ...td, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
+                    <td style={{ ...td, color: 'var(--danger)', fontWeight: 600, fontSize: 12 }}>{a.type}</td>
+                    <td style={{ ...td, fontSize: 12, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.details || '—'}</td>
+                    <td style={{ ...td, fontSize: 11, color: 'var(--muted)' }}>{a.ip || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ── MAINTENANCE ── */}
       {tab === 'maintenance' && (
-        <div className="card" style={{ padding: 28, maxWidth: 600 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Maintenance Mode</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-              <div
-                onClick={() => setMaintenance(p => ({ ...p, enabled: !p.enabled }))}
-                style={{
-                  width: 44, height: 24, borderRadius: 12, background: maintenance.enabled ? 'var(--danger)' : 'var(--border)',
-                  position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
-                }}
-              >
-                <div style={{
-                  position: 'absolute', top: 3, left: maintenance.enabled ? 23 : 3,
-                  width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
-                }} />
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card" style={{ padding: 28, maxWidth: 600 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Maintenance Mode</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                <div
+                  onClick={() => setMaintenance(p => ({ ...p, enabled: !p.enabled }))}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, background: maintenance.enabled ? 'var(--danger)' : 'var(--border)',
+                    position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 3, left: maintenance.enabled ? 23 : 3,
+                    width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                  }} />
+                </div>
+                <span style={{ fontWeight: maintenance.enabled ? 600 : 400, color: maintenance.enabled ? 'var(--danger)' : 'var(--text)' }}>
+                  {maintenance.enabled ? 'Maintenance ACTIVE' : 'Maintenance OFF'}
+                </span>
+              </label>
+
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Message (shown to users)</label>
+                <textarea
+                  className="input"
+                  rows={3}
+                  value={maintenance.message}
+                  onChange={e => setMaintenance(p => ({ ...p, message: e.target.value }))}
+                  placeholder="We'll be back shortly…"
+                  style={{ resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }}
+                />
               </div>
-              <span style={{ fontWeight: maintenance.enabled ? 600 : 400, color: maintenance.enabled ? 'var(--danger)' : 'var(--text)' }}>
-                {maintenance.enabled ? 'Maintenance ACTIVE' : 'Maintenance OFF'}
-              </span>
-            </label>
 
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Message (shown to users)</label>
-              <textarea
-                className="input"
-                rows={3}
-                value={maintenance.message}
-                onChange={e => setMaintenance(p => ({ ...p, message: e.target.value }))}
-                placeholder="We'll be back shortly…"
-                style={{ resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }}
-              />
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Estimated end (optional)</label>
+                <input
+                  type="datetime-local"
+                  className="input"
+                  value={maintenance.estimated_end}
+                  onChange={e => setMaintenance(p => ({ ...p, estimated_end: e.target.value }))}
+                />
+              </div>
+
+              <button onClick={handleSaveMaintenance} disabled={maintSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                {maintSaving ? 'Saving…' : 'Save'}
+              </button>
             </div>
-
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Estimated end (optional)</label>
-              <input
-                type="datetime-local"
-                className="input"
-                value={maintenance.estimated_end}
-                onChange={e => setMaintenance(p => ({ ...p, estimated_end: e.target.value }))}
-              />
-            </div>
-
-            <button onClick={handleSaveMaintenance} disabled={maintSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
-              {maintSaving ? 'Saving…' : 'Save'}
-            </button>
           </div>
         </div>
       )}
 
       {/* ── SETTINGS ── */}
       {tab === 'settings' && (
-        <div className="card" style={{ padding: 28, maxWidth: 600 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Platform Settings</h3>
-          {Object.keys(settings).length === 0 ? (
-            <p style={{ color: 'var(--muted)', fontSize: 14 }}>No settings found or endpoint not available.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {Object.entries(settings).map(([key, val]) => (
-                <div key={key}>
-                  <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{key}</label>
-                  <input
-                    className="input"
-                    value={val}
-                    onChange={e => setSettings(p => ({ ...p, [key]: e.target.value }))}
-                  />
-                </div>
-              ))}
-              <button onClick={handleSaveSettings} disabled={settingsSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
-                {settingsSaving ? 'Saving…' : 'Save Settings'}
-              </button>
-            </div>
-          )}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <RefreshBtn />
+          </div>
+          <div className="card" style={{ padding: 28, maxWidth: 600 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Platform Settings</h3>
+            {tabLoading ? (
+              <p style={{ color: 'var(--muted)', fontSize: 14 }}>Loading…</p>
+            ) : Object.keys(settings).length === 0 ? (
+              <p style={{ color: 'var(--muted)', fontSize: 14 }}>No settings found or endpoint not available.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {Object.entries(settings).map(([key, val]) => (
+                  <div key={key}>
+                    <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{key}</label>
+                    <input
+                      className="input"
+                      value={val}
+                      onChange={e => setSettings(p => ({ ...p, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+                <button onClick={handleSaveSettings} disabled={settingsSaving} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                  {settingsSaving ? 'Saving…' : 'Save Settings'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
