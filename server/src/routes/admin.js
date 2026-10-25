@@ -119,17 +119,30 @@ router.patch('/posts/:id/status', async (req, res) => {
     if (!['published', 'removed'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status.' });
     }
+
+    let result;
     if (status === 'published') {
       // Restore: clear deleted_at + deleted_by so public feed shows the post again
-      await query(
-        'UPDATE posts SET status = $1, deleted_at = NULL, deleted_by = NULL WHERE id = $2',
+      result = await query(
+        'UPDATE posts SET status = $1, deleted_at = NULL, deleted_by = NULL WHERE id = $2 RETURNING id, status',
         [status, req.params.id]
       );
     } else {
-      await query('UPDATE posts SET status = $1 WHERE id = $2', [status, req.params.id]);
+      result = await query(
+        'UPDATE posts SET status = $1 WHERE id = $2 RETURNING id, status',
+        [status, req.params.id]
+      );
     }
-    res.json({ message: 'Status updated.' });
+
+    if (result.rowCount === 0) {
+      console.error('[admin] setPostStatus: no row matched id =', req.params.id);
+      return res.status(404).json({ error: 'Post not found.' });
+    }
+
+    console.log('[admin] setPostStatus: id =', req.params.id, '→ status =', result.rows[0].status);
+    res.json({ message: 'Status updated.', post: result.rows[0] });
   } catch (err) {
+    console.error('[admin] setPostStatus error:', err);
     res.status(500).json({ error: 'Failed to update status.' });
   }
 });

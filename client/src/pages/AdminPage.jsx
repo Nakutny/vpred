@@ -314,8 +314,10 @@ export default function AdminPage() {
   async function handlePostStatus(id, currentStatus) {
     const next = currentStatus === 'published' ? 'removed' : 'published';
     try {
-      await admin.setPostStatus(id, next);
-      setPosts(prev => prev.map(p => p.id === id ? { ...p, status: next } : p));
+      const result = await admin.setPostStatus(id, next);
+      // Use the real status from DB response (not just the optimistic local value)
+      const confirmedStatus = result?.post?.status ?? next;
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, status: confirmedStatus } : p));
       flash('Post status updated.');
     } catch (err) { flash('Error: ' + err.message); }
   }
