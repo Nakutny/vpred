@@ -60,8 +60,11 @@ export default function EditPostPage() {
     if (!user) { navigate('/login'); return; }
 
     setLoading(true);
+    // Try draft endpoint first (requireAuth, no optionalAuth issues).
+    // Fall back to regular get for published posts being edited by admin/mod.
+    const fetchPost = posts.getDraft(slug).catch(() => posts.get(slug));
     Promise.all([
-      posts.get(slug),
+      fetchPost,
       categories.list(),
     ]).then(([postData, catData]) => {
       const p = postData.post;

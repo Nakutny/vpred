@@ -108,6 +108,39 @@ router.get('/drafts', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/posts/draft/:slug — load own draft by slug (requireAuth, no optionalAuth ambiguity)
+// MUST be before /:slug
+router.get('/draft/:slug', requireAuth, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT
+        p.id, p.title, p.slug, p.content, p.summary, p.view_count,
+        p.created_at, p.updated_at, p.status, p.parent_post_id,
+        p.type, p.topic, p.images, p.erd_data,
+        u.username as author_username, u.id as author_id, u.bio as author_bio, u.avatar_url as author_avatar,
+        u.donator_color as author_donator_color,
+        c.name as category_name, c.slug as category_slug, c.id as category_id,
+        COUNT(DISTINCT pv.user_id) as vote_count,
+        pp.title as parent_title, pp.slug as parent_slug
+       FROM posts p
+       LEFT JOIN users u ON p.author_id = u.id
+       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN post_votes pv ON pv.post_id = p.id
+       LEFT JOIN posts pp ON pp.id = p.parent_post_id
+       WHERE p.slug = $1 AND p.author_id = $2 AND p.status = 'draft' AND p.deleted_at IS NULL
+       GROUP BY p.id, u.username, u.id, u.bio, u.avatar_url, u.donator_color, c.name, c.slug, c.id, pp.title, pp.slug`,
+      [req.params.slug, req.user.id]
+    );
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Draft not found.' });
+    }
+    res.json({ post: result.rows[0] });
+  } catch (err) {
+    console.error('Get draft error:', err);
+    res.status(500).json({ error: 'Failed to load draft.' });
+  }
+});
+
 // GET /api/posts/:slug
 router.get('/:slug', optionalAuth, async (req, res) => {
   try {

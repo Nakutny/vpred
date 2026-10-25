@@ -30,6 +30,7 @@ export const posts = {
   delete: (id) => request(`/api/posts/${id}`, { method: 'DELETE' }),
   vote: (id) => request(`/api/posts/${id}/vote`, { method: 'POST' }),
   drafts: () => request('/api/posts/drafts'),
+  getDraft: (slug) => request(`/api/posts/draft/${slug}`),
   publish: (id) => request(`/api/posts/${id}/publish`, { method: 'PATCH' }),
 };
 
