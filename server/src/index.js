@@ -50,7 +50,8 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '2mb' }));
+// 10mb to handle base64-encoded images up to ~7MB raw (base64 adds ~33% overhead)
+app.use(express.json({ limit: '10mb' }));
 
 // Visitor log (before everything)
 visitorLogMiddleware(app);

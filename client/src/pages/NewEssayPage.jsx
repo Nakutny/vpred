@@ -29,13 +29,13 @@ const MAX_IMAGES = 3;
 const MAX_SIZE_MB = 5;
 
 export default function NewEssayPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
   const [summary, setSummary] = useState('');
-  const [images, setImages] = useState([]); // base64 strings
+  const [images, setImages] = useState([]);
   const [imageError, setImageError] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -44,8 +44,9 @@ export default function NewEssayPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) navigate('/login');
-  }, [user]);
+  }, [user, authLoading]);
 
   const editor = useEditor({
     extensions: [
