@@ -59,6 +59,9 @@ export default function ProfilePage() {
 
   const isOwn = user?.username?.toLowerCase() === username?.toLowerCase();
 
+  // useRef so visibilitychange listener always calls the latest version (correct username)
+  const loadProfileRef = useRef(null);
+
   function loadProfile() {
     setLoading(true);
     setError('');
@@ -75,6 +78,7 @@ export default function ProfilePage() {
       .catch(err => setError(err.message || 'Failed to load profile.'))
       .finally(() => setLoading(false));
   }
+  loadProfileRef.current = loadProfile;
 
   useEffect(() => {
     setData(null);
@@ -83,15 +87,15 @@ export default function ProfilePage() {
     loadProfile();
   }, [username]);
 
-  // Re-fetch posts when tab becomes visible again (e.g. after admin deleted a post in another tab)
+  // Re-fetch profile when tab becomes visible again (e.g. after admin deleted a post in another tab)
+  // Use ref so the listener always calls the latest loadProfile (correct username in closure)
   useEffect(() => {
     function onVisible() {
-      if (document.visibilityState === 'visible') loadProfile();
+      if (document.visibilityState === 'visible') loadProfileRef.current?.();
     }
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username]);
+  }, []); // intentionally empty — ref always points to latest version
 
   // Load friendship + block status once we have the profile user's id
   useEffect(() => {
