@@ -309,11 +309,6 @@ export default function Layout({ children }) {
                   )}
                 </div>
 
-                <Link to="/new" className="btn btn-primary btn-sm">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                  Write
-                </Link>
-
                 <div style={{ position: 'relative' }}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
@@ -570,10 +565,6 @@ export default function Layout({ children }) {
                   <div style={{ color: 'var(--muted)', fontSize: 11 }}>{user.email}</div>
                 </div>
               </div>
-              <Link to="/new" className="btn btn-primary btn-sm" onClick={() => setMobileNavOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, justifyContent: 'center' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                Write
-              </Link>
               <Link to={`/profile/${user.username}`} onClick={() => setMobileNavOpen(false)} style={{ display: 'block', padding: '8px 0', fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}>My profile</Link>
               <Link to="/dashboard" onClick={() => setMobileNavOpen(false)} style={{ display: 'block', padding: '8px 0', fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}>Dashboard</Link>
               <button onClick={() => { handleLogout(); setMobileNavOpen(false); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', fontSize: 14, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>

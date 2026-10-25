@@ -59,6 +59,7 @@ export default function EditPostPage() {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
 
+    setLoading(true);
     Promise.all([
       posts.get(slug),
       categories.list(),
@@ -66,7 +67,6 @@ export default function EditPostPage() {
       const p = postData.post;
       // Non-owner can only edit published posts via admin/mod; drafts belong to owner only
       if (!isAdmin && user.id !== p.author_id) {
-        // If it's a published post, show it; if draft, they shouldn't see it
         if (p.status === 'published') {
           navigate('/post/' + slug);
         } else {
@@ -81,12 +81,11 @@ export default function EditPostPage() {
       setCategoryId(p.category_id || '');
       setCategoryList(catData.categories || []);
       if (p.erd_data) { setErdData(p.erd_data); setShowErd(true); }
-      if (editor) editor.commands.setContent(p.content);
     }).catch(err => {
       console.error('[EditPostPage] load failed:', err);
       setError(err.message || 'Could not load post.');
     }).finally(() => setLoading(false));
-  }, [user, authLoading, slug, editor]);
+  }, [user, authLoading, slug]);
 
   useEffect(() => {
     if (editor && post?.content) editor.commands.setContent(post.content);

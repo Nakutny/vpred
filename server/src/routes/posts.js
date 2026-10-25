@@ -207,8 +207,13 @@ router.post('/', requireAuth, async (req, res) => {
     // Normalize "story" → "text"
     if (type === 'story') type = 'text';
 
-    if (!title?.trim() || !content?.trim()) {
-      return res.status(400).json({ error: 'Title and content are required.' });
+    // Drafts may have empty content; published posts require content
+    const isDraft = status === 'draft';
+    if (!title?.trim()) {
+      return res.status(400).json({ error: 'Title is required.' });
+    }
+    if (!isDraft && !content?.trim()) {
+      return res.status(400).json({ error: 'Content is required.' });
     }
     if (title.length > 300) {
       return res.status(400).json({ error: 'Title is too long (max 300 characters).' });
