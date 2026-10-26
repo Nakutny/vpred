@@ -168,12 +168,12 @@ export default function OasisPage() {
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#080b10', zIndex: 10 }}>
 
       {/* Hidden audio */}
-      <audio ref={audioRef} src="/oasis-ambient.mp3" loop preload="auto" />
+      <audio ref={audioRef} src="https://pub-20f8658196ed4d898146c9bebcb0fb3b.r2.dev/vpredoasis_2.mp3" loop preload="auto" />
 
       {/* Background image */}
       <div style={{
         position: 'absolute', inset: 0,
-        backgroundImage: 'url(/oasis-bg.webp)',
+        backgroundImage: 'url(https://pub-20f8658196ed4d898146c9bebcb0fb3b.r2.dev/vpredoasis.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center 40%',
         filter: 'brightness(0.80) saturate(1.15)',
