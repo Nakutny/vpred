@@ -71,7 +71,7 @@ export default function OasisPage() {
 
   const [presentUsers, setPresentUsers] = useState([]);
   const [audioPlaying, setAudioPlaying] = useState(false);
-  const [needsTap, setNeedsTap] = useState(false);
+  const [needsTap, setNeedsTap] = useState(true);
   const audioRef = useRef(null);
 
   /* ── Auth guard ── */
@@ -90,36 +90,12 @@ export default function OasisPage() {
     }
   }, []);
 
-  /* ── Audio — try to play immediately, stop on unmount ── */
+  /* ── Audio — stop on unmount only, play is triggered by user tap ── */
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-
     audio.volume = 0.50;
     audio.loop = true;
-
-    // Try to play right away
-    const tryPlay = () => {
-      audio.play()
-        .then(() => {
-          setAudioPlaying(true);
-          setNeedsTap(false);
-        })
-        .catch(() => {
-          // Autoplay policy blocked it — show tap button
-          setNeedsTap(true);
-          setAudioPlaying(false);
-        });
-    };
-
-    // If already have enough data, play now; otherwise wait for loadeddata
-    if (audio.readyState >= 2) {
-      tryPlay();
-    } else {
-      audio.addEventListener('loadeddata', tryPlay, { once: true });
-      audio.load(); // explicitly trigger load
-    }
-
     return () => {
       audio.pause();
       audio.currentTime = 0;
