@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { oasis as oasisApi } from '../lib/api';
@@ -6,41 +6,64 @@ import { oasis as oasisApi } from '../lib/api';
 /* ─── CSS keyframe animations injected once ─────────────────────────────── */
 const STYLE = `
 @keyframes oasis-water-glow {
-  0%   { opacity: 0.18; transform: scale(1);     filter: blur(48px); }
-  50%  { opacity: 0.32; transform: scale(1.06);  filter: blur(56px); }
-  100% { opacity: 0.18; transform: scale(1);     filter: blur(48px); }
+  0%   { opacity: 0.18; transform: scale(1);    filter: blur(48px); }
+  50%  { opacity: 0.35; transform: scale(1.08); filter: blur(60px); }
+  100% { opacity: 0.18; transform: scale(1);    filter: blur(48px); }
 }
 @keyframes oasis-water-ripple {
-  0%   { opacity: 0.07; transform: scale(0.95); }
-  50%  { opacity: 0.18; transform: scale(1.04); }
-  100% { opacity: 0.07; transform: scale(0.95); }
+  0%   { opacity: 0.06; transform: scale(0.94); filter: blur(32px); }
+  50%  { opacity: 0.22; transform: scale(1.06); filter: blur(40px); }
+  100% { opacity: 0.06; transform: scale(0.94); filter: blur(32px); }
 }
-@keyframes oasis-steam-rise {
-  0%   { transform: translateY(0)   translateX(0)   scaleX(1);   opacity: 0;    }
-  10%  { opacity: 0.22; }
-  80%  { opacity: 0.12; }
-  100% { transform: translateY(-220px) translateX(var(--sx, 0px)) scaleX(1.3); opacity: 0; }
+@keyframes oasis-steam-a {
+  0%   { opacity: 0;    transform: translateY(0px)    translateX(0px)   scaleX(1);   }
+  12%  { opacity: 0.28; }
+  75%  { opacity: 0.10; }
+  100% { opacity: 0;    transform: translateY(-200px) translateX(-10px) scaleX(1.4); }
+}
+@keyframes oasis-steam-b {
+  0%   { opacity: 0;    transform: translateY(0px)    translateX(0px)  scaleX(1);   }
+  12%  { opacity: 0.22; }
+  75%  { opacity: 0.08; }
+  100% { opacity: 0;    transform: translateY(-180px) translateX(12px) scaleX(1.5); }
+}
+@keyframes oasis-steam-c {
+  0%   { opacity: 0;    transform: translateY(0px)    translateX(0px)   scaleX(1);   }
+  12%  { opacity: 0.30; }
+  75%  { opacity: 0.12; }
+  100% { opacity: 0;    transform: translateY(-240px) translateX(-6px)  scaleX(1.3); }
+}
+@keyframes oasis-steam-d {
+  0%   { opacity: 0;    transform: translateY(0px)    translateX(0px)  scaleX(1);   }
+  12%  { opacity: 0.18; }
+  75%  { opacity: 0.06; }
+  100% { opacity: 0;    transform: translateY(-160px) translateX(16px) scaleX(1.6); }
 }
 @keyframes oasis-presence-fade {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0);   }
+}
+@keyframes oasis-btn-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(100,180,255,0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(100,180,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(100,180,255,0); }
 }
 `;
 
-/* ─── Steam puffs config ─────────────────────────────────────────────────── */
+/* ─── Steam puffs — each has its own keyframe variant so no --sx hack ──── */
 const STEAM_PUFFS = [
-  { left: '18%',  bottom: '36%', width: 28, delay: '0s',    dur: '5.5s',  sx: '-8px'  },
-  { left: '27%',  bottom: '34%', width: 18, delay: '1.2s',  dur: '6.8s',  sx: '4px'   },
-  { left: '38%',  bottom: '38%', width: 34, delay: '0.4s',  dur: '7.2s',  sx: '-12px' },
-  { left: '50%',  bottom: '35%', width: 22, delay: '2.1s',  dur: '5.9s',  sx: '10px'  },
-  { left: '61%',  bottom: '37%', width: 30, delay: '0.8s',  dur: '6.4s',  sx: '-6px'  },
-  { left: '72%',  bottom: '33%', width: 20, delay: '1.7s',  dur: '7.8s',  sx: '14px'  },
-  { left: '81%',  bottom: '36%', width: 16, delay: '3.0s',  dur: '5.2s',  sx: '-4px'  },
-  { left: '44%',  bottom: '40%', width: 26, delay: '1.5s',  dur: '8.1s',  sx: '6px'   },
-  { left: '55%',  bottom: '32%', width: 14, delay: '2.8s',  dur: '6.0s',  sx: '-10px' },
-  { left: '32%',  bottom: '42%', width: 20, delay: '4.0s',  dur: '7.5s',  sx: '8px'   },
-  { left: '65%',  bottom: '41%', width: 24, delay: '0.2s',  dur: '9.0s',  sx: '-16px' },
-  { left: '23%',  bottom: '43%', width: 12, delay: '3.5s',  dur: '6.7s',  sx: '2px'   },
+  { left: '17%',  bottom: '35%', width: 26, delay: '0s',    dur: '5.8s',  anim: 'oasis-steam-a' },
+  { left: '25%',  bottom: '33%', width: 16, delay: '1.3s',  dur: '7.1s',  anim: 'oasis-steam-b' },
+  { left: '34%',  bottom: '37%', width: 32, delay: '0.5s',  dur: '6.5s',  anim: 'oasis-steam-c' },
+  { left: '42%',  bottom: '39%', width: 20, delay: '2.2s',  dur: '8.0s',  anim: 'oasis-steam-d' },
+  { left: '50%',  bottom: '34%', width: 28, delay: '0.9s',  dur: '5.5s',  anim: 'oasis-steam-a' },
+  { left: '58%',  bottom: '36%', width: 18, delay: '3.1s',  dur: '7.4s',  anim: 'oasis-steam-b' },
+  { left: '66%',  bottom: '38%', width: 24, delay: '1.6s',  dur: '6.2s',  anim: 'oasis-steam-c' },
+  { left: '74%',  bottom: '33%', width: 14, delay: '0.3s',  dur: '9.0s',  anim: 'oasis-steam-d' },
+  { left: '81%',  bottom: '35%', width: 30, delay: '4.0s',  dur: '5.2s',  anim: 'oasis-steam-a' },
+  { left: '29%',  bottom: '42%', width: 12, delay: '2.7s',  dur: '7.8s',  anim: 'oasis-steam-b' },
+  { left: '55%',  bottom: '41%', width: 22, delay: '1.1s',  dur: '6.9s',  anim: 'oasis-steam-c' },
+  { left: '70%',  bottom: '40%', width: 18, delay: '3.8s',  dur: '8.3s',  anim: 'oasis-steam-d' },
 ];
 
 export default function OasisPage() {
@@ -48,15 +71,14 @@ export default function OasisPage() {
   const navigate = useNavigate();
 
   const [presentUsers, setPresentUsers] = useState([]);
-  const [audioEnabled, setAudioEnabled] = useState(false);
-  const [audioError, setAudioError] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);   // audio element loaded
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [needsTap, setNeedsTap] = useState(false);       // autoplay blocked
   const audioRef = useRef(null);
 
-  /* ── Auth guard — redirect non-logged-in users ── */
+  /* ── Auth guard ── */
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/login');
-    }
+    if (!authLoading && !user) navigate('/login');
   }, [user, authLoading, navigate]);
 
   /* ── Inject CSS once ── */
@@ -68,8 +90,61 @@ export default function OasisPage() {
       el.textContent = STYLE;
       document.head.appendChild(el);
     }
-    return () => {};
   }, []);
+
+  /* ── Audio setup — stop on unmount ── */
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.volume = 0.50;
+    audio.loop = true;
+
+    function onCanPlay() {
+      setAudioReady(true);
+      // Try autoplay once the audio is ready
+      audio.play()
+        .then(() => {
+          setAudioPlaying(true);
+          setNeedsTap(false);
+        })
+        .catch(() => {
+          // Autoplay blocked — show tap-to-enable button
+          setNeedsTap(true);
+          setAudioPlaying(false);
+        });
+    }
+
+    audio.addEventListener('canplaythrough', onCanPlay);
+
+    // Stop and unload when leaving the Oasis
+    return () => {
+      audio.removeEventListener('canplaythrough', onCanPlay);
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
+
+  /* ── Enable sound on user gesture ── */
+  function handleEnableAudio() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.play()
+      .then(() => { setAudioPlaying(true); setNeedsTap(false); })
+      .catch(() => {});
+  }
+
+  /* ── Toggle mute ── */
+  function toggleAudio() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      audio.play().then(() => setAudioPlaying(true)).catch(() => {});
+    } else {
+      audio.pause();
+      setAudioPlaying(false);
+    }
+  }
 
   /* ── Presence polling ── */
   useEffect(() => {
@@ -86,51 +161,13 @@ export default function OasisPage() {
       try { await oasisApi.ping(); } catch {}
     }
 
-    // Initial ping + fetch
     sendPing();
     fetchPresence();
 
     const pingInterval = setInterval(sendPing, 30_000);
     const fetchInterval = setInterval(fetchPresence, 30_000);
-
-    return () => {
-      clearInterval(pingInterval);
-      clearInterval(fetchInterval);
-    };
+    return () => { clearInterval(pingInterval); clearInterval(fetchInterval); };
   }, [user]);
-
-  /* ── Autoplay audio ── */
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = 0.45;
-    audio.loop = true;
-    audio.play()
-      .then(() => setAudioEnabled(true))
-      .catch(() => {
-        // Autoplay blocked — show tap-to-enable button
-        setAudioEnabled(false);
-      });
-  }, []);
-
-  function handleEnableAudio() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.play()
-      .then(() => setAudioEnabled(true))
-      .catch(() => setAudioError(true));
-  }
-
-  function toggleAudio() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.paused) {
-      audio.play().then(() => setAudioEnabled(true)).catch(() => {});
-    } else {
-      audio.pause();
-      setAudioEnabled(false);
-    }
-  }
 
   if (authLoading || !user) return null;
 
@@ -139,9 +176,12 @@ export default function OasisPage() {
       position: 'fixed',
       inset: 0,
       overflow: 'hidden',
-      background: '#0a0d12',
+      background: '#080b10',
       zIndex: 10,
     }}>
+      {/* ─── Hidden audio element ──────────────────────────────────────────── */}
+      <audio ref={audioRef} src="/oasis-ambient.mp3" loop preload="auto" />
+
       {/* ─── Background image ─────────────────────────────────────────────── */}
       <div style={{
         position: 'absolute',
@@ -150,34 +190,36 @@ export default function OasisPage() {
         backgroundSize: 'cover',
         backgroundPosition: 'center 40%',
         backgroundRepeat: 'no-repeat',
-        filter: 'brightness(0.82) saturate(1.1)',
+        filter: 'brightness(0.80) saturate(1.15)',
       }} />
 
-      {/* ─── Water glow overlay — large pulsing blue orb ──────────────────── */}
+      {/* ─── Water glow — large pulsing blue orb ──────────────────────────── */}
       <div style={{
         position: 'absolute',
-        bottom: '22%',
+        bottom: '20%',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '70%',
-        height: '22%',
-        background: 'radial-gradient(ellipse at center, #1a6aff 0%, #0d3dcc 40%, transparent 75%)',
-        animation: 'oasis-water-glow 4s ease-in-out infinite',
+        width: '72%',
+        height: '20%',
+        background: 'radial-gradient(ellipse at center, #1a6aff 0%, #0b38cc 38%, transparent 72%)',
+        animation: 'oasis-water-glow 4.5s ease-in-out infinite',
         pointerEvents: 'none',
+        willChange: 'transform, opacity',
       }} />
 
       {/* ─── Secondary shimmer (offset phase) ────────────────────────────── */}
       <div style={{
         position: 'absolute',
-        bottom: '24%',
+        bottom: '22%',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '45%',
-        height: '14%',
-        background: 'radial-gradient(ellipse at center, #4fb3ff 0%, #2266ff 35%, transparent 70%)',
-        animation: 'oasis-water-ripple 3.2s ease-in-out infinite',
-        animationDelay: '1.6s',
+        width: '46%',
+        height: '12%',
+        background: 'radial-gradient(ellipse at center, #5ab8ff 0%, #1f60ff 32%, transparent 68%)',
+        animation: 'oasis-water-ripple 3.0s ease-in-out infinite',
+        animationDelay: '1.5s',
         pointerEvents: 'none',
+        willChange: 'transform, opacity',
       }} />
 
       {/* ─── Steam puffs ──────────────────────────────────────────────────── */}
@@ -189,20 +231,17 @@ export default function OasisPage() {
             left: p.left,
             bottom: p.bottom,
             width: p.width,
-            height: p.width * 2.5,
+            height: p.width * 3,
             borderRadius: '50%',
-            background: 'radial-gradient(ellipse at center, rgba(200,220,255,0.85) 0%, rgba(180,210,255,0.3) 60%, transparent 100%)',
-            animation: `oasis-steam-rise ${p.dur} ease-in-out infinite`,
+            background: 'radial-gradient(ellipse at center, rgba(210,230,255,0.9) 0%, rgba(180,215,255,0.35) 55%, transparent 100%)',
+            animation: `${p.anim} ${p.dur} ease-in-out infinite`,
             animationDelay: p.delay,
-            '--sx': p.sx,
             pointerEvents: 'none',
-            filter: 'blur(6px)',
+            filter: 'blur(7px)',
+            willChange: 'transform, opacity',
           }}
         />
       ))}
-
-      {/* ─── Audio element ────────────────────────────────────────────────── */}
-      <audio ref={audioRef} src="/oasis-ambient.mp3" loop preload="auto" />
 
       {/* ─── Back button ──────────────────────────────────────────────────── */}
       <button
@@ -211,22 +250,19 @@ export default function OasisPage() {
           position: 'absolute',
           top: 20,
           left: 24,
-          background: 'rgba(0,0,0,0.45)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          color: 'rgba(255,255,255,0.75)',
+          background: 'rgba(0,0,0,0.50)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          color: 'rgba(255,255,255,0.78)',
           borderRadius: 8,
           padding: '7px 14px',
           fontSize: 13,
           cursor: 'pointer',
-          backdropFilter: 'blur(8px)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          transition: 'background 0.15s',
-          zIndex: 20,
+          zIndex: 30,
         }}
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.65)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.45)'}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -234,53 +270,49 @@ export default function OasisPage() {
         Leave
       </button>
 
-      {/* ─── Audio toggle button ──────────────────────────────────────────── */}
+      {/* ─── Sound button ─────────────────────────────────────────────────── */}
       <button
-        onClick={audioEnabled ? toggleAudio : handleEnableAudio}
-        title={audioEnabled ? 'Mute ambient sound' : 'Enable ambient sound'}
+        onClick={needsTap ? handleEnableAudio : toggleAudio}
         style={{
           position: 'absolute',
           top: 20,
           right: 24,
-          background: 'rgba(0,0,0,0.45)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          color: 'rgba(255,255,255,0.75)',
+          background: needsTap ? 'rgba(30,80,180,0.65)' : 'rgba(0,0,0,0.50)',
+          border: needsTap ? '1px solid rgba(100,180,255,0.5)' : '1px solid rgba(255,255,255,0.14)',
+          color: 'rgba(255,255,255,0.85)',
           borderRadius: 8,
-          padding: '7px 14px',
+          padding: '7px 16px',
           fontSize: 13,
           cursor: 'pointer',
-          backdropFilter: 'blur(8px)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          transition: 'background 0.15s',
-          zIndex: 20,
+          gap: 7,
+          zIndex: 30,
+          animation: needsTap ? 'oasis-btn-pulse 1.8s ease-in-out infinite' : 'none',
+          fontWeight: needsTap ? 500 : 400,
         }}
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.65)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.45)'}
       >
-        {audioEnabled ? (
-          /* Speaker on */
+        {audioPlaying ? (
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
           </svg>
         ) : (
-          /* Speaker off */
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <line x1="23" y1="9" x2="17" y2="15"/>
             <line x1="17" y1="9" x2="23" y2="15"/>
           </svg>
         )}
-        {audioEnabled ? 'Sound on' : 'Enable sound'}
+        {needsTap ? '♪ Tap to enable sound' : audioPlaying ? 'Sound on' : 'Sound off'}
       </button>
 
-      {/* ─── Oasis title ──────────────────────────────────────────────────── */}
+      {/* ─── Title ────────────────────────────────────────────────────────── */}
       <div style={{
         position: 'absolute',
-        top: '50%',
+        top: '42%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
         textAlign: 'center',
@@ -289,22 +321,22 @@ export default function OasisPage() {
       }}>
         <div style={{
           fontFamily: 'DM Serif Display, Georgia, serif',
-          fontSize: 'clamp(2.5rem, 6vw, 5rem)',
+          fontSize: 'clamp(2.8rem, 6vw, 5rem)',
           fontWeight: 400,
-          color: 'rgba(255,255,255,0.88)',
-          letterSpacing: '0.06em',
-          textShadow: '0 2px 32px rgba(30,100,255,0.45), 0 1px 4px rgba(0,0,0,0.7)',
+          color: 'rgba(255,255,255,0.90)',
+          letterSpacing: '0.07em',
+          textShadow: '0 2px 40px rgba(40,110,255,0.50), 0 1px 6px rgba(0,0,0,0.80)',
           lineHeight: 1.1,
         }}>
           Oasis
         </div>
         <div style={{
-          fontSize: 'clamp(0.75rem, 1.5vw, 1rem)',
-          color: 'rgba(200,220,255,0.55)',
+          fontSize: 'clamp(0.72rem, 1.4vw, 0.95rem)',
+          color: 'rgba(190,215,255,0.50)',
           marginTop: 10,
-          letterSpacing: '0.18em',
+          letterSpacing: '0.20em',
           textTransform: 'uppercase',
-          textShadow: '0 1px 8px rgba(0,0,0,0.6)',
+          textShadow: '0 1px 10px rgba(0,0,0,0.70)',
         }}>
           a place to rest
         </div>
@@ -316,24 +348,23 @@ export default function OasisPage() {
         bottom: 0,
         left: 0,
         right: 0,
-        padding: '14px 24px',
-        background: 'linear-gradient(transparent, rgba(0,0,0,0.72))',
+        padding: '18px 24px',
+        background: 'linear-gradient(transparent, rgba(0,0,0,0.75))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        animation: 'oasis-presence-fade 1.2s ease forwards',
+        animation: 'oasis-presence-fade 1.4s ease forwards',
         zIndex: 20,
       }}>
         <div style={{
           fontSize: 13,
-          color: 'rgba(200,220,255,0.7)',
-          letterSpacing: '0.03em',
-          textShadow: '0 1px 6px rgba(0,0,0,0.8)',
+          color: 'rgba(190,215,255,0.68)',
+          letterSpacing: '0.04em',
+          textShadow: '0 1px 8px rgba(0,0,0,0.90)',
         }}>
           {presentUsers.length === 0
             ? 'No one else here right now.'
-            : `Currently here: ${presentUsers.join(', ')}`
-          }
+            : `Currently here: ${presentUsers.join(', ')}`}
         </div>
       </div>
     </div>
