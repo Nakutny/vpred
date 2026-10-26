@@ -262,7 +262,7 @@ export default function EditPostPage() {
           <textarea
             className="input"
             style={{ minHeight: 70, resize: 'vertical' }}
-            placeholder="Brief summary shown in the feed…"
+            placeholder="Brief summary shown in the overview…"
             value={summary}
             onChange={e => setSummary(e.target.value)}
             maxLength={500}

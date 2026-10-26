@@ -122,7 +122,7 @@ router.patch('/posts/:id/status', async (req, res) => {
 
     let result;
     if (status === 'published') {
-      // Restore: clear deleted_at + deleted_by so public feed shows the post again
+      // Restore: clear deleted_at + deleted_by so the post is publicly visible again
       result = await query(
         'UPDATE posts SET status = $1, deleted_at = NULL, deleted_by = NULL WHERE id = $2 RETURNING id, status',
         [status, req.params.id]

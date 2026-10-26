@@ -155,7 +155,7 @@ export default function NewStoryPage() {
 
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-            Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — shown in the story feed)</span>
+            Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — shown in the texts overview)</span>
           </label>
           <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="A brief teaser for your story…" value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
         </div>

@@ -147,3 +147,8 @@ export const users = {
 export const navCounts = {
   get: () => request('/api/nav-counts'),
 };
+
+export const oasis = {
+  ping: () => request('/api/oasis/ping', { method: 'POST' }),
+  presence: () => request('/api/oasis/presence'),
+};

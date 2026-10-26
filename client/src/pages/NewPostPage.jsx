@@ -205,7 +205,7 @@ export default function NewPostPage() {
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
             Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
           </label>
-          <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="Brief summary shown in the feed..." value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
+          <textarea className="input" style={{ minHeight: 70, resize: 'vertical' }} placeholder="Brief summary shown in the overview..." value={summary} onChange={e => setSummary(e.target.value)} maxLength={500} />
         </div>
 
         <div style={{ marginBottom: 20 }}>

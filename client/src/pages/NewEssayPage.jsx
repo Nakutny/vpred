@@ -192,7 +192,7 @@ export default function NewEssayPage() {
         {/* Summary */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-            Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — shown in the essay feed)</span>
+            Summary <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional — shown in the essay overview)</span>
           </label>
           <textarea
             className="input"

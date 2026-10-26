@@ -28,6 +28,7 @@ import UsersPage from './pages/UsersPage';
 import MaintenanceGate from './components/MaintenanceGate';
 import DonatePage from './pages/DonatePage';
 import MusicPage from './pages/MusicPage';
+import OasisPage from './pages/OasisPage';
 
 // Inner component so useLocation works inside BrowserRouter
 function AppRoutes() {
@@ -65,6 +66,7 @@ function AppRoutes() {
       <Route path="/users" element={<UsersPage />} />
       <Route path="/donate" element={<DonatePage />} />
       <Route path="/music" element={<MusicPage />} />
+      <Route path="/oasis" element={<OasisPage />} />
     </Routes>
   );
 }

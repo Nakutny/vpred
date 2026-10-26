@@ -22,6 +22,7 @@ import imageRoutes from './routes/images.js';
 import uploadRoutes from './routes/upload.js';
 import navCountsRoutes from './routes/navCounts.js';
 import musicRoutes from './routes/music.js';
+import oasisRoutes from './routes/oasis.js';
 import { visitorLogMiddleware } from './middleware/visitorLog.js';
 import { checkMaintenance } from './middleware/auth.js';
 import { authLimiter, apiLimiter, donateLimiter } from './middleware/rateLimiter.js';
@@ -107,6 +108,7 @@ app.use('/api/images', imageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/nav-counts', navCountsRoutes);
 app.use('/api/music', musicRoutes);
+app.use('/api/oasis', oasisRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((err, req, res, next) => {

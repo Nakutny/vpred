@@ -210,7 +210,7 @@ export default function PostPage() {
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        {post.type === 'essay' ? 'Back to essays' : 'Back to feed'}
+        {post.type === 'essay' ? 'Back to essays' : 'Back to research'}
       </Link>
 
       {/* Essay badge */}

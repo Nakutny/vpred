@@ -302,7 +302,7 @@ export default function ProfilePage() {
   if (error) return (
     <div style={{ maxWidth: 900, margin: '60px auto', padding: '0 24px' }}>
       <div style={{ color: 'var(--danger)', fontSize: 14, marginBottom: 16 }}>{error}</div>
-      <Link to="/" className="btn btn-ghost btn-sm">← Back to feed</Link>
+      <Link to="/" className="btn btn-ghost btn-sm">← Back to research</Link>
     </div>
   );
 

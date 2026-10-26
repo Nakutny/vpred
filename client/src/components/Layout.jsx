@@ -13,7 +13,7 @@ export default function Layout({ children }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
-  const [navCts, setNavCts] = useState({ feed: null, essays: null, texts: null, categories: null, users: null, music: null, friends: null });
+  const [navCts, setNavCts] = useState({ research: null, essays: null, texts: null, categories: null, users: null, music: null, friends: null });
   const [pendingCount, setPendingCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -38,7 +38,7 @@ export default function Layout({ children }) {
   // Poll for nav counts + unread messages + notifications
   useEffect(() => {
     if (!user) {
-      setNavCts({ feed: null, essays: null, texts: null, categories: null, users: null, friends: null });
+      setNavCts({ research: null, essays: null, texts: null, categories: null, users: null, friends: null });
       setPendingCount(0);
       setUnreadMsgCount(0);
       setNotifications([]);
@@ -168,12 +168,13 @@ export default function Layout({ children }) {
 
           {/* Desktop nav */}
           <nav className="desktop-nav" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <NavCount to="/" label="Research"    active={location.pathname === '/'}                    count={navCts.feed} />
+            <NavCount to="/" label="Research"    active={location.pathname === '/'}                    count={navCts.research} />
             <NavCount to="/essays" label="Essays"    active={location.pathname.startsWith('/essays')}     count={navCts.essays} />
             <NavCount to="/texts"  label="Texts"     active={location.pathname.startsWith('/texts') || location.pathname.startsWith('/stories')} count={navCts.texts} />
             <NavCount to="/categories" label="Categories" active={location.pathname === '/categories'}   count={navCts.categories} />
             <NavCount to="/users" label="Users"      active={location.pathname === '/users'}              count={navCts.users} />
             <NavCount to="/music"   label="Selfmade Music" active={location.pathname === '/music'} count={navCts.music} />
+            <OasisNavLink active={location.pathname === '/oasis'} user={user} navigate={navigate} />
             <NavLink  to="/support" label="Support me" active={location.pathname === '/support'} />
             <NavLink  to="/donate"  label="Donate"    active={location.pathname === '/donate'} />
             {user && (
@@ -542,12 +543,13 @@ export default function Layout({ children }) {
 
         {/* Nav links — available to everyone (logged in and out) */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-          <MobileNavLink to="/" label="Research" count={navCts.feed} active={location.pathname === '/'} onClose={() => setMobileNavOpen(false)} />
+          <MobileNavLink to="/" label="Research" count={navCts.research} active={location.pathname === '/'} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/essays" label="Essays" count={navCts.essays} active={location.pathname.startsWith('/essays')} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/texts" label="Texts" count={navCts.texts} active={location.pathname.startsWith('/texts')} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/categories" label="Categories" count={navCts.categories} active={location.pathname === '/categories'} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/users" label="Users" count={navCts.users} active={location.pathname === '/users'} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/music" label="Selfmade Music" count={navCts.music} active={location.pathname === '/music'} onClose={() => setMobileNavOpen(false)} />
+          <MobileOasisNavLink active={location.pathname === '/oasis'} user={user} navigate={navigate} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/support" label="Support me" active={location.pathname === '/support'} onClose={() => setMobileNavOpen(false)} />
           <MobileNavLink to="/donate" label="Donate" active={location.pathname === '/donate'} onClose={() => setMobileNavOpen(false)} />
           {user && <MobileNavLink to="/friends" label="Friends" count={navCts.friends} badge={pendingCount} active={location.pathname === '/friends'} onClose={() => setMobileNavOpen(false)} />}
@@ -696,6 +698,63 @@ function MobileNavLink({ to, label, active, accent, count, badge, onClose }) {
         )}
       </div>
     </Link>
+  );
+}
+
+// ── Oasis nav link (desktop) — visible to all, auth-guarded on click ─────────
+function OasisNavLink({ active, user, navigate }) {
+  function handleClick(e) {
+    if (!user) {
+      e.preventDefault();
+      navigate('/login');
+    }
+  }
+  return (
+    <a
+      href="/oasis"
+      onClick={handleClick}
+      style={{
+        padding: '5px 12px', borderRadius: 6, fontSize: 14,
+        fontWeight: active ? 500 : 400,
+        color: active ? 'var(--text)' : 'var(--muted)',
+        background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
+        transition: 'all 0.15s',
+        textDecoration: 'none',
+        whiteSpace: 'nowrap',
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+      }}
+    >
+      🌊 Oasis
+    </a>
+  );
+}
+
+// ── Oasis nav link (mobile) ───────────────────────────────────────────────────
+function MobileOasisNavLink({ active, user, navigate, onClose }) {
+  function handleClick(e) {
+    onClose();
+    if (!user) {
+      e.preventDefault();
+      navigate('/login');
+    }
+  }
+  return (
+    <a
+      href="/oasis"
+      onClick={handleClick}
+      style={{
+        display: 'flex', alignItems: 'center',
+        padding: '11px 20px', fontSize: 15,
+        color: active ? 'var(--text)' : 'var(--muted)',
+        fontWeight: active ? 600 : 400,
+        background: active ? 'rgba(79,142,247,0.07)' : 'transparent',
+        textDecoration: 'none',
+        borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent',
+        transition: 'all 0.1s',
+      }}
+    >
+      🌊 Oasis
+    </a>
   );
 }
 

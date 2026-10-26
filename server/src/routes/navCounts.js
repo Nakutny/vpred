@@ -22,7 +22,7 @@ router.get('/', optionalAuth, async (req, res) => {
     ]);
 
     const counts = {
-      feed:       feedRes.rows[0].c,
+      research:   feedRes.rows[0].c,
       essays:     essaysRes.rows[0].c,
       texts:      textsRes.rows[0].c,
       categories: categoriesRes.rows[0].c,

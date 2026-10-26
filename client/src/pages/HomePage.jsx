@@ -43,7 +43,7 @@ export default function HomePage() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px', display: 'flex', gap: 40 }}>
-      {/* Main feed */}
+      {/* Main content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ marginBottom: 24 }}>
           {search ? (
