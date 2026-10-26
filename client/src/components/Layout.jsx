@@ -724,7 +724,7 @@ function OasisNavLink({ active, user, navigate }) {
         display: 'inline-flex', alignItems: 'center', gap: 5,
       }}
     >
-      🌊 Oasis
+      Oasis
     </a>
   );
 }
@@ -753,7 +753,7 @@ function MobileOasisNavLink({ active, user, navigate, onClose }) {
         transition: 'all 0.1s',
       }}
     >
-      🌊 Oasis
+      Oasis
     </a>
   );
 }
