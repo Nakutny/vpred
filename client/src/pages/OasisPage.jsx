@@ -260,14 +260,19 @@ export default function OasisPage() {
       <audio ref={audioRef} preload="none" />
       <audio ref={heartRef} preload="none" />
 
-      {/* Background image */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: `url(${R2}/vpredoasis.jpg)`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center 40%',
-        filter: 'brightness(0.78) saturate(1.1)',
-      }} />
+      {/* Background video */}
+      <video
+        autoPlay muted loop playsInline
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center 40%',
+          filter: 'brightness(0.78) saturate(1.1)',
+        }}
+      >
+        <source src={`${R2}/oasis_loop.mp4`} type="video/mp4" />
+      </video>
 
       {/* Vignette — breathing pulse */}
       <div style={{
