@@ -90,8 +90,9 @@ export default function OasisPage() {
     }
   }, []);
 
-  /* ── Audio — stop on unmount only, play is triggered by user tap ── */
+  /* ── Audio — runs after user is confirmed (audio tag is in DOM) ── */
   useEffect(() => {
+    if (!user) return;
     const audio = audioRef.current;
     if (!audio) return;
     audio.src = 'https://pub-20f8658196ed4d898146c9bebcb0fb3b.r2.dev/vpredoasis_2.mp3';
@@ -102,7 +103,7 @@ export default function OasisPage() {
       audio.pause();
       audio.currentTime = 0;
     };
-  }, []);
+  }, [user]);
 
   function handleEnableAudio() {
     const audio = audioRef.current;
