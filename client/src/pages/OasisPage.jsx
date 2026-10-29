@@ -94,8 +94,10 @@ export default function OasisPage() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    audio.src = 'https://pub-20f8658196ed4d898146c9bebcb0fb3b.r2.dev/vpredoasis_2.mp3';
     audio.volume = 0.50;
     audio.loop = true;
+    audio.load();
     return () => {
       audio.pause();
       audio.currentTime = 0;
@@ -144,7 +146,7 @@ export default function OasisPage() {
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#080b10', zIndex: 10 }}>
 
       {/* Hidden audio */}
-      <audio ref={audioRef} src="https://pub-20f8658196ed4d898146c9bebcb0fb3b.r2.dev/vpredoasis_2.mp3" loop preload="auto" />
+      <audio ref={audioRef} preload="none" />
 
       {/* Background image */}
       <div style={{
