@@ -72,7 +72,25 @@ export default function OasisPage() {
   const [presentUsers, setPresentUsers] = useState([]);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [needsTap, setNeedsTap] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const audioRef = useRef(null);
+  const containerRef = useRef(null);
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  useEffect(() => {
+    function onFsChange() {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
 
   /* ── Auth guard ── */
   useEffect(() => {
@@ -144,7 +162,7 @@ export default function OasisPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#080b10', zIndex: 10 }}>
+    <div ref={containerRef} style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#080b10', zIndex: 10 }}>
 
       {/* Hidden audio */}
       <audio ref={audioRef} preload="none" />
@@ -262,6 +280,26 @@ export default function OasisPage() {
           a place to rest
         </div>
       </div>
+
+      {/* Fullscreen button */}
+      <button onClick={toggleFullscreen} style={{
+        position: 'absolute', bottom: 24, right: 24,
+        background: 'rgba(0,0,0,0.50)', border: '1px solid rgba(255,255,255,0.14)',
+        color: 'rgba(255,255,255,0.78)', borderRadius: 8, padding: '7px 14px',
+        fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(10px)',
+        display: 'flex', alignItems: 'center', gap: 6, zIndex: 30,
+      }}>
+        {isFullscreen ? (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+        )}
+        {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+      </button>
 
       {/* Presence bar */}
       <div style={{
