@@ -271,7 +271,7 @@ export default function OasisPage() {
           filter: 'brightness(0.78) saturate(1.1)',
         }}
       >
-        <source src={`${R2}/oasis_loop.mp4`} type="video/mp4" />
+        <source src={`${R2}/oasis_seamless.mp4`} type="video/mp4" />
       </video>
 
       {/* Vignette — breathing pulse */}
