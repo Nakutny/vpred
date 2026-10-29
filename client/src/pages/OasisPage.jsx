@@ -210,7 +210,7 @@ export default function OasisPage() {
 
       {/* Back button */}
       <button onClick={() => navigate(-1)} style={{
-        position: 'absolute', top: 20, left: 24,
+        position: 'absolute', top: 72, left: 24,
         background: 'rgba(0,0,0,0.50)', border: '1px solid rgba(255,255,255,0.14)',
         color: 'rgba(255,255,255,0.78)', borderRadius: 8, padding: '7px 14px',
         fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(10px)',
@@ -226,7 +226,7 @@ export default function OasisPage() {
       <button
         onClick={needsTap ? handleEnableAudio : toggleAudio}
         style={{
-          position: 'absolute', top: 20, right: 24,
+          position: 'absolute', top: 72, right: 24,
           background: needsTap ? 'rgba(20,70,170,0.70)' : 'rgba(0,0,0,0.50)',
           border: needsTap ? '1px solid rgba(120,190,255,0.55)' : '1px solid rgba(255,255,255,0.14)',
           color: 'rgba(255,255,255,0.88)', borderRadius: 8,
