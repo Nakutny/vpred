@@ -310,34 +310,40 @@ router.patch('/:id', requireAuth, async (req, res) => {
       }
     }
 
-    const setClauses = [
-      'title = COALESCE($1, title)',
-      'content = COALESCE($2, content)',
-      'summary = COALESCE($3, summary)',
-      'category_id = COALESCE($4, category_id)',
-      'status = COALESCE($5, status)',
-      'topic = COALESCE($6, topic)',
-      'images = COALESCE($7, images)',
-      'updated_at = NOW()',
-    ];
-    const params = [title, content, summary, category_id, status, topic, imagesJson, req.params.id];
+    // Build SET clauses and params dynamically to avoid hardcoded $N mismatches
+    const setClauses = ['updated_at = NOW()'];
+    const params = [];
+
+    function addParam(clause, value) {
+      params.push(value);
+      setClauses.unshift(clause.replace('?', `$${params.length}`));
+    }
+
+    if (title      !== undefined) addParam('title = COALESCE(?, title)', title);
+    if (content    !== undefined) addParam('content = COALESCE(?, content)', content);
+    if (summary    !== undefined) addParam('summary = COALESCE(?, summary)', summary);
+    if (status     !== undefined) addParam('status = COALESCE(?, status)', status);
+    if (topic      !== undefined) addParam('topic = COALESCE(?, topic)', topic);
+    if (imagesJson !== undefined) addParam('images = COALESCE(?, images)', imagesJson);
+    if (hasErd)                   addParam('erd_data = ?', erdJson);
 
     if (newType !== undefined) {
-      params.push(newType);
-      // clear category_id when moving away from research
+      addParam('type = ?', newType);
+      // When moving away from research, clear category; when moving to research use supplied category_id
       if (newType !== 'research') {
-        setClauses.splice(3, 1, 'category_id = NULL');
+        setClauses.unshift('category_id = NULL');
+      } else if (category_id !== undefined) {
+        addParam('category_id = ?', category_id);
       }
-      setClauses.splice(setClauses.length - 1, 0, `type = $${params.length}`);
+    } else if (category_id !== undefined) {
+      addParam('category_id = COALESCE(?, category_id)', category_id);
     }
 
-    if (hasErd) {
-      params.push(erdJson);
-      setClauses.splice(setClauses.length - 1, 0, `erd_data = $${params.length}`);
-    }
+    params.push(req.params.id);
+    const idParam = `$${params.length}`;
 
     const result = await query(
-      `UPDATE posts SET ${setClauses.join(', ')} WHERE id = $8 RETURNING id, title, slug, updated_at`,
+      `UPDATE posts SET ${setClauses.join(', ')} WHERE id = ${idParam} RETURNING id, title, slug, type, updated_at`,
       params
     );
 
