@@ -52,6 +52,13 @@ export default function EditPostPage() {
   const [erdFlash, setErdFlash] = useState('');
   const [publishing, setPublishing] = useState(false);
 
+  // Admin: move to channel
+  const [showMoveChannel, setShowMoveChannel] = useState(false);
+  const [moveTarget, setMoveTarget] = useState('');
+  const [moveCategoryId, setMoveCategoryId] = useState('');
+  const [moveConfirm, setMoveConfirm] = useState(false);
+  const [moving, setMoving] = useState(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -104,6 +111,25 @@ export default function EditPostPage() {
   useEffect(() => {
     if (editor && post?.content) editor.commands.setContent(post.content);
   }, [editor, post]);
+
+  async function handleMoveChannel() {
+    if (!moveTarget || moveTarget === postType) return;
+    if (moveTarget === 'research' && !moveCategoryId) return; // category required
+    setMoving(true); setError('');
+    try {
+      const body = { type: moveTarget };
+      if (moveTarget === 'research') body.category_id = moveCategoryId;
+      else body.category_id = null;
+      await posts.update(post.id, body);
+      // Navigate to new channel
+      const dest = moveTarget === 'research' ? '/' : moveTarget === 'essay' ? '/essays' : '/texts';
+      navigate(dest);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMoving(false);
+    }
+  }
 
   function showErdFlash(msg) {
     setErdFlash(msg);
@@ -422,6 +448,93 @@ export default function EditPostPage() {
                 background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)',
               }}>
                 {erdFlash}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Admin: Move to channel */}
+        {isAdmin && !isDraft && (
+          <div style={{ marginBottom: 24, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+            <button
+              type="button"
+              onClick={() => { setShowMoveChannel(v => !v); setMoveConfirm(false); setMoveTarget(''); setMoveCategoryId(''); }}
+              style={{ fontSize: 13, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              {showMoveChannel ? 'Cancel move' : 'Move to another channel (Admin)'}
+            </button>
+
+            {showMoveChannel && (
+              <div style={{ marginTop: 14, padding: '16px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+                  Current channel: <strong style={{ color: 'var(--text)' }}>
+                    {postType === 'research' ? 'Research' : postType === 'essay' ? 'Essays' : 'Texts'}
+                  </strong>. Only the channel is changed — author, date and content remain untouched.
+                </p>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Move to</label>
+                  <select
+                    className="input"
+                    value={moveTarget}
+                    onChange={e => { setMoveTarget(e.target.value); setMoveCategoryId(''); setMoveConfirm(false); }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="">— Select channel —</option>
+                    {postType !== 'research' && <option value="research">Research</option>}
+                    {postType !== 'essay'    && <option value="essay">Essays</option>}
+                    {postType !== 'text'     && <option value="text">Texts</option>}
+                  </select>
+                </div>
+
+                {/* Category required when moving to Research */}
+                {moveTarget === 'research' && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Category <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select
+                      className="input"
+                      value={moveCategoryId}
+                      onChange={e => { setMoveCategoryId(e.target.value); setMoveConfirm(false); }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <option value="">— Select category —</option>
+                      {categoryList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    {!moveCategoryId && moveTarget === 'research' && (
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>A category is required for Research posts.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Confirmation */}
+                {moveTarget && (moveTarget !== 'research' || moveCategoryId) && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={moveConfirm} onChange={e => setMoveConfirm(e.target.checked)} />
+                      I confirm: move this post to <strong style={{ color: 'var(--text)' }}>
+                        {moveTarget === 'research' ? 'Research' : moveTarget === 'essay' ? 'Essays' : 'Texts'}
+                      </strong>
+                      {moveTarget === 'research' && moveCategoryId && (
+                        <> › {categoryList.find(c => String(c.id) === String(moveCategoryId))?.name}</>
+                      )}
+                    </label>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleMoveChannel}
+                  disabled={!moveTarget || !moveConfirm || moving || (moveTarget === 'research' && !moveCategoryId)}
+                  style={{
+                    padding: '7px 18px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                    background: moveConfirm ? 'var(--accent)' : 'var(--surface)',
+                    color: moveConfirm ? '#fff' : 'var(--muted)',
+                    fontSize: 13, fontWeight: 600, opacity: (!moveTarget || !moveConfirm || moving) ? 0.5 : 1,
+                  }}
+                >
+                  {moving ? 'Moving…' : 'Move post'}
+                </button>
               </div>
             )}
           </div>

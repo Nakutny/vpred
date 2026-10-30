@@ -295,10 +295,20 @@ router.patch('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to edit this post.' });
     }
 
-    const { title, content, summary, category_id, status, topic, images, erd_data } = req.body;
+    const { title, content, summary, category_id, status, topic, images, erd_data, type: newType } = req.body;
     const imagesJson = images ? JSON.stringify(images) : undefined;
     const hasErd = Object.prototype.hasOwnProperty.call(req.body, 'erd_data');
     const erdJson = hasErd ? (erd_data ? JSON.stringify(erd_data) : null) : undefined;
+
+    // Only admins may change the post type (move to another channel)
+    if (newType !== undefined) {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins may move posts to another channel.' });
+      }
+      if (!['research', 'essay', 'text'].includes(newType)) {
+        return res.status(400).json({ error: 'Invalid post type.' });
+      }
+    }
 
     const setClauses = [
       'title = COALESCE($1, title)',
@@ -311,6 +321,15 @@ router.patch('/:id', requireAuth, async (req, res) => {
       'updated_at = NOW()',
     ];
     const params = [title, content, summary, category_id, status, topic, imagesJson, req.params.id];
+
+    if (newType !== undefined) {
+      params.push(newType);
+      // clear category_id when moving away from research
+      if (newType !== 'research') {
+        setClauses.splice(3, 1, 'category_id = NULL');
+      }
+      setClauses.splice(setClauses.length - 1, 0, `type = $${params.length}`);
+    }
 
     if (hasErd) {
       params.push(erdJson);
